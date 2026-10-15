@@ -35,3 +35,10 @@ Claude Code and Antigravity CLI bridges receive official status-line JSON, norma
 The optional Cursor Teams collector sends an exact member-email filter to the official Cursor Team Admin API. Its admin key is entered in a terminal without echo and kept only in process memory. The key is never stored in a file, preference, command-line argument, model conversation, or log. No redirects are followed. The collector must be started manually and stopped with Ctrl-C. It does not retrieve browser cookies. Normalized snapshots contain no email or credentials.
 
 The repository and packages exclude runtime snapshots and settings backups. Optional bridge removal instructions are in [providers.md](docs/providers.md).
+
+## Local agent logs, auto-continue and API keys (0.5)
+
+- **Token breakdown:** when enabled (default), the widget reads `~/.codex/sessions` and `~/.claude/projects` JSONL files and keeps only token counts, timestamps, a provider name and a de-duplication key in memory. Prompts, replies, tool output and file contents are not stored or sent anywhere.
+- **Auto-continue** (off by default) reads the first line of recent Codex session files (session id and working folder) and runs `codex exec resume`; Codex then sends a request with your Codex account. Its output is appended to `auto-continue.log` (mode 0600) in the widget's Application Support folder.
+- **DeepSeek:** the API key is stored only in the macOS login keychain (this device only) and sent only to `https://api.deepseek.com/user/balance`.
+

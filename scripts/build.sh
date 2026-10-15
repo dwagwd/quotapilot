@@ -15,6 +15,8 @@ BIN_DIR="$(swift build --scratch-path "$BUILD_CACHE" -c release --show-bin-path 
 APP="$DIST_DIR/Codex Usage Widget.app"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp "$BIN_DIR/CodexUsageWidget" "$APP/Contents/MacOS/CodexUsageWidget"
+# Bundled so "Connect agents…" can install status-line bridges without a source checkout.
+cp "$PLUGIN_ROOT/scripts/provider_bridge.py" "$PLUGIN_ROOT/scripts/setup-provider.py" "$APP/Contents/Resources/"
 cat > "$APP/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">

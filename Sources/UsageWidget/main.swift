@@ -64,6 +64,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
     private var agentLastScanAt: Double?
     private var agentTick: Timer?
     private let agentsLabel = NSTextField(labelWithString: "")
+    private var deepSeekBalances: [DeepSeekBalance] = []
+    private var deepSeekError = false
+    private var deepSeekTick: Timer?
     private let usageEventFileRotationBytes: UInt64 = 20 * 1_048_576
     private var usageEventLastAttemptAt: Double?
     private var usageEventLastSuccessAt: Double?
@@ -167,6 +170,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
         agentTick?.tolerance = 10
         RunLoop.main.add(agentTick!, forMode: .common)
         scanAgentLogs()
+        deepSeekTick = Timer(timeInterval: 600, repeats: true) { [weak self] _ in
+            guard let self, !self.sleeping else { return }; self.refreshDeepSeek()
+        }
+        deepSeekTick?.tolerance = 60
+        RunLoop.main.add(deepSeekTick!, forMode: .common)
+        refreshDeepSeek()
         showPanel(); client.refresh()
     }
     private func startUITimer() {
@@ -328,6 +337,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
         add(l.text("exportTaskLedger"), #selector(exportTaskLedger))
         add(l.text("usageEventHistory"), #selector(showUsageEventHistory))
         add(l.text("exportUsageEvents"), #selector(exportUsageEvents))
+        add(l.text("connectAgents"), #selector(connectAgents))
         add(l.text("sourceDiagnostics"), #selector(showSourceDiagnostics))
         add(l.text("toggleCollapsed"), #selector(toggleCollapsed))
         add(l.text("pin"), #selector(togglePinned))
@@ -559,13 +569,92 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
         let total = agentLedger.total(since: since, now: now)
         let perUnit = total.total / max(settings.lookback, 60) * settings.rateUnit.seconds
         agentsLabel.stringValue = l.text("allAgents") + " · " + l.compact(total.total) + " · ≈" + l.compact(perUnit) + "/" + l.unit(settings.rateUnit, short: true)
+            + (deepSeekBalances.first.map { " · DS " + l.number($0.total, decimals: 2) + " " + $0.currency } ?? "")
         agentsLabel.textColor = .labelColor
         var lines = [l.text("allAgents") + " · " + observationLabel.stringValue, l.text("tokenTotal") + " " + l.compact(total.total), breakdownText(total)]
         for (provider, usage) in agentLedger.summary(since: since, now: now).sorted(by: { $0.value.total > $1.value.total }) {
             lines.append(providerName(provider) + " " + l.compact(usage.total) + ": " + breakdownText(usage))
         }
+        for balance in deepSeekBalances { lines.append(l.text("deepSeekBalance") + ": " + l.number(balance.total, decimals: 2) + " " + balance.currency) }
+        if deepSeekError { lines.append(l.text("deepSeekError")) }
         lines.append(l.text("agentLogsHelp"))
         agentsLabel.toolTip = lines.joined(separator: "\n")
+    }
+
+    // MARK: Connections
+
+    private func refreshDeepSeek() {
+        guard let key = KeychainSecret.read("deepseek") else {
+            deepSeekBalances = []; deepSeekError = false; return
+        }
+        var request = URLRequest(url: DeepSeekBalance.endpoint, timeoutInterval: 20)
+        request.setValue("Bearer " + key, forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        URLSession.shared.dataTask(with: request) { [weak self] data, response, _ in
+            let ok = (response as? HTTPURLResponse).map { (200..<300).contains($0.statusCode) } ?? false
+            let parsed = ok ? data.flatMap(DeepSeekBalance.parse) : nil
+            DispatchQueue.main.async {
+                guard let self else { return }
+                self.deepSeekBalances = parsed?.balances ?? []
+                self.deepSeekError = parsed == nil
+                self.render(); self.writeStatus()
+            }
+        }.resume()
+    }
+
+    @objc private func connectAgents() {
+        NSApp.activate(ignoringOtherApps: true)
+        func state(_ installed: Bool, _ connected: Bool) -> String {
+            installed ? l.text(connected ? "connected" : "notConnected") : l.text("notInstalled")
+        }
+        let claudeBridge = AgentDetection.bridgeInstalled("claude"), antigravityBridge = AgentDetection.bridgeInstalled("antigravity")
+        let tokens = settings.agentLogsEnabled ? l.text("agentTokensAuto") : l.text("agentLogsOff")
+        let lines = [
+            "Codex: " + l.text(client.executable == nil ? "notInstalled" : "connected") + " · " + tokens,
+            "Claude Code: " + tokens + " · " + l.text("agentQuotaBridge") + " " + state(AgentDetection.claudeInstalled, claudeBridge),
+            "Antigravity CLI: " + l.text("agentQuotaBridge") + " " + state(AgentDetection.antigravityInstalled, antigravityBridge),
+            "DeepSeek: " + l.text(KeychainSecret.read("deepseek") == nil ? "notConnected" : "connected") + " — " + l.text("deepSeekNote"),
+            l.text("cursorNote")
+        ]
+        let alert = NSAlert()
+        alert.messageText = l.text("connectAgentsTitle")
+        alert.informativeText = lines.joined(separator: "\n\n")
+        var actions: [() -> Void] = []
+        if AgentDetection.claudeInstalled && !claudeBridge {
+            alert.addButton(withTitle: l.text("connectClaude")); actions.append { [weak self] in self?.installBridge("claude") }
+        }
+        if AgentDetection.antigravityInstalled && !antigravityBridge {
+            alert.addButton(withTitle: l.text("connectAntigravity")); actions.append { [weak self] in self?.installBridge("antigravity") }
+        }
+        alert.addButton(withTitle: l.text("deepSeekKey")); actions.append { [weak self] in self?.editDeepSeekKey() }
+        alert.addButton(withTitle: l.text("done")); actions.append {}
+        let index = alert.runModal().rawValue - NSApplication.ModalResponse.alertFirstButtonReturn.rawValue
+        if actions.indices.contains(index) { actions[index]() }
+    }
+
+    private func installBridge(_ provider: String) {
+        let result = AgentDetection.installBridge(provider)
+        if result.ok {
+            var next = settings
+            var options = next.options; options.bridges = true; next.options = options
+            settings = next
+            defaults.set(try? JSONEncoder().encode(next), forKey: "settings")
+            reloadBridges(); rebuildItems()
+        }
+        showMessage(title: result.ok ? l.text("bridgeInstalledRestart") : l.text("sourceError"), details: result.output)
+    }
+
+    private func editDeepSeekKey() {
+        let alert = NSAlert()
+        alert.messageText = l.text("deepSeekKey")
+        alert.informativeText = l.text("deepSeekKeyPrompt")
+        let field = NSSecureTextField(frame: NSRect(x: 0, y: 0, width: 300, height: 24))
+        alert.accessoryView = field
+        alert.addButton(withTitle: l.text("apply")); alert.addButton(withTitle: l.text("cancel"))
+        alert.window.initialFirstResponder = field
+        guard alert.runModal() == .alertFirstButtonReturn else { return }
+        KeychainSecret.write("deepseek", value: field.stringValue.trimmingCharacters(in: .whitespacesAndNewlines))
+        refreshDeepSeek(); render()
     }
 
     // MARK: Auto-continue
@@ -1367,6 +1456,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
             func encode(_ b: TokenBreakdown) -> [String: Double] {
                 ["input": b.input, "cacheRead": b.cacheRead, "cacheWrite": b.cacheWrite, "output": b.output, "reasoning": b.reasoning, "total": b.total]
             }
+            data["deepSeekBalances"] = deepSeekBalances.map { ["currency": $0.currency, "total": $0.total] }
             data["agentTokens"] = ["windowSeconds": settings.lookback, "scannedAt": scanned,
                                    "total": encode(agentLedger.total(since: since, now: now)),
                                    "providers": summary.mapValues(encode)] as [String: Any]

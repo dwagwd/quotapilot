@@ -1,5 +1,7 @@
 # Connecting other coding agents
 
+**Fastest path:** open the menu bar icon → **Connect agents…**. It shows what is detected and connects Claude Code or Antigravity quota with one click (the bridge scripts ship inside the app), or stores a DeepSeek API key for the balance. Token usage for Codex and Claude Code needs no setup: it is read from local session logs (see the All agents row). When Claude Code is pointed at DeepSeek, Kimi, GLM or Qwen through an Anthropic-compatible endpoint, its tokens are attributed to that model family.
+
 All integrations are optional. Enable **Import other agents** in the gear menu after setup. A provider appears when its first valid snapshot arrives. Select it from the card title or add it to the multiple-quota list. No quotas are combined across providers.
 
 | Provider | Integration | What it measures | Requirements / limitations |

@@ -107,12 +107,19 @@ extension KeychainSecret {
     }
 }
 
-/// Optional, user-chosen links between agents. Each step uses the agents' own configuration commands
-/// and can be removed again from the same menu.
+/// Optional, user-chosen links between agents. Model-to-model review goes through the other agent's
+/// non-interactive CLI (`claude -p`, `codex exec`) wrapped in a skill; the MCP link only exposes Claude Code's
+/// tools to Codex and is kept separate. Every link can be removed from the same menu.
 enum AgentCollaboration {
-    static let codexServerName = "claude-code"
-    static var skillDirectory: URL { AgentDetection.home.appendingPathComponent(".claude/skills/codex-delegate", isDirectory: true) }
-    static let skillMarker = "<!-- installed by Codex Usage Widget -->"
+    enum Link: String, CaseIterable { case claudeToCodex, codexToClaude, codexUsesClaudeTools }
+    static let mcpName = "claude-tools"
+    static let marker = "<!-- installed by Codex Usage Widget -->"
+    /// Set by a delegated run; a skill that sees it does not delegate again, so two agents cannot loop.
+    static let depthVariable = "AGENT_DELEGATION_DEPTH"
+
+    static var claudeSkill: URL { AgentDetection.home.appendingPathComponent(".claude/skills/codex-review", isDirectory: true) }
+    static var codexSkill: URL { AgentDetection.home.appendingPathComponent(".codex/skills/claude-review", isDirectory: true) }
+    static var legacyClaudeSkill: URL { AgentDetection.home.appendingPathComponent(".claude/skills/codex-delegate", isDirectory: true) }
 
     static var claudeExecutable: String? {
         let home = AgentDetection.home.path
@@ -132,50 +139,97 @@ enum AgentCollaboration {
         return (process.terminationStatus == 0, String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? "")
     }
 
-    static func codexCanCallClaude(codex: String?) -> Bool {
-        guard let codex else { return false }
-        return run(codex, ["mcp", "get", codexServerName]).ok
+    private static func ownsSkill(_ directory: URL) -> Bool {
+        (try? String(contentsOf: directory.appendingPathComponent("SKILL.md"), encoding: .utf8))?.contains(marker) ?? false
     }
 
-    static var claudeCanCallCodex: Bool {
-        (try? String(contentsOf: skillDirectory.appendingPathComponent("SKILL.md"), encoding: .utf8))?.contains(skillMarker) ?? false
-    }
-
-    /// Codex gets Claude Code as an MCP server (`claude mcp serve`).
-    static func setCodexCallsClaude(_ enabled: Bool, codex: String) -> (ok: Bool, output: String) {
-        if !enabled { return run(codex, ["mcp", "remove", codexServerName]) }
-        guard let claude = claudeExecutable else { return (false, "Claude Code CLI not found") }
-        return run(codex, ["mcp", "add", codexServerName, "--", claude, "mcp", "serve"])
-    }
-
-    /// Claude Code gets a skill that hands a task to `codex exec` and checks Codex quota first.
-    static func setClaudeCallsCodex(_ enabled: Bool, codex: String) -> (ok: Bool, output: String) {
-        let skill = skillDirectory.appendingPathComponent("SKILL.md")
-        if !enabled {
-            guard claudeCanCallCodex else { return (true, "") }
-            do { try FileManager.default.removeItem(at: skillDirectory); return (true, "") } catch { return (false, error.localizedDescription) }
+    static func isEnabled(_ link: Link, codex: String?) -> Bool {
+        switch link {
+        case .claudeToCodex: return ownsSkill(claudeSkill)
+        case .codexToClaude: return ownsSkill(codexSkill)
+        case .codexUsesClaudeTools: return codex.map { run($0, ["mcp", "get", mcpName]).ok } ?? false
         }
-        let status = support.appendingPathComponent("status.json").path
-        let text = """
-        ---
-        name: codex-delegate
-        description: Hand a well-scoped coding task, investigation or second-opinion review to OpenAI Codex via its CLI. Use when the user asks for Codex, a second opinion, or when Claude quota is low and Codex has room.
-        ---
-        \(skillMarker)
+    }
 
-        # Delegate to Codex
+    static func set(_ link: Link, enabled: Bool, codex: String) -> (ok: Bool, output: String) {
+        if ownsSkill(legacyClaudeSkill) { try? FileManager.default.removeItem(at: legacyClaudeSkill) }
+        switch link {
+        case .codexUsesClaudeTools:
+            if !enabled { return run(codex, ["mcp", "remove", mcpName]) }
+            guard let claude = claudeExecutable else { return (false, "Claude Code CLI not found") }
+            return run(codex, ["mcp", "add", mcpName, "--", claude, "mcp", "serve"])
+        case .claudeToCodex:
+            return writeSkill(at: claudeSkill, enabled: enabled, text: claudeSkillText(codex: codex))
+        case .codexToClaude:
+            guard let claude = claudeExecutable else { return (false, "Claude Code CLI not found") }
+            return writeSkill(at: codexSkill, enabled: enabled, text: codexSkillText(claude: claude))
+        }
+    }
 
-        1. Check quota first: read `\(status)`. If `suggestedAgent` is `codex`, or the user asked for Codex, continue. If the Codex window's `usedPercent` is 95 or higher, tell the user Codex is nearly out of quota instead of delegating.
-        2. Write a self-contained prompt: goal, relevant files, constraints and how to verify. Codex does not see this conversation.
-        3. Run it in the project folder:
-           - Review or question (no edits): `"\(codex)" exec --sandbox read-only -C "<project dir>" "<prompt>"`
-           - Implementation: `"\(codex)" exec --sandbox workspace-write -C "<project dir>" "<prompt>"`
-        4. Read Codex's final message, inspect any changed files with `git diff`, verify the result yourself, and report what Codex did.
-        """
+    private static func writeSkill(at directory: URL, enabled: Bool, text: String) -> (ok: Bool, output: String) {
+        if !enabled {
+            guard ownsSkill(directory) else { return (true, "") }
+            do { try FileManager.default.removeItem(at: directory); return (true, "") } catch { return (false, error.localizedDescription) }
+        }
+        if FileManager.default.fileExists(atPath: directory.path) && !ownsSkill(directory) {
+            return (false, directory.path + " already exists and was not created by this app")
+        }
         do {
-            try FileManager.default.createDirectory(at: skillDirectory, withIntermediateDirectories: true)
-            try Data(text.utf8).write(to: skill, options: .atomic)
-            return (true, skill.path)
+            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+            try Data(text.utf8).write(to: directory.appendingPathComponent("SKILL.md"), options: .atomic)
+            return (true, directory.path)
         } catch { return (false, error.localizedDescription) }
+    }
+
+    private static var routerNote: String {
+        let status = support.appendingPathComponent("status.json").path
+        return """
+        Before delegating, read `\(status)` → `router`. Delegate when `router.agent` names the other agent or the user explicitly asked for it. If `router.agent` is null or the other agent's `headroom` is below 10, tell the user its quota is low instead of delegating.
+        If the environment variable `\(depthVariable)` is already set, you are running as a delegate: do the work yourself and never delegate again.
+        """
+    }
+
+    static func claudeSkillText(codex: String) -> String {
+        """
+        ---
+        name: codex-review
+        description: Get an independent code review or second opinion from OpenAI Codex (codex exec, read-only). Use when the user asks for Codex, an independent review, or when the quota router prefers Codex.
+        ---
+        \(marker)
+
+        # Independent review by Codex
+
+        \(routerNote)
+
+        1. Confirm the working directory is a Git repository and there is a diff to review (`git diff`, or `git diff <base>...HEAD` for a branch).
+        2. Run, from the repository root:
+
+           git diff | \(depthVariable)=1 "\(codex)" exec --sandbox read-only --skip-git-repo-check "Independently review the diff on stdin. List bugs, risks and improvements with severity and file:line. Do not modify files."
+
+        3. Summarize Codex's findings for the user, marking which you agree with after checking the code yourself.
+        4. Do not apply fixes automatically.
+        """
+    }
+
+    static func codexSkillText(claude: String) -> String {
+        """
+        ---
+        name: claude-review
+        description: Get an independent code review or second opinion from Claude (claude -p in plan mode, no edits). Use when the user asks for Claude, an independent review, or when the quota router prefers Claude.
+        ---
+        \(marker)
+
+        # Independent review by Claude
+
+        \(routerNote)
+
+        1. Confirm the working directory is a Git repository and there is a diff to review.
+        2. Run, from the repository root:
+
+           git diff | \(depthVariable)=1 "\(claude)" -p --permission-mode plan "Independently review the diff on stdin. List bugs, risks and improvements with severity and file:line. Do not modify files."
+
+        3. Summarize Claude's findings, noting which you verified in the code.
+        4. Do not apply fixes automatically.
+        """
     }
 }

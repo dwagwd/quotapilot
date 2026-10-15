@@ -607,9 +607,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
         }
         for balance in deepSeekBalances { lines.append(l.text("deepSeekBalance") + ": " + l.number(balance.total, decimals: 2) + " " + balance.currency) }
         if deepSeekError { lines.append(l.text("deepSeekError")) }
-        if let pick = recommendedAgent(items: items, now: now) {
-            lines.append(l.text("suggestedAgent") + ": " + providerName(pick.provider) + " (" + l.number(pick.remaining, decimals: 0) + "% " + l.text("remaining") + ")")
-        }
+        let decision = routerDecision
+        lines.append(l.text("suggestedAgent") + " (" + l.text("router." + (settings.routerMode ?? .auto).rawValue) + "): "
+            + (decision.agent.map(providerName) ?? l.text("routerNone"))
+            + " · " + decision.agents.map { providerName($0.provider) + " " + l.number($0.headroom, decimals: 0) + "%" }.joined(separator: " / "))
         lines.append(l.text("agentLogsHelp"))
         agentsLabel.toolTip = lines.joined(separator: "\n")
     }
@@ -804,34 +805,44 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
         rebuildItems(); resize(); render()
     }
 
+    private var routerDecision: RouterDecision {
+        AgentRouter.decide(mode: settings.routerMode ?? .auto, items: items, now: Date().timeIntervalSince1970)
+    }
+
     @objc private func configureCollaboration() {
         NSApp.activate(ignoringOtherApps: true)
         guard let codex = client.executable else { showMessage(title: l.text("sourceError"), details: "Codex CLI not found"); return }
-        let codexToClaude = AgentCollaboration.codexCanCallClaude(codex: codex)
-        let claudeToCodex = AgentCollaboration.claudeCanCallCodex
+        let links = AgentCollaboration.Link.allCases
+        let current = Dictionary(uniqueKeysWithValues: links.map { ($0, AgentCollaboration.isEnabled($0, codex: codex)) })
         let alert = NSAlert()
         alert.messageText = l.text("agentCollaboration")
         alert.informativeText = l.text("collaborationIntro")
-        let first = NSButton(checkboxWithTitle: l.text("codexCallsClaude"), target: nil, action: nil)
-        first.state = codexToClaude ? .on : .off
-        first.isEnabled = AgentCollaboration.claudeExecutable != nil || codexToClaude
-        let second = NSButton(checkboxWithTitle: l.text("claudeCallsCodex"), target: nil, action: nil)
-        second.state = claudeToCodex ? .on : .off
-        second.isEnabled = AgentDetection.claudeInstalled
-        let stack = NSStackView(views: [first, second])
-        stack.orientation = .vertical; stack.alignment = .leading; stack.frame = NSRect(x: 0, y: 0, width: 380, height: 52)
+        let boxes = links.map { link -> NSButton in
+            let box = NSButton(checkboxWithTitle: l.text("link." + link.rawValue), target: nil, action: nil)
+            box.state = current[link] == true ? .on : .off
+            box.isEnabled = AgentDetection.claudeInstalled
+            return box
+        }
+        let modeLabel = NSTextField(labelWithString: l.text("routerMode"))
+        let modes = NSPopUpButton(frame: .zero, pullsDown: false)
+        modes.addItems(withTitles: RouterMode.allCases.map { l.text("router." + $0.rawValue) })
+        modes.selectItem(at: RouterMode.allCases.firstIndex(of: settings.routerMode ?? .auto) ?? 0)
+        let modeRow = NSStackView(views: [modeLabel, modes])
+        let stack = NSStackView(views: boxes + [modeRow])
+        stack.orientation = .vertical; stack.alignment = .leading; stack.frame = NSRect(x: 0, y: 0, width: 420, height: 112)
         alert.accessoryView = stack
         alert.addButton(withTitle: l.text("apply")); alert.addButton(withTitle: l.text("cancel"))
         guard alert.runModal() == .alertFirstButtonReturn else { return }
+        var next = settings
+        next.routerMode = RouterMode.allCases[modes.indexOfSelectedItem]
+        settings = next
+        defaults.set(try? JSONEncoder().encode(next), forKey: "settings")
         var results: [String] = []
-        if (first.state == .on) != codexToClaude {
-            let r = AgentCollaboration.setCodexCallsClaude(first.state == .on, codex: codex)
-            results.append(l.text("codexCallsClaude") + ": " + (r.ok ? "✓" : "✗ " + r.output))
+        for (link, box) in zip(links, boxes) where (box.state == .on) != current[link] {
+            let r = AgentCollaboration.set(link, enabled: box.state == .on, codex: codex)
+            results.append(l.text("link." + link.rawValue) + ": " + (r.ok ? "✓" : "✗ " + r.output))
         }
-        if (second.state == .on) != claudeToCodex {
-            let r = AgentCollaboration.setClaudeCallsCodex(second.state == .on, codex: codex)
-            results.append(l.text("claudeCallsCodex") + ": " + (r.ok ? "✓" : "✗ " + r.output))
-        }
+        render(); writeStatus()
         if !results.isEmpty { showMessage(title: l.text("agentCollaboration"), details: results.joined(separator: "\n") + "\n\n" + l.text("collaborationRestart")) }
     }
 
@@ -1651,7 +1662,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
         data["openAtLogin"] = LoginItem.isEnabled
         data["autoConnectResults"] = autoConnectResults
         data["claudePlanError"] = claudePlanError
-        if let pick = recommendedAgent(items: items, now: now) { data["suggestedAgent"] = pick.provider; data["suggestedAgentRemainingPercent"] = pick.remaining }
+        let decision = AgentRouter.decide(mode: settings.routerMode ?? .auto, items: items, now: now)
+        var router: [String: Any] = ["mode": (settings.routerMode ?? .auto).rawValue, "reason": decision.reason,
+                                     "minimumHeadroom": AgentRouter.minimumHeadroom,
+                                     "agents": decision.agents.map { a -> [String: Any] in
+                                         var entry: [String: Any] = ["provider": a.provider, "headroom": a.headroom]
+                                         entry["limitingWindow"] = a.limitingWindow; entry["resetsAt"] = a.resetsAt
+                                         return entry }]
+        router["agent"] = decision.agent ?? NSNull()
+        data["router"] = router
+        data["suggestedAgent"] = decision.agent
         data["autoContinueBlocked"] = autoContinuePlanner.isBlocked
         if let last = lastAutoContinue {
             var entry: [String: Any] = ["at": last.at, "result": last.result]

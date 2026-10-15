@@ -173,6 +173,7 @@ public struct WidgetSettings: Codable, Equatable {
     public var autoContinue: Bool? = nil
     public var agentLogs: Bool? = nil
     public var autoConnect: Bool? = nil
+    public var routerMode: RouterMode? = nil
     /// Connect detected agents (status-line bridges, provider imports, DeepSeek balance) without a manual step.
     public var autoConnectEnabled: Bool {
         get { autoConnect ?? true }

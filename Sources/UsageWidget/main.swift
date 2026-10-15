@@ -792,7 +792,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
         statsModel.backfilling = true
         let scanner = AgentLogScanner(sources: AgentLogScanner.defaultSources(home: FileManager.default.homeDirectoryForCurrentUser))
         // Separate queue: the regular one-minute scans keep running while the long backfill reads.
-        DispatchQueue.global(qos: .background).async { [weak self] in
+        // .utility, not .background: background QoS throttles disk reads heavily, which made a 30-day backfill take hours.
+        DispatchQueue.global(qos: .utility).async { [weak self] in
             let events = scanner.scan(windowStart: now - 30 * 86400, now: now)
             DispatchQueue.main.async {
                 guard let self else { return }

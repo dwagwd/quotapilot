@@ -69,6 +69,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
     private var deepSeekTick: Timer?
     private var autoConnectTick: Timer?
     private var autoConnectResults: [String: String] = [:]
+    private var claudePlanTick: Timer?
+    private var claudePlanError: String?
+    private var claudePlanFetching = false
     private let usageEventFileRotationBytes: UInt64 = 20 * 1_048_576
     private var usageEventLastAttemptAt: Double?
     private var usageEventLastSuccessAt: Double?
@@ -182,6 +185,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
         autoConnectTick?.tolerance = 120
         RunLoop.main.add(autoConnectTick!, forMode: .common)
         autoConnectAgents()
+        claudePlanTick = Timer(timeInterval: 120, repeats: true) { [weak self] _ in
+            guard let self, !self.sleeping else { return }; self.refreshClaudePlan()
+        }
+        claudePlanTick?.tolerance = 15
+        RunLoop.main.add(claudePlanTick!, forMode: .common)
+        refreshClaudePlan()
         showPanel(); client.refresh()
     }
     private func startUITimer() {
@@ -574,10 +583,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
         let since = now - settings.lookback
         let total = agentLedger.total(since: since, now: now)
         let perUnit = total.total / max(settings.lookback, 60) * settings.rateUnit.seconds
-        agentsLabel.stringValue = l.text("allAgents") + " · " + l.compact(total.total) + " · ≈" + l.compact(perUnit) + "/" + l.unit(settings.rateUnit, short: true)
+        let perProvider = agentLedger.summary(since: since, now: now).sorted { $0.value.total > $1.value.total }
+            .prefix(3).map { providerName($0.key) + " " + l.compact($0.value.total) }
+        agentsLabel.stringValue = l.text("allAgents") + " " + l.compact(total.total) + (perProvider.isEmpty ? "" : " · " + perProvider.joined(separator: " · "))
             + (deepSeekBalances.first.map { " · DS " + l.number($0.total, decimals: 2) + " " + $0.currency } ?? "")
         agentsLabel.textColor = .labelColor
-        var lines = [l.text("allAgents") + " · " + observationLabel.stringValue, l.text("tokenTotal") + " " + l.compact(total.total), breakdownText(total)]
+        var lines = [l.text("allAgents") + " · " + observationLabel.stringValue,
+                     l.text("tokenTotal") + " " + l.compact(total.total) + " · ≈" + l.compact(perUnit) + "/" + l.unit(settings.rateUnit, short: true),
+                     breakdownText(total)]
         for (provider, usage) in agentLedger.summary(since: since, now: now).sorted(by: { $0.value.total > $1.value.total }) {
             lines.append(providerName(provider) + " " + l.compact(usage.total) + ": " + breakdownText(usage))
         }
@@ -660,6 +673,67 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
                 self.reloadBridges(); self.rebuildItems(); self.refreshDeepSeek(); self.writeStatus()
             }
         }
+    }
+
+    /// Claude Pro/Max usage via Claude Code's login, so it works for the desktop app and remote sessions
+    /// where no status line runs. Writes the same sanitized snapshot the status-line bridge writes.
+    private func refreshClaudePlan() {
+        guard settings.autoConnectEnabled, AgentDetection.claudeInstalled, !claudePlanFetching else { return }
+        claudePlanFetching = true
+        // The first keychain read can wait on a macOS permission prompt, so keep it off the main thread.
+        DispatchQueue.global(qos: .utility).async { [weak self] in
+            let login = KeychainSecret.claudeCodeCredentials().flatMap(ClaudePlanUsage.credentials)
+            DispatchQueue.main.async { self?.fetchClaudePlan(login: login) }
+        }
+    }
+
+    private func fetchClaudePlan(login: (token: String, plan: String?, expiresAt: Double?)?) {
+        guard let login else { claudePlanFetching = false; claudePlanError = "claudeLoginMissing"; return }
+        if let expires = login.expiresAt, expires <= Date().timeIntervalSince1970 {
+            claudePlanFetching = false; claudePlanError = "claudeLoginExpired"; return
+        }
+        var request = URLRequest(url: ClaudePlanUsage.endpoint, timeoutInterval: 20)
+        request.setValue("Bearer " + login.token, forHTTPHeaderField: "Authorization")
+        request.setValue(ClaudePlanUsage.betaHeader, forHTTPHeaderField: "anthropic-beta")
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        URLSession.shared.dataTask(with: request) { [weak self] body, response, _ in
+            let status = (response as? HTTPURLResponse)?.statusCode ?? 0
+            let snapshot = (200..<300).contains(status) ? body.flatMap { ClaudePlanUsage.snapshot(from: $0, plan: login.plan, now: Date().timeIntervalSince1970) } : nil
+            DispatchQueue.main.async {
+                guard let self else { return }
+                self.claudePlanFetching = false
+                guard let snapshot, let encoded = try? JSONEncoder().encode(snapshot) else {
+                    self.claudePlanError = status == 401 ? "claudeLoginExpired" : "claudePlanUnavailable"; self.writeStatus(); return
+                }
+                self.claudePlanError = nil
+                let directory = support.appendingPathComponent("providers", isDirectory: true)
+                try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
+                let path = directory.appendingPathComponent("claude.json")
+                if (try? encoded.write(to: path, options: .atomic)) != nil {
+                    try? FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: path.path)
+                    // Tells the status-line bridge not to replace this account-level snapshot with a session-level one.
+                    FileManager.default.createFile(atPath: directory.appendingPathComponent("claude-plan.active").path, contents: Data(), attributes: [.posixPermissions: 0o600])
+                }
+                self.enableProviderRowsOnce(provider: "claude", windows: snapshot.limits.windows().map(\.id))
+                self.reloadBridges()
+            }
+        }.resume()
+    }
+
+    /// The first time a provider connects automatically, show its windows on the card next to Codex.
+    private func enableProviderRowsOnce(provider: String, windows: [String]) {
+        let key = "autoAddedRows." + provider
+        guard !defaults.bool(forKey: key) else { return }
+        defaults.set(true, forKey: key)
+        var next = settings
+        var options = next.options
+        options.bridges = true
+        if !options.multiple { options.multiple = true; options.windowIDs = [] }
+        for id in windows.sorted() where !options.windowIDs.contains(id) && options.windowIDs.count < 4 { options.windowIDs.append(id) }
+        next.options = options
+        settings = next
+        defaults.set(try? JSONEncoder().encode(next), forKey: "settings")
+        rebuildItems(); resize(); render()
     }
 
     private func installBridge(_ provider: String) {
@@ -1477,6 +1551,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
         data["autoConnect"] = settings.autoConnectEnabled
         data["openAtLogin"] = LoginItem.isEnabled
         data["autoConnectResults"] = autoConnectResults
+        data["claudePlanError"] = claudePlanError
         data["autoContinueBlocked"] = autoContinuePlanner.isBlocked
         if let last = lastAutoContinue {
             var entry: [String: Any] = ["at": last.at, "result": last.result]

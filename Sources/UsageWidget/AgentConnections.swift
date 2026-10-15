@@ -95,3 +95,14 @@ extension AgentDetection {
         }
     }
 }
+
+extension KeychainSecret {
+    /// Claude Code's own login item. macOS asks the user once before another app may read it.
+    static func claudeCodeCredentials() -> Data? {
+        let query: [String: Any] = [kSecClass as String: kSecClassGenericPassword, kSecAttrService as String: "Claude Code-credentials",
+                                    kSecReturnData as String: true, kSecMatchLimit as String: kSecMatchLimitOne]
+        var item: CFTypeRef?
+        if SecItemCopyMatching(query as CFDictionary, &item) == errSecSuccess, let data = item as? Data { return data }
+        return try? Data(contentsOf: AgentDetection.home.appendingPathComponent(".claude/.credentials.json"))
+    }
+}

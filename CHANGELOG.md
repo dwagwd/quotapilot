@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- **Claude Pro/Max plan usage without a status line:** the 5-hour and weekly limits come from the same usage endpoint Claude Code uses, with the Claude Code login (macOS asks once for keychain access). Works for the Claude desktop app and remote sessions. Connected providers are added to the card automatically the first time.
+- The All agents row lists the top providers (for example `Codex 1.7B · Claude 780M`).
 - **Open at login** option (Settings), using a macOS login item.
 - **Connect detected agents automatically** (Settings, on by default): on launch and every 30 minutes the widget installs the Claude Code / Antigravity status-line bridge where the status line is free or a shell command (keeping the old command and backing up settings), turns on provider imports, and reads the DeepSeek balance with a keychain key or the key Claude Code uses for api.deepseek.com.
 - **All agents token row:** totals tokens across Codex and Claude Code from local session logs, split into input, cache read, cache write, output and reasoning, per provider. Claude Code pointed at DeepSeek, Kimi, GLM or Qwen is attributed to that model family. Only token counts are read.

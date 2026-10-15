@@ -82,6 +82,10 @@ def normalize(provider, data, now=None, identity=None):
 
 def write_snapshot(snapshot, directory=SUPPORT):
     directory.mkdir(parents=True, exist_ok=True, mode=0o700)
+    marker = directory / (snapshot["provider"] + "-plan.active")
+    # The widget writes an account-level plan snapshot itself; a session-level one would reset its baseline.
+    if marker.exists() and time.time() - marker.stat().st_mtime < 600:
+        return
     path = directory / (snapshot["provider"] + ".json")
     fd, temporary = tempfile.mkstemp(prefix=".snapshot-", dir=directory)
     try:

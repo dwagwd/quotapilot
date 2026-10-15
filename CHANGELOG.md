@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Find the Codex CLI inside newer ChatGPT desktop builds (`Resources/codex-cli/`). Previously the widget stopped updating after the ChatGPT app moved the CLI.
+
 ## 0.4.0
 
 - Release tooling: optional universal (arm64 + x86_64) builds, Developer ID signing with the hardened runtime, notarization and stapling in `package.sh`, and a Homebrew cask template.

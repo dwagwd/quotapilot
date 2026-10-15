@@ -126,4 +126,12 @@ final class TransportTests: XCTestCase {
         }
     }
 
+
+    func testExecutableCandidatesIncludeChatGPTCodexCLIBundle() {
+        let candidates = UsageClient.executableCandidates(environment: ["PATH": "/bin"], home: "/Users/u")
+        let bundled = "/Applications/ChatGPT.app/Contents/Resources/codex-cli/CodexCLI.app/Contents/MacOS/codex"
+        XCTAssertTrue(candidates.contains(bundled))
+        XCTAssertLessThan(candidates.firstIndex(of: bundled)!, candidates.firstIndex(of: "/bin/codex")!)
+        XCTAssertEqual(UsageClient.executableCandidates(environment: ["CODEX_USAGE_CODEX_PATH": "/x/codex"], home: "/h").first, "/x/codex")
+    }
 }

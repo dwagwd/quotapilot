@@ -94,15 +94,24 @@ public final class UsageClient {
         }
     }
 
-    private func start() {
-        let env = ProcessInfo.processInfo.environment
-        let candidates = [overrideExecutable, env["CODEX_USAGE_CODEX_PATH"],
-            "/Applications/Codex.app/Contents/Resources/codex",
-            "/Applications/ChatGPT.app/Contents/Resources/codex",
-            NSHomeDirectory()+"/Applications/Codex.app/Contents/Resources/codex",
-            NSHomeDirectory()+"/Applications/ChatGPT.app/Contents/Resources/codex"]
-            .compactMap { $0 } + (env["PATH"] ?? "").split(separator: ":").map { String($0)+"/codex" }
+    /// Known Codex CLI locations, most specific first. Newer ChatGPT desktop builds ship the CLI under
+    /// `Resources/codex-cli/` instead of `Resources/codex`.
+    public static func executableCandidates(environment env: [String: String], home: String) -> [String] {
+        let bundles = ["/Applications", home + "/Applications"].flatMap { root in
+            ["Codex.app", "ChatGPT.app"].flatMap { app in
+                ["\(root)/\(app)/Contents/Resources/codex-cli/CodexCLI.app/Contents/MacOS/codex",
+                 "\(root)/\(app)/Contents/Resources/codex-cli/bin/codex",
+                 "\(root)/\(app)/Contents/Resources/codex"]
+            }
+        }
+        return [env["CODEX_USAGE_CODEX_PATH"]].compactMap { $0 } + bundles
+            + (env["PATH"] ?? "").split(separator: ":").map { String($0)+"/codex" }
             + ["/opt/homebrew/bin/codex", "/usr/local/bin/codex"]
+    }
+
+    private func start() {
+        let candidates = [overrideExecutable].compactMap { $0 }
+            + Self.executableCandidates(environment: ProcessInfo.processInfo.environment, home: NSHomeDirectory())
         guard let path = candidates.first(where: { FileManager.default.isExecutableFile(atPath: $0) }) else {
             fail("clientMissing"); return
         }

@@ -25,3 +25,16 @@ public struct DeepSeekBalance: Equatable {
         return (object["is_available"] as? Bool ?? !balances.isEmpty, balances)
     }
 }
+
+extension DeepSeekBalance {
+    /// The token Claude Code uses when its Anthropic-compatible base URL is DeepSeek's; nil for any other endpoint.
+    public static func key(fromClaudeSettings data: Data) -> String? {
+        guard let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let env = object["env"] as? [String: Any],
+              let base = env["ANTHROPIC_BASE_URL"] as? String,
+              let host = URL(string: base)?.host?.lowercased(),
+              host == "deepseek.com" || host.hasSuffix(".deepseek.com") else { return nil }
+        let key = (env["ANTHROPIC_AUTH_TOKEN"] as? String) ?? (env["ANTHROPIC_API_KEY"] as? String)
+        return key?.isEmpty == false ? key : nil
+    }
+}

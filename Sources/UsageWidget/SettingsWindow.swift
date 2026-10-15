@@ -15,13 +15,15 @@ final class SettingsWindowController: NSWindowController {
     private let alerts = NSButton(checkboxWithTitle: "", target: nil, action: nil)
     private let autoContinue = NSButton(checkboxWithTitle: "", target: nil, action: nil)
     private let agentLogs = NSButton(checkboxWithTitle: "", target: nil, action: nil)
+    private let openAtLogin = NSButton(checkboxWithTitle: "", target: nil, action: nil)
+    private let autoConnect = NSButton(checkboxWithTitle: "", target: nil, action: nil)
     private var quotaChecks: [(String, NSButton)] = []
     private var rgbFields: [NSTextField] = []
     private let errorLabel = NSTextField(wrappingLabelWithString: "")
 
     init(settings: WidgetSettings, windows: [(String, String)], onApply: @escaping (WidgetSettings) -> Void) {
         self.settings = settings; applySettings = onApply
-        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 440, height: 770),
+        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 440, height: 830),
                               styleMask: [.titled, .closable], backing: .buffered, defer: false)
         super.init(window: window)
         let l = L10n(settings.language)
@@ -29,7 +31,7 @@ final class SettingsWindowController: NSWindowController {
         window.isReleasedWhenClosed = false
         window.level = .floating
         window.center()
-        let view = NSView(frame: NSRect(x: 0, y: 0, width: 440, height: 770))
+        let view = NSView(frame: NSRect(x: 0, y: 0, width: 440, height: 830))
         window.contentView = view
         func label(_ key: String, y: CGFloat) {
             let label = NSTextField(labelWithString: l.text(key))
@@ -117,6 +119,12 @@ final class SettingsWindowController: NSWindowController {
         agentLogs.title = l.text("agentLogs"); agentLogs.state = settings.agentLogsEnabled ? .on : .off
         agentLogs.frame = NSRect(x: 22, y: 148, width: 396, height: 24); agentLogs.toolTip = l.text("agentLogsHelp")
         view.addSubview(autoContinue); view.addSubview(agentLogs)
+        for control in view.subviews where control.frame.minY >= 148 { control.frame.origin.y += 60 }
+        openAtLogin.title = l.text("openAtLogin"); openAtLogin.state = LoginItem.isEnabled ? .on : .off
+        openAtLogin.frame = NSRect(x: 22, y: 178, width: 396, height: 24); openAtLogin.toolTip = l.text("openAtLoginHelp")
+        autoConnect.title = l.text("autoConnect"); autoConnect.state = settings.autoConnectEnabled ? .on : .off
+        autoConnect.frame = NSRect(x: 22, y: 148, width: 396, height: 24); autoConnect.toolTip = l.text("autoConnectHelp")
+        view.addSubview(openAtLogin); view.addSubview(autoConnect)
     }
     required init?(coder: NSCoder) { fatalError("Not used") }
     func present() { showWindow(nil); NSApp.activate(ignoringOtherApps: true); window?.makeKeyAndOrderFront(nil) }
@@ -150,6 +158,10 @@ final class SettingsWindowController: NSWindowController {
         next.quotaAlertsEnabled = alerts.state == .on
         next.autoContinueEnabled = autoContinue.state == .on
         next.agentLogsEnabled = agentLogs.state == .on
+        next.autoConnectEnabled = autoConnect.state == .on
+        if (openAtLogin.state == .on) != LoginItem.isEnabled, !LoginItem.set(openAtLogin.state == .on) {
+            errorLabel.stringValue = L10n(settings.language).text("openAtLoginFailed"); return
+        }
         guard next.isValid else { errorLabel.stringValue = L10n(settings.language).text("invalidInterval"); return }
         applySettings(next); close()
     }

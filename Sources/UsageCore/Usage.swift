@@ -172,6 +172,12 @@ public struct WidgetSettings: Codable, Equatable {
     public var quotaAlerts: Bool? = nil
     public var autoContinue: Bool? = nil
     public var agentLogs: Bool? = nil
+    public var autoConnect: Bool? = nil
+    /// Connect detected agents (status-line bridges, provider imports, DeepSeek balance) without a manual step.
+    public var autoConnectEnabled: Bool {
+        get { autoConnect ?? true }
+        set { autoConnect = newValue }
+    }
     /// Resume an interrupted Codex session with `codex exec resume` once a full quota window resets.
     public var autoContinueEnabled: Bool {
         get { autoContinue ?? false }

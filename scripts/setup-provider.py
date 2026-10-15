@@ -23,7 +23,9 @@ def main():
     bridge = Path.home() / "Library/Application Support/CodexUsageWidget/bridges"
     bridge.mkdir(parents=True, exist_ok=True, mode=0o700)
     script = bridge / (args.provider + "-statusline.py")
-    command = shlex.quote(sys.executable) + " " + shlex.quote(str(script))
+    # Prefer the stable system launcher; sys.executable may point inside a versioned Xcode bundle.
+    python = "/usr/bin/python3" if os.path.exists("/usr/bin/python3") else sys.executable
+    command = shlex.quote(python) + " " + shlex.quote(str(script))
     if old.get("command") == command:
         print("Bridge already installed."); return
     if old and (old.get("type") != "command" or not isinstance(old.get("command"), str)):

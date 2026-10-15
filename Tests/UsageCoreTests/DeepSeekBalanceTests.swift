@@ -16,4 +16,12 @@ final class DeepSeekBalanceTests: XCTestCase {
         XCTAssertEqual(parsed?.available, false)
         XCTAssertEqual(parsed?.balances, [])
     }
+
+    func testKeyIsTakenFromClaudeSettingsOnlyForDeepSeekEndpoints() {
+        let deepseek = #"{"env":{"ANTHROPIC_BASE_URL":"https://api.deepseek.com/anthropic","ANTHROPIC_AUTH_TOKEN":"sk-test"}}"#
+        XCTAssertEqual(DeepSeekBalance.key(fromClaudeSettings: Data(deepseek.utf8)), "sk-test")
+        let other = #"{"env":{"ANTHROPIC_BASE_URL":"https://deepseek.com.evil.example","ANTHROPIC_AUTH_TOKEN":"sk-test"}}"#
+        XCTAssertNil(DeepSeekBalance.key(fromClaudeSettings: Data(other.utf8)))
+        XCTAssertNil(DeepSeekBalance.key(fromClaudeSettings: Data(#"{"env":{"ANTHROPIC_AUTH_TOKEN":"sk"}}"#.utf8)))
+    }
 }

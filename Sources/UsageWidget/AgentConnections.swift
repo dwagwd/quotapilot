@@ -1,5 +1,6 @@
 import AppKit
 import Security
+import ServiceManagement
 import UsageCore
 
 /// Stores provider API keys in the login keychain, never in preferences or files.
@@ -57,5 +58,40 @@ enum AgentDetection {
         process.waitUntilExit()
         let output = String(data: pipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
         return (process.terminationStatus == 0, output.trimmingCharacters(in: .whitespacesAndNewlines))
+    }
+}
+
+/// macOS login item for the app bundle itself (macOS 13+ `SMAppService`).
+enum LoginItem {
+    static var isEnabled: Bool { SMAppService.mainApp.status == .enabled }
+
+    @discardableResult
+    static func set(_ enabled: Bool) -> Bool {
+        do {
+            if enabled { try SMAppService.mainApp.register() } else { try SMAppService.mainApp.unregister() }
+            return true
+        } catch { return false }
+    }
+}
+
+extension AgentDetection {
+    /// A DeepSeek key only from places that are explicitly DeepSeek configuration: the widget's keychain item,
+    /// or Claude Code's `env` when its Anthropic-compatible base URL points at api.deepseek.com.
+    static func deepSeekKey() -> String? {
+        if let key = KeychainSecret.read("deepseek") { return key }
+        guard let data = try? Data(contentsOf: home.appendingPathComponent(".claude/settings.json")) else { return nil }
+        return DeepSeekBalance.key(fromClaudeSettings: data)
+    }
+
+    /// Status-line bridges that can be installed without overwriting a non-command status line.
+    static func pendingBridges() -> [String] {
+        [("claude", claudeInstalled), ("antigravity", antigravityInstalled)].compactMap { provider, installed in
+            guard installed, !bridgeInstalled(provider) else { return nil }
+            let path = home.appendingPathComponent(provider == "claude" ? ".claude/settings.json" : ".gemini/antigravity-cli/settings.json")
+            if let data = try? Data(contentsOf: path),
+               let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+               let status = object["statusLine"] as? [String: Any], status["type"] as? String != "command" { return nil }
+            return provider
+        }
     }
 }

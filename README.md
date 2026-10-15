@@ -17,7 +17,7 @@ Unofficial community project. Not affiliated with or endorsed by OpenAI, Anthrop
 - **All agents** row: total tokens across Codex and Claude Code (plus DeepSeek, Kimi, GLM or Qwen models used through Claude Code) read from local session logs, with an input / cache read / cache write / output / reasoning breakdown per provider in the tooltip. Only token counts are read; turn it off in Settings.
 - Remaining quota and countdown on the reset line (for example `57% left · reset 02:10:00`).
 - Optional **auto-continue** for Codex (Settings, off by default): when a quota window that was full resets, the interrupted session is resumed once with `codex exec resume` in its project folder. This starts a model turn using your Codex configuration; output is written to `auto-continue.log`.
-- **Connect agents…** in the menu bar: connect Claude Code or Antigravity quota with one click, or add a DeepSeek API key (stored in the login keychain) to show the balance.
+- **Agents connect automatically** (Settings → Connect detected agents automatically, on by default): Claude Code and Antigravity quota bridges are installed when those agents are found, and a DeepSeek balance appears when Claude Code is configured for DeepSeek or a key is saved. **Connect agents…** in the menu bar shows the status and does the same manually: connect Claude Code or Antigravity quota with one click, or add a DeepSeek API key (stored in the login keychain) to show the balance.
 - Optional quota alerts (Settings → Quota alerts, off by default): one notification per reset cycle when a quota reaches 90% or would run out before reset at the current pace. Requires the installed app bundle.
 - Pace forecast: hover the quota rate to see the projected usage at reset, or how long until 100% at the current pace. The rate turns orange when the window would run out before it resets. This is a linear projection, not a promise.
 - Observation window: **1 minute to 30 days**, entered as a whole number of minutes, hours, or days.
@@ -48,7 +48,7 @@ Then build and launch:
 ./scripts/launch.sh
 ```
 
-The app is installed at `~/Applications/Codex Usage Widget.app`. Reopening it reveals the existing instance. It does not enable login startup. Use the menu bar item to hide/show, refresh, pin, or quit.
+The app is installed at `~/Applications/Codex Usage Widget.app`. Reopening it reveals the existing instance. Turn on **Open at login** in Settings to start it with macOS. Use the menu bar item to hide/show, refresh, pin, or quit.
 
 Click the **gear** to configure language, observation window, rate units, additional quotas, RGB colors, energy saving, and provider imports, then **Apply**. Click the card title to select a quota window. Drag blank space to move the card. Hover over each rate for its source and actual observed duration.
 
@@ -90,7 +90,7 @@ Packages use ad-hoc signing and are **not notarized**. Source builds are the sup
 
 Samples and diagnostic snapshots are stored in `~/Library/Application Support/CodexUsageWidget/`. Preferences use the `local.codex.usage-widget` defaults domain. Avoid uploading these files or unredacted screenshots to public issues.
 
-To remove: quit the widget, remove its app, optionally remove its local data and preferences, and remove the plugin from Codex if installed. No daemon or login item is installed.
+To remove: quit the widget, remove its app, optionally remove its local data and preferences, and remove the plugin from Codex if installed. No daemon is installed; a login item exists only if you turn on **Open at login**.
 
 ## Status
 

@@ -67,6 +67,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
     private var deepSeekBalances: [DeepSeekBalance] = []
     private var deepSeekError = false
     private var deepSeekTick: Timer?
+    private var autoConnectTick: Timer?
+    private var autoConnectResults: [String: String] = [:]
     private let usageEventFileRotationBytes: UInt64 = 20 * 1_048_576
     private var usageEventLastAttemptAt: Double?
     private var usageEventLastSuccessAt: Double?
@@ -176,6 +178,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
         deepSeekTick?.tolerance = 60
         RunLoop.main.add(deepSeekTick!, forMode: .common)
         refreshDeepSeek()
+        autoConnectTick = Timer(timeInterval: 1800, repeats: true) { [weak self] _ in self?.autoConnectAgents() }
+        autoConnectTick?.tolerance = 120
+        RunLoop.main.add(autoConnectTick!, forMode: .common)
+        autoConnectAgents()
         showPanel(); client.refresh()
     }
     private func startUITimer() {
@@ -584,7 +590,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
     // MARK: Connections
 
     private func refreshDeepSeek() {
-        guard let key = KeychainSecret.read("deepseek") else {
+        guard let key = settings.autoConnectEnabled ? AgentDetection.deepSeekKey() : KeychainSecret.read("deepseek") else {
             deepSeekBalances = []; deepSeekError = false; return
         }
         var request = URLRequest(url: DeepSeekBalance.endpoint, timeoutInterval: 20)
@@ -613,7 +619,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
             "Codex: " + l.text(client.executable == nil ? "notInstalled" : "connected") + " · " + tokens,
             "Claude Code: " + tokens + " · " + l.text("agentQuotaBridge") + " " + state(AgentDetection.claudeInstalled, claudeBridge),
             "Antigravity CLI: " + l.text("agentQuotaBridge") + " " + state(AgentDetection.antigravityInstalled, antigravityBridge),
-            "DeepSeek: " + l.text(KeychainSecret.read("deepseek") == nil ? "notConnected" : "connected") + " — " + l.text("deepSeekNote"),
+            "DeepSeek: " + l.text(AgentDetection.deepSeekKey() == nil ? "notConnected" : "connected") + " — " + l.text("deepSeekNote"),
             l.text("cursorNote")
         ]
         let alert = NSAlert()
@@ -630,6 +636,30 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
         alert.addButton(withTitle: l.text("done")); actions.append {}
         let index = alert.runModal().rawValue - NSApplication.ModalResponse.alertFirstButtonReturn.rawValue
         if actions.indices.contains(index) { actions[index]() }
+    }
+
+    /// Connects whatever can be connected without asking: bridges whose status line is free or a command,
+    /// provider imports once a snapshot exists, and the DeepSeek balance when a key is configured.
+    private func autoConnectAgents() {
+        guard settings.autoConnectEnabled else { return }
+        let pending = AgentDetection.pendingBridges()
+        DispatchQueue.global(qos: .utility).async { [weak self] in
+            let results = pending.map { ($0, AgentDetection.installBridge($0)) }
+            DispatchQueue.main.async {
+                guard let self else { return }
+                for (provider, result) in results { self.autoConnectResults[provider] = result.ok ? "connected" : "failed" }
+                let snapshots = ["claude", "antigravity", "cursor"].contains {
+                    FileManager.default.fileExists(atPath: support.appendingPathComponent("providers/\($0).json").path)
+                }
+                if !self.settings.options.bridges && (snapshots || results.contains { $0.1.ok } || AgentDetection.bridgeInstalled("claude") || AgentDetection.bridgeInstalled("antigravity")) {
+                    var next = self.settings
+                    var options = next.options; options.bridges = true; next.options = options
+                    self.settings = next
+                    self.defaults.set(try? JSONEncoder().encode(next), forKey: "settings")
+                }
+                self.reloadBridges(); self.rebuildItems(); self.refreshDeepSeek(); self.writeStatus()
+            }
+        }
     }
 
     private func installBridge(_ provider: String) {
@@ -726,7 +756,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
             self.settings = next
             self.ratesDirty = true
             self.requestAlertAuthorizationIfNeeded()
-            self.scanAgentLogs()
+            self.scanAgentLogs(); self.autoConnectAgents()
             self.client.pollInterval = next.options.energySaver ? 120 : 60
             self.startUITimer(); self.reloadBridges(); self.rebuildItems()
             self.defaults.set(try? JSONEncoder().encode(next), forKey: "settings")
@@ -1444,6 +1474,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
         data["enabledBridges"] = settings.options.bridges
         data["quotaAlerts"] = settings.quotaAlertsEnabled
         data["autoContinue"] = settings.autoContinueEnabled
+        data["autoConnect"] = settings.autoConnectEnabled
+        data["openAtLogin"] = LoginItem.isEnabled
+        data["autoConnectResults"] = autoConnectResults
         data["autoContinueBlocked"] = autoContinuePlanner.isBlocked
         if let last = lastAutoContinue {
             var entry: [String: Any] = ["at": last.at, "result": last.result]

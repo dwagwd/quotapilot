@@ -951,6 +951,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
             self.settingsButton.toolTip = self.l.text("settings")
             self.resize(); self.setupStatus(); self.render(); self.writeStatus()
         }
+        settingsWindow?.openTool = { [weak self] tool in
+            switch tool {
+            case "agentCollaboration": self?.configureCollaboration()
+            case "connectAgents": self?.connectAgents()
+            default: self?.showStats()
+            }
+        }
         settingsWindow?.present()
     }
 

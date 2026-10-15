@@ -4,6 +4,8 @@ import UsageCore
 final class SettingsWindowController: NSWindowController {
     private var settings: WidgetSettings
     private let applySettings: (WidgetSettings) -> Void
+    /// Opens app-level tools (agent collaboration, connections, statistics) from Settings as well as the menu bar.
+    var openTool: ((String) -> Void)?
     private let languageMenu = NSPopUpButton()
     private let intervalField = NSTextField()
     private let intervalMenu = NSPopUpButton()
@@ -23,7 +25,7 @@ final class SettingsWindowController: NSWindowController {
 
     init(settings: WidgetSettings, windows: [(String, String)], onApply: @escaping (WidgetSettings) -> Void) {
         self.settings = settings; applySettings = onApply
-        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 440, height: 830),
+        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 440, height: 870),
                               styleMask: [.titled, .closable], backing: .buffered, defer: false)
         super.init(window: window)
         let l = L10n(settings.language)
@@ -31,7 +33,7 @@ final class SettingsWindowController: NSWindowController {
         window.isReleasedWhenClosed = false
         window.level = .floating
         window.center()
-        let view = NSView(frame: NSRect(x: 0, y: 0, width: 440, height: 830))
+        let view = NSView(frame: NSRect(x: 0, y: 0, width: 440, height: 870))
         window.contentView = view
         func label(_ key: String, y: CGFloat) {
             let label = NSTextField(labelWithString: l.text(key))
@@ -125,6 +127,14 @@ final class SettingsWindowController: NSWindowController {
         autoConnect.title = l.text("autoConnect"); autoConnect.state = settings.autoConnectEnabled ? .on : .off
         autoConnect.frame = NSRect(x: 22, y: 148, width: 396, height: 24); autoConnect.toolTip = l.text("autoConnectHelp")
         view.addSubview(openAtLogin); view.addSubview(autoConnect)
+        for control in view.subviews where control.frame.minY >= 46 { control.frame.origin.y += 40 }
+        for (index, tool) in ["agentCollaboration", "connectAgents", "usageStats"].enumerated() {
+            let button = NSButton(title: l.text(tool).replacingOccurrences(of: "…", with: "") + "…", target: self, action: #selector(openToolButton(_:)))
+            button.identifier = NSUserInterfaceItemIdentifier(tool)
+            button.bezelStyle = .rounded
+            button.frame = NSRect(x: 18 + CGFloat(index) * 136, y: 50, width: 132, height: 30)
+            view.addSubview(button)
+        }
     }
     required init?(coder: NSCoder) { fatalError("Not used") }
     func present() { showWindow(nil); NSApp.activate(ignoringOtherApps: true); window?.makeKeyAndOrderFront(nil) }
@@ -132,6 +142,10 @@ final class SettingsWindowController: NSWindowController {
         NSWorkspace.shared.open(URL(string: "https://github.com/dwagwd/codex-plugin/blob/main/docs/providers.md")!)
     }
     @objc private func cancel() { close() }
+    @objc private func openToolButton(_ sender: NSButton) {
+        guard let tool = sender.identifier?.rawValue else { return }
+        close(); openTool?(tool)
+    }
     @objc private func apply() {
         guard let value = Int(intervalField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)) else {
             errorLabel.stringValue = L10n(settings.language).text("invalidInterval"); return

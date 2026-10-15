@@ -43,6 +43,8 @@ let agentFallbackTranslations: [String: [String: String]] = [
     "collaborationRestart": ["en": "Start a new Codex or Claude Code session to pick up the change.", "zh-Hant": "開新的 Codex 或 Claude Code 對話後生效。", "zh-Hans": "开新的 Codex 或 Claude Code 对话后生效。"],
     "link.claudeToCodex": ["en": "Claude Code → Codex review (codex-review skill, read-only)", "zh-Hant": "Claude Code → Codex 審查（codex-review skill，唯讀）", "zh-Hans": "Claude Code → Codex 审查（codex-review skill，只读）"],
     "link.codexToClaude": ["en": "Codex → Claude review (claude-review skill, plan mode)", "zh-Hant": "Codex → Claude 審查（claude-review skill，plan 模式）", "zh-Hans": "Codex → Claude 审查（claude-review skill，plan 模式）"],
+    "link.claudeOrchestratesCodex": ["en": "Orchestrator: Claude Code plans and verifies, Codex implements (orchestrate-codex skill)", "zh-Hant": "Orchestrator：Claude Code 規劃與驗收，Codex 負責實作（orchestrate-codex skill）", "zh-Hans": "Orchestrator：Claude Code 规划与验收，Codex 负责实现（orchestrate-codex skill）"],
+    "link.codexOrchestratesClaude": ["en": "Orchestrator: Codex plans and verifies, Claude Code implements (orchestrate-claude skill)", "zh-Hant": "Orchestrator：Codex 規劃與驗收，Claude Code 負責實作（orchestrate-claude skill）", "zh-Hans": "Orchestrator：Codex 规划与验收，Claude Code 负责实现（orchestrate-claude skill）"],
     "link.codexUsesClaudeTools": ["en": "Codex can use Claude Code's tools (MCP; not a Claude review)", "zh-Hant": "Codex 可使用 Claude Code 的工具（MCP，不是 Claude 審查）", "zh-Hans": "Codex 可使用 Claude Code 的工具（MCP，不是 Claude 审查）"],
     "routerMode": ["en": "Quota router:", "zh-Hant": "額度路由：", "zh-Hans": "额度路由："],
     "router.auto": ["en": "Automatic", "zh-Hant": "自動", "zh-Hans": "自动"],

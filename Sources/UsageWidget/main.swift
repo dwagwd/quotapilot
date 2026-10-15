@@ -972,7 +972,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
         modes.selectItem(at: RouterMode.allCases.firstIndex(of: settings.routerMode ?? .auto) ?? 0)
         let modeRow = NSStackView(views: [modeLabel, modes])
         let stack = NSStackView(views: boxes + [modeRow])
-        stack.orientation = .vertical; stack.alignment = .leading; stack.frame = NSRect(x: 0, y: 0, width: 420, height: 112)
+        stack.orientation = .vertical; stack.alignment = .leading; stack.frame = NSRect(x: 0, y: 0, width: 560, height: 160)
         alert.accessoryView = stack
         alert.addButton(withTitle: l.text("apply")); alert.addButton(withTitle: l.text("cancel"))
         guard alert.runModal() == .alertFirstButtonReturn else { return }

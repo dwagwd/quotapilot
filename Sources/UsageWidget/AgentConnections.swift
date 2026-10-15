@@ -111,7 +111,7 @@ extension KeychainSecret {
 /// non-interactive CLI (`claude -p`, `codex exec`) wrapped in a skill; the MCP link only exposes Claude Code's
 /// tools to Codex and is kept separate. Every link can be removed from the same menu.
 enum AgentCollaboration {
-    enum Link: String, CaseIterable { case claudeToCodex, codexToClaude, codexUsesClaudeTools }
+    enum Link: String, CaseIterable { case claudeToCodex, codexToClaude, claudeOrchestratesCodex, codexOrchestratesClaude, codexUsesClaudeTools }
     static let mcpName = "claude-tools"
     static let marker = "<!-- installed by Codex Usage Widget -->"
     /// Set by a delegated run; a skill that sees it does not delegate again, so two agents cannot loop.
@@ -119,6 +119,8 @@ enum AgentCollaboration {
 
     static var claudeSkill: URL { AgentDetection.home.appendingPathComponent(".claude/skills/codex-review", isDirectory: true) }
     static var codexSkill: URL { AgentDetection.home.appendingPathComponent(".codex/skills/claude-review", isDirectory: true) }
+    static var claudeOrchestratorSkill: URL { AgentDetection.home.appendingPathComponent(".claude/skills/orchestrate-codex", isDirectory: true) }
+    static var codexOrchestratorSkill: URL { AgentDetection.home.appendingPathComponent(".codex/skills/orchestrate-claude", isDirectory: true) }
     static var legacyClaudeSkill: URL { AgentDetection.home.appendingPathComponent(".claude/skills/codex-delegate", isDirectory: true) }
 
     static var claudeExecutable: String? {
@@ -147,6 +149,8 @@ enum AgentCollaboration {
         switch link {
         case .claudeToCodex: return ownsSkill(claudeSkill)
         case .codexToClaude: return ownsSkill(codexSkill)
+        case .claudeOrchestratesCodex: return ownsSkill(claudeOrchestratorSkill)
+        case .codexOrchestratesClaude: return ownsSkill(codexOrchestratorSkill)
         case .codexUsesClaudeTools: return codex.map { run($0, ["mcp", "get", mcpName]).ok } ?? false
         }
     }
@@ -163,6 +167,15 @@ enum AgentCollaboration {
         case .codexToClaude:
             guard let claude = claudeExecutable else { return (false, "Claude Code CLI not found") }
             return writeSkill(at: codexSkill, enabled: enabled, text: codexSkillText(claude: claude))
+        case .claudeOrchestratesCodex:
+            let worker = "\(depthVariable)=1 \"\(codex)\" exec --sandbox workspace-write --skip-git-repo-check -C \"$REPO\" \"$(cat \"$SPEC\")\""
+            return writeSkill(at: claudeOrchestratorSkill, enabled: enabled,
+                              text: orchestratorText(name: "orchestrate-codex", me: "Claude Code", worker: "Codex", workerID: "codex", command: worker))
+        case .codexOrchestratesClaude:
+            guard let claude = claudeExecutable else { return (false, "Claude Code CLI not found") }
+            let worker = "cd \"$REPO\" && \(depthVariable)=1 \"\(claude)\" -p --permission-mode acceptEdits \"$(cat \"$SPEC\")\""
+            return writeSkill(at: codexOrchestratorSkill, enabled: enabled,
+                              text: orchestratorText(name: "orchestrate-claude", me: "Codex", worker: "Claude", workerID: "claude", command: worker))
         }
     }
 
@@ -208,6 +221,45 @@ enum AgentCollaboration {
 
         3. Summarize Codex's findings for the user, marking which you agree with after checking the code yourself.
         4. Do not apply fixes automatically.
+        """
+    }
+
+    /// The orchestrator plans, delegates implementation to the worker CLI, then verifies and accepts or sends
+    /// focused fixes back. The worker only implements; it never re-plans, commits or delegates.
+    static func orchestratorText(name: String, me: String, worker: String, workerID: String, command: String) -> String {
+        let status = support.appendingPathComponent("status.json").path
+        return """
+        ---
+        name: \(name)
+        description: Orchestrator mode. \(me) plans and verifies; \(worker) does the implementation work. Use when the user asks to orchestrate, to split planning from implementation, or to have \(worker) do the work.
+        ---
+        \(marker)
+
+        # \(me) orchestrates, \(worker) works
+
+        If the environment variable `\(depthVariable)` is set, you are already a worker: do the task yourself and do not use this skill.
+
+        ## 0. Check quota
+        Read `\(status)` → `router.agents`. If \(worker)'s `headroom` is below 10, tell the user and do the work yourself instead. If your own headroom is below 10, keep planning and review short.
+
+        ## 1. Plan (you)
+        - Read the relevant code and decide the approach. Split large work into tasks that can each be verified on their own.
+        - For each task, write a spec file outside the repository (for example `SPEC=$(mktemp -t spec).md`) containing: goal, files to change, constraints and project conventions, acceptance criteria, and the exact commands to verify (tests, build, lint). Tell the worker: implement only, do not commit, do not change unrelated files, report what changed and any doubts.
+
+        ## 2. Delegate (\(worker))
+        From the repository root (`REPO=$(git rev-parse --show-toplevel)`), run:
+
+            \(command)
+
+        Wait for it to finish and read its final report.
+
+        ## 3. Verify (you)
+        - Inspect `git diff` against the spec. Run the verification commands yourself; do not trust the worker's claim.
+        - Accept only when every acceptance criterion holds and the checks pass.
+        - Otherwise write a short follow-up spec with the exact failures and run step 2 again. Stop after three rounds and report what is still failing.
+
+        ## 4. Report
+        Tell the user what was planned, what \(worker) changed, what you verified (with command output), and anything left. Commit only if the user's normal workflow asks you to.
         """
     }
 

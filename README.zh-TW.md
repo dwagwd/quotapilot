@@ -11,6 +11,7 @@
 - 主卡 260 × 128 pt；收合為 182 × 32 pt。支援拖曳、記住位置、置頂、選單列與齒輪設定。
 - 可以只顯示一個額度，或勾選最多四個額外額度一起顯示；卡片隨選擇增高，各來源分開計算。
 - `%/時` 是額度「百分點／小時」的簡寫：一小時由 20% 至 25%，顯示 5%/時，不是相對成長率 25%。
+- **Orchestrator 模式**（Agent 協作…）：一個 agent 負責規劃與驗收，另一個只負責實作。可選 Claude Code → Codex（`orchestrate-codex`）或 Codex → Claude Code（`orchestrate-claude`），最多三輪修正，並先檢查額度。
 - **小卡樣式**（設定）：詳細、精簡（每個 agent 一行，含各額度、速度、Token；標題列顯示全部總用量）或進度條（每個額度一條小進度條）。
 - **Agent 協作**（選單列 → Agent 協作…）：可選擇給 Claude Code 加 `codex-review` skill（以 `codex exec` 唯讀獨立審查）、給 Codex 加 `claude-review` skill（以 `claude -p` plan 模式審查），以及另外讓 Codex 透過 MCP 使用 Claude Code 的工具。**額度路由**（自動／Codex 優先／Claude 優先）同時考慮 5 小時與週額度及重置時間；skill 委派前會先查路由，且不會重複往外委派。
 - **用量統計** 視窗（選單列 → 用量統計…）：24h／7d／30d 的 Token 總量與每小時用量、各家曲線圖，以及各額度窗口的已用 % 曲線與每小時平均消耗百分點。首次啟動會回填本機紀錄中過去 30 天的資料。

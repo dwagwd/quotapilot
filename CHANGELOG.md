@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- **Orchestrator mode** (Agent collaboration): `orchestrate-codex` lets Claude Code plan, write a spec, have Codex implement with `codex exec --sandbox workspace-write`, then verify the diff and checks itself and send focused fixes back (up to three rounds); `orchestrate-claude` is the same with Codex planning and Claude Code implementing (`claude -p --permission-mode acceptEdits`). Workers never commit or delegate.
 - **Card style** (Settings): Detailed (original), Compact (one line per agent such as `Claude  5h 37% ↻2h39m  wk 96% ↻4h29m  ≈2%/h 780M`, with the all-agent token total in the title), or Bars (a small bar per limit). In Detailed, the selected window's sibling limits stay on the same line.
 - **Agent collaboration** (menu bar → Agent collaboration…, each option off until chosen): a `codex-review` skill lets Claude Code get an independent read-only review from `codex exec`; a `claude-review` skill lets Codex get one from `claude -p` in plan mode; separately, Codex can use Claude Code's tools over MCP (`claude mcp serve`), which is not a Claude review. Skills check the quota router first, and a delegated run never delegates again (`AGENT_DELEGATION_DEPTH`).
 - **Quota router** (Automatic / Codex first / Claude first): every 5-hour and weekly window counts, the tightest window decides an agent's headroom, a window resetting within 30 minutes counts as replenished, and agents under 10% are skipped. `status.json` exposes `router` (`agent`, `reason`, per-agent `headroom`).

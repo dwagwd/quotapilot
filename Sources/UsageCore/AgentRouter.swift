@@ -1,5 +1,8 @@
 import Foundation
 
+/// Card layouts: the original detailed card, one text line per agent, or one small bar per quota window.
+public enum CardStyle: String, Codable, CaseIterable { case detailed, compact, bars }
+
 public enum RouterMode: String, Codable, CaseIterable { case auto, preferCodex, preferClaude }
 
 public struct AgentHeadroom: Equatable {

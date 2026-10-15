@@ -6,6 +6,7 @@ final class SettingsWindowController: NSWindowController {
     private let applySettings: (WidgetSettings) -> Void
     /// Opens app-level tools (agent collaboration, connections, statistics) from Settings as well as the menu bar.
     var openTool: ((String) -> Void)?
+    private let styleMenu = NSPopUpButton(frame: .zero, pullsDown: false)
     private let languageMenu = NSPopUpButton()
     private let intervalField = NSTextField()
     private let intervalMenu = NSPopUpButton()
@@ -25,7 +26,7 @@ final class SettingsWindowController: NSWindowController {
 
     init(settings: WidgetSettings, windows: [(String, String)], onApply: @escaping (WidgetSettings) -> Void) {
         self.settings = settings; applySettings = onApply
-        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 440, height: 870),
+        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 440, height: 902),
                               styleMask: [.titled, .closable], backing: .buffered, defer: false)
         super.init(window: window)
         let l = L10n(settings.language)
@@ -33,7 +34,7 @@ final class SettingsWindowController: NSWindowController {
         window.isReleasedWhenClosed = false
         window.level = .floating
         window.center()
-        let view = NSView(frame: NSRect(x: 0, y: 0, width: 440, height: 870))
+        let view = NSView(frame: NSRect(x: 0, y: 0, width: 440, height: 902))
         window.contentView = view
         func label(_ key: String, y: CGFloat) {
             let label = NSTextField(labelWithString: l.text(key))
@@ -128,6 +129,13 @@ final class SettingsWindowController: NSWindowController {
         autoConnect.frame = NSRect(x: 22, y: 148, width: 396, height: 24); autoConnect.toolTip = l.text("autoConnectHelp")
         view.addSubview(openAtLogin); view.addSubview(autoConnect)
         for control in view.subviews where control.frame.minY >= 46 { control.frame.origin.y += 40 }
+        for control in view.subviews where control.frame.minY >= 148 { control.frame.origin.y += 32 }
+        let styleLabel = NSTextField(labelWithString: l.text("cardStyle"))
+        styleLabel.frame = NSRect(x: 22, y: 152, width: 154, height: 22); view.addSubview(styleLabel)
+        styleMenu.frame = NSRect(x: 180, y: 149, width: 238, height: 26)
+        styleMenu.addItems(withTitles: CardStyle.allCases.map { l.text("style." + $0.rawValue) })
+        styleMenu.selectItem(at: CardStyle.allCases.firstIndex(of: settings.cardStyle ?? .detailed) ?? 0)
+        view.addSubview(styleMenu)
         for (index, tool) in ["agentCollaboration", "connectAgents", "usageStats"].enumerated() {
             let button = NSButton(title: l.text(tool).replacingOccurrences(of: "…", with: "") + "…", target: self, action: #selector(openToolButton(_:)))
             button.identifier = NSUserInterfaceItemIdentifier(tool)
@@ -173,6 +181,7 @@ final class SettingsWindowController: NSWindowController {
         next.autoContinueEnabled = autoContinue.state == .on
         next.agentLogsEnabled = agentLogs.state == .on
         next.autoConnectEnabled = autoConnect.state == .on
+        next.cardStyle = CardStyle.allCases[styleMenu.indexOfSelectedItem]
         if (openAtLogin.state == .on) != LoginItem.isEnabled, !LoginItem.set(openAtLogin.state == .on) {
             errorLabel.stringValue = L10n(settings.language).text("openAtLoginFailed"); return
         }

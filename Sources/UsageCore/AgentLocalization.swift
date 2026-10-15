@@ -2,6 +2,10 @@ import Foundation
 
 let agentTranslations: [String: [String: String]] = [
     "weekTag": ["en": "wk", "zh-Hant": "週", "zh-Hans": "周", "ja": "週", "ko": "주", "es": "sem", "fr": "sem", "de": "Wo", "pt-BR": "sem", "it": "sett"],
+    "cardStyle": ["en": "Card style", "zh-Hant": "小卡樣式", "zh-Hans": "小卡样式", "ja": "カード表示", "ko": "카드 스타일", "es": "Estilo", "fr": "Style de carte", "de": "Kartenstil", "pt-BR": "Estilo do cartão", "it": "Stile scheda"],
+    "style.detailed": ["en": "Detailed", "zh-Hant": "詳細", "zh-Hans": "详细", "ja": "詳細", "ko": "자세히", "es": "Detallado", "fr": "Détaillé", "de": "Ausführlich", "pt-BR": "Detalhado", "it": "Dettagliato"],
+    "style.compact": ["en": "Compact (one line per agent)", "zh-Hant": "精簡（每個 agent 一行）", "zh-Hans": "精简（每个 agent 一行）", "ja": "コンパクト（1 行／エージェント）", "ko": "간단히 (에이전트당 한 줄)", "es": "Compacto (una línea por agente)", "fr": "Compact (une ligne par agent)", "de": "Kompakt (eine Zeile je Agent)", "pt-BR": "Compacto (uma linha por agente)", "it": "Compatto (una riga per agente)"],
+    "style.bars": ["en": "Bars (one bar per limit)", "zh-Hant": "進度條（每個額度一條）", "zh-Hans": "进度条（每个额度一条）", "ja": "バー（上限ごと）", "ko": "막대 (한도별)", "es": "Barras (una por límite)", "fr": "Barres (une par limite)", "de": "Balken (je Limit)", "pt-BR": "Barras (uma por limite)", "it": "Barre (una per limite)"],
     "remaining": ["en": "left", "zh-Hant": "剩餘", "zh-Hans": "剩余", "ja": "残り", "ko": "남음", "es": "restante", "fr": "restant", "de": "übrig", "pt-BR": "restante", "it": "rimanente"],
     "allAgents": ["en": "All agents", "zh-Hant": "全部 agent", "zh-Hans": "全部 agent", "ja": "全エージェント", "ko": "전체 에이전트", "es": "Todos los agentes", "fr": "Tous les agents", "de": "Alle Agenten", "pt-BR": "Todos os agentes", "it": "Tutti gli agenti"],
     "agentLogsOff": ["en": "log reading off", "zh-Hant": "未讀取紀錄", "zh-Hans": "未读取记录", "ja": "ログ読み取りオフ", "ko": "로그 읽기 꺼짐", "es": "lectura de registros desactivada", "fr": "lecture des journaux désactivée", "de": "Protokolle aus", "pt-BR": "leitura de registros desligada", "it": "lettura log disattivata"],

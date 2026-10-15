@@ -104,7 +104,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
     /// Extra windows grouped by provider, so a 5-hour and a weekly limit share one compact line.
     private var extraGroups: [[WindowItem]] {
         var order: [String] = [], groups: [String: [WindowItem]] = [:]
-        for item in extraItems {
+        let extras = extraItems
+        let currentProvider = current.map { String($0.id.split(separator: ":").first ?? "") }
+        // The selected window's siblings stay on one line with it, e.g. 5h next to the weekly limit.
+        let siblings = extras.contains { String($0.id.split(separator: ":").first ?? "") == currentProvider } ? [current].compactMap { $0 } : []
+        for item in siblings + extras {
             let key = String(item.id.split(separator: ":").first ?? "")
             if groups[key] == nil { order.append(key) }
             groups[key, default: []].append(item)
@@ -133,6 +137,100 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
             let pct = item.window.validUsedPercent.map { l.number($0, decimals: 0) + "%" } ?? "—"
             return shortWindow(item.window.windowDurationMins) + " " + pct + (stale ? " ⚠︎" : " " + shortCountdown(item.window.resetsAt, now: now))
         }.joined(separator: "  ")
+    }
+    private var cardStyle: CardStyle { settings.cardStyle ?? .detailed }
+    private var styledViews: [NSView] = []
+    private var styledLines: [(label: NSTextField, group: Int)] = []
+    private var styledBars: [(bar: NSProgressIndicator, text: NSTextField, group: Int, window: Int)] = []
+    /// Every quota window grouped by provider, for the compact and bar styles.
+    private var providerGroups: [[WindowItem]] {
+        var order: [String] = [], groups: [String: [WindowItem]] = [:]
+        for item in items {
+            let key = String(item.id.split(separator: ":").first ?? "")
+            if groups[key] == nil { order.append(key) }
+            groups[key, default: []].append(item)
+        }
+        return order.compactMap { groups[$0]?.sorted { ($0.window.windowDurationMins ?? .max) < ($1.window.windowDurationMins ?? .max) } }
+    }
+    private func providerKey(_ group: [WindowItem]) -> String { String(group.first?.id.split(separator: ":").first ?? "") }
+    /// Quota rate of the shortest window plus the provider's tokens in the observation window.
+    private func providerExtras(_ group: [WindowItem], now: Double) -> String {
+        var parts: [String] = []
+        if let first = group.first, !isStale(first, now: now), let rate = cachedRates[first.id] {
+            parts.append("≈" + l.number(rate.value(per: settings.rateUnit), decimals: 1) + "%/" + l.unit(settings.rateUnit, short: true))
+        }
+        let tokens = agentLedger.summary(since: now - settings.lookback, now: now)[providerKey(group)]?.total ?? 0
+        if tokens > 0 { parts.append(l.compact(tokens)) }
+        return parts.joined(separator: " ")
+    }
+    private func styledTitle(now: Double) -> String {
+        let total = agentLedger.total(since: now - settings.lookback, now: now).total
+        guard settings.agentLogsEnabled, agentLastScanAt != nil else { return l.text("allAgents") + " · " + l.text("collecting") + " ▾" }
+        let perUnit = total / max(settings.lookback, 60) * settings.rateUnit.seconds
+        return l.text("allAgents") + " " + l.compact(total) + " · ≈" + l.compact(perUnit) + "/" + l.unit(settings.rateUnit, short: true) + " ▾"
+    }
+    private func layoutStyled() {
+        styledViews.forEach { $0.removeFromSuperview() }; styledViews = []; styledLines = []; styledBars = []
+        guard !collapsed, cardStyle != .detailed, let content = panel.contentView else { return }
+        let groups = providerGroups
+        let width: CGFloat = cardStyle == .compact ? 300 : 260
+        let rows = groups.map { cardStyle == .compact ? CGFloat(16) : 15 + CGFloat($0.count) * 13 }
+        let height = 30 + rows.reduce(0, +) + 6
+        let old = panel.frame
+        // Keep the right edge in place: the card usually sits in the top-right corner.
+        panel.setFrame(NSRect(x: old.maxX - width, y: old.maxY - height, width: width, height: height), display: true)
+        if !NSScreen.screens.isEmpty { panel.setFrameOrigin(visibleOrigin(for: panel.frame, screens: NSScreen.screens.map(\.visibleFrame))) }
+        titleButton.frame = NSRect(x: 10, y: height - 27, width: width - 58, height: 20)
+        settingsButton.frame = NSRect(x: width - 44, y: height - 27, width: 20, height: 20)
+        foldButton.frame = NSRect(x: width - 22, y: height - 27, width: 18, height: 20)
+        func label(_ font: NSFont, _ frame: NSRect) -> NSTextField {
+            let field = NSTextField(labelWithString: "")
+            field.font = font; field.lineBreakMode = .byTruncatingTail; field.frame = frame
+            content.addSubview(field); styledViews.append(field); return field
+        }
+        var y = height - 30
+        for (index, group) in groups.enumerated() {
+            if cardStyle == .compact {
+                y -= 16
+                styledLines.append((label(.monospacedDigitSystemFont(ofSize: 10, weight: .regular), NSRect(x: 12, y: y, width: width - 24, height: 14)), index))
+            } else {
+                y -= 15
+                styledLines.append((label(.systemFont(ofSize: 10, weight: .semibold), NSRect(x: 12, y: y, width: width - 24, height: 14)), index))
+                for windowIndex in group.indices {
+                    y -= 13
+                    let tag = label(.monospacedDigitSystemFont(ofSize: 9, weight: .regular), NSRect(x: 12, y: y, width: 26, height: 12))
+                    tag.stringValue = shortWindow(group[windowIndex].window.windowDurationMins)
+                    let bar = NSProgressIndicator(frame: NSRect(x: 40, y: y + 3, width: 112, height: 6))
+                    bar.style = .bar; bar.isIndeterminate = false; bar.minValue = 0; bar.maxValue = 100; bar.controlSize = .mini
+                    content.addSubview(bar); styledViews.append(bar)
+                    let text = label(.monospacedDigitSystemFont(ofSize: 9, weight: .regular), NSRect(x: 158, y: y, width: width - 170, height: 12))
+                    styledBars.append((bar, text, index, windowIndex))
+                }
+            }
+        }
+    }
+    private func renderStyled(now: Double) {
+        guard !collapsed, cardStyle != .detailed else { return }
+        let groups = providerGroups
+        titleButton.title = styledTitle(now: now)
+        for (field, index) in styledLines where index < groups.count {
+            let group = groups[index]
+            let extras = providerExtras(group, now: now)
+            let text = cardStyle == .compact ? compactLine(group, now: now) + (extras.isEmpty ? "" : "  " + extras)
+                                             : (group.first?.name ?? "") + (extras.isEmpty ? "" : "  " + extras)
+            if field.stringValue != text { field.stringValue = text }
+            field.textColor = group.contains { ($0.window.validUsedPercent ?? 0) >= 90 } ? .systemOrange : .labelColor
+            field.toolTip = group.map { title(for: $0) + " · " + resetText($0, now: now) }.joined(separator: "\n")
+        }
+        for row in styledBars where row.group < groups.count && row.window < groups[row.group].count {
+            let item = groups[row.group][row.window]
+            let used = item.window.validUsedPercent
+            row.bar.doubleValue = used ?? 0
+            let text = (used.map { l.number($0, decimals: 0) + "%" } ?? "—") + " " + (isStale(item, now: now) ? "⚠︎" : shortCountdown(item.window.resetsAt, now: now))
+            if row.text.stringValue != text { row.text.stringValue = text }
+            row.text.textColor = (used ?? 0) >= 90 ? .systemOrange : .labelColor
+            row.text.toolTip = title(for: item) + " · " + resetText(item, now: now)
+        }
     }
     private var extraItems: [WindowItem] {
         guard settings.options.multiple else { return [] }
@@ -248,6 +346,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
         let freshness = items.map { isStale($0, now: now) || ($0.window.resetsAt.map { $0 <= now } ?? false) } + [stale, tokenStale]
         if freshness != lastFreshness { render(); writeStatus(); return }
         guard !collapsed else { return }
+        if cardStyle != .detailed { renderStyled(now: now); return }
         if let item = current {
             let value = isStale(item, now: now) ? l.text("stale") + " · " + l.countdown(item.window.resetsAt, now: now) : resetText(item, now: now)
             if resetLabel.stringValue != value { resetLabel.stringValue = value }
@@ -402,9 +501,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
     }
     private func resize() {
         adjustingFrame = true
+        defer { adjustingFrame = false }
+        layoutStyled()
+        let styled = !collapsed && cardStyle != .detailed
+        for view in [valueLabel, progress, resetLabel, rateLabel, tokenLabel, agentsLabel, observationLabel] { view.isHidden = styled || collapsed }
+        if styled {
+            valueLabel.isHidden = true
+            extraLabels.forEach { $0.removeFromSuperview() }; extraLabels = []
+            applyColors(); foldButton.title = "−"; foldButton.toolTip = l.text("collapse")
+            return
+        }
+        valueLabel.isHidden = false
         let old = panel.frame
         let size = collapsed ? NSSize(width: 182, height: 32) : NSSize(width: 260, height: 146 + CGFloat(extraGroups.count) * Self.extraRowHeight)
-        panel.setFrame(NSRect(x: old.minX, y: old.maxY-size.height, width: size.width, height: size.height), display: true)
+        panel.setFrame(NSRect(x: old.width == 300 ? old.maxX - size.width : old.minX, y: old.maxY-size.height, width: size.width, height: size.height), display: true)
         if collapsed {
             titleButton.frame = NSRect(x: 9, y: 6, width: 70, height: 20)
             valueLabel.frame = NSRect(x: 78, y: 6, width: 49, height: 20)
@@ -439,10 +549,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
             }
         }
         applyColors()
-        for view in [progress, resetLabel, rateLabel, tokenLabel, agentsLabel, observationLabel] { view.isHidden = collapsed }
         foldButton.title = collapsed ? "⌄" : "−"
         foldButton.toolTip = l.text(collapsed ? "expand" : "collapse")
-        adjustingFrame = false
     }
     private func received(_ response: LimitsResponse, account: String) {
         codexItems = response.windows(); rebuildItems(); lastUpdate = Date()
@@ -524,6 +632,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
                 return title(for: extra) + " · " + percent + "\n" + rate + "\n" + (old ? l.text("stale") + " · " : "") + resetText(extra, now: now)
             }.joined(separator: "\n\n") + "\n" + l.text("quotaHelp")
         }
+        if cardStyle != .detailed && !collapsed && styledLines.count != providerGroups.count { resize() }
+        renderStyled(now: now)
         checkQuotaAlerts(now: now)
         for window in items where !isStale(window, now: now) {
             statsStore.recordQuota(windowID: window.id, title: title(for: window), used: window.window.validUsedPercent, resetsAt: window.window.resetsAt, now: now)

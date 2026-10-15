@@ -62,9 +62,10 @@ public struct UsageStatsStore: Codable {
     }
 
     /// Before saving: forget dedupe keys older than six hours and stop accepting events from that far back.
+    /// While a backfill is still running, older events must stay acceptable, so the watermark does not move.
     public mutating func prune(now: Double) {
         let cutoff = now - Self.retention
-        acceptAfter = max(acceptAfter, now - Self.recentKeySpan)
+        if backfilledAt != nil { acceptAfter = max(acceptAfter, now - Self.recentKeySpan) }
         recentKeys = recentKeys.filter { $0.value > acceptAfter }
         for provider in Array(tokenHours.keys) {
             tokenHours[provider] = tokenHours[provider]?.filter { (Double($0.key) ?? 0) + 3600 > cutoff }

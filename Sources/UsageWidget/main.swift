@@ -359,6 +359,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
         add(l.text("exportUsageEvents"), #selector(exportUsageEvents))
         add(l.text("usageStats"), #selector(showStats))
         add(l.text("connectAgents"), #selector(connectAgents))
+        add(l.text("agentCollaboration") + "…", #selector(configureCollaboration))
         add(l.text("sourceDiagnostics"), #selector(showSourceDiagnostics))
         add(l.text("toggleCollapsed"), #selector(toggleCollapsed))
         add(l.text("pin"), #selector(togglePinned))
@@ -606,6 +607,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
         }
         for balance in deepSeekBalances { lines.append(l.text("deepSeekBalance") + ": " + l.number(balance.total, decimals: 2) + " " + balance.currency) }
         if deepSeekError { lines.append(l.text("deepSeekError")) }
+        if let pick = recommendedAgent(items: items, now: now) {
+            lines.append(l.text("suggestedAgent") + ": " + providerName(pick.provider) + " (" + l.number(pick.remaining, decimals: 0) + "% " + l.text("remaining") + ")")
+        }
         lines.append(l.text("agentLogsHelp"))
         agentsLabel.toolTip = lines.joined(separator: "\n")
     }
@@ -643,7 +647,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
         guard settings.agentLogsEnabled, statsStore.backfilledAt == nil else { return }
         statsModel.backfilling = true
         let scanner = AgentLogScanner(sources: AgentLogScanner.defaultSources(home: FileManager.default.homeDirectoryForCurrentUser))
-        agentScanQueue.async { [weak self] in
+        // Separate queue: the regular one-minute scans keep running while the long backfill reads.
+        DispatchQueue.global(qos: .background).async { [weak self] in
             let events = scanner.scan(windowStart: now - 30 * 86400, now: now)
             DispatchQueue.main.async {
                 guard let self else { return }
@@ -708,6 +713,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
             alert.addButton(withTitle: l.text("connectAntigravity")); actions.append { [weak self] in self?.installBridge("antigravity") }
         }
         alert.addButton(withTitle: l.text("deepSeekKey")); actions.append { [weak self] in self?.editDeepSeekKey() }
+        alert.addButton(withTitle: l.text("agentCollaboration")); actions.append { [weak self] in self?.configureCollaboration() }
         alert.addButton(withTitle: l.text("done")); actions.append {}
         let index = alert.runModal().rawValue - NSApplication.ModalResponse.alertFirstButtonReturn.rawValue
         if actions.indices.contains(index) { actions[index]() }
@@ -796,6 +802,37 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
         settings = next
         defaults.set(try? JSONEncoder().encode(next), forKey: "settings")
         rebuildItems(); resize(); render()
+    }
+
+    @objc private func configureCollaboration() {
+        NSApp.activate(ignoringOtherApps: true)
+        guard let codex = client.executable else { showMessage(title: l.text("sourceError"), details: "Codex CLI not found"); return }
+        let codexToClaude = AgentCollaboration.codexCanCallClaude(codex: codex)
+        let claudeToCodex = AgentCollaboration.claudeCanCallCodex
+        let alert = NSAlert()
+        alert.messageText = l.text("agentCollaboration")
+        alert.informativeText = l.text("collaborationIntro")
+        let first = NSButton(checkboxWithTitle: l.text("codexCallsClaude"), target: nil, action: nil)
+        first.state = codexToClaude ? .on : .off
+        first.isEnabled = AgentCollaboration.claudeExecutable != nil || codexToClaude
+        let second = NSButton(checkboxWithTitle: l.text("claudeCallsCodex"), target: nil, action: nil)
+        second.state = claudeToCodex ? .on : .off
+        second.isEnabled = AgentDetection.claudeInstalled
+        let stack = NSStackView(views: [first, second])
+        stack.orientation = .vertical; stack.alignment = .leading; stack.frame = NSRect(x: 0, y: 0, width: 380, height: 52)
+        alert.accessoryView = stack
+        alert.addButton(withTitle: l.text("apply")); alert.addButton(withTitle: l.text("cancel"))
+        guard alert.runModal() == .alertFirstButtonReturn else { return }
+        var results: [String] = []
+        if (first.state == .on) != codexToClaude {
+            let r = AgentCollaboration.setCodexCallsClaude(first.state == .on, codex: codex)
+            results.append(l.text("codexCallsClaude") + ": " + (r.ok ? "✓" : "✗ " + r.output))
+        }
+        if (second.state == .on) != claudeToCodex {
+            let r = AgentCollaboration.setClaudeCallsCodex(second.state == .on, codex: codex)
+            results.append(l.text("claudeCallsCodex") + ": " + (r.ok ? "✓" : "✗ " + r.output))
+        }
+        if !results.isEmpty { showMessage(title: l.text("agentCollaboration"), details: results.joined(separator: "\n") + "\n\n" + l.text("collaborationRestart")) }
     }
 
     private func installBridge(_ provider: String) {
@@ -1614,6 +1651,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
         data["openAtLogin"] = LoginItem.isEnabled
         data["autoConnectResults"] = autoConnectResults
         data["claudePlanError"] = claudePlanError
+        if let pick = recommendedAgent(items: items, now: now) { data["suggestedAgent"] = pick.provider; data["suggestedAgentRemainingPercent"] = pick.remaining }
         data["autoContinueBlocked"] = autoContinuePlanner.isBlocked
         if let last = lastAutoContinue {
             var entry: [String: Any] = ["at": last.at, "result": last.result]

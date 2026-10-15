@@ -22,13 +22,16 @@ final class UsageStatsStoreTests: XCTestCase {
     func testPruneStopsAcceptingOldEventsAfterRestart() throws {
         var store = UsageStatsStore()
         store.add(event("x", 100_000))
+        store.prune(now: 100_000 + 7 * 3600)
+        XCTAssertTrue(store.add(event("late", 100_010)), "before the backfill finishes, old events are still accepted")
+        store.finishBackfill(at: 100_100)
         store.prune(now: 100_100)
         var restored = try JSONDecoder().decode(UsageStatsStore.self, from: JSONEncoder().encode(store))
         XCTAssertFalse(restored.add(event("x", 100_000)), "key survives the restart")
         restored.prune(now: 100_000 + 7 * 3600)
         XCTAssertFalse(restored.add(event("old", 100_050)), "older than six hours is treated as already counted")
         XCTAssertTrue(restored.add(event("new", 100_000 + 7 * 3600 + 1)))
-        XCTAssertEqual(restored.tokenTotals(since: 0, now: 200_000)["codex"]?.total, 200)
+        XCTAssertEqual(restored.tokenTotals(since: 0, now: 200_000)["codex"]?.total, 300)
     }
 
     func testQuotaSamplingAndConsumptionAcrossReset() {

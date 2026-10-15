@@ -106,3 +106,76 @@ extension KeychainSecret {
         return try? Data(contentsOf: AgentDetection.home.appendingPathComponent(".claude/.credentials.json"))
     }
 }
+
+/// Optional, user-chosen links between agents. Each step uses the agents' own configuration commands
+/// and can be removed again from the same menu.
+enum AgentCollaboration {
+    static let codexServerName = "claude-code"
+    static var skillDirectory: URL { AgentDetection.home.appendingPathComponent(".claude/skills/codex-delegate", isDirectory: true) }
+    static let skillMarker = "<!-- installed by Codex Usage Widget -->"
+
+    static var claudeExecutable: String? {
+        let home = AgentDetection.home.path
+        return [home + "/.local/bin/claude", home + "/.claude/local/claude", "/opt/homebrew/bin/claude", "/usr/local/bin/claude"]
+            .first { FileManager.default.isExecutableFile(atPath: $0) }
+    }
+
+    @discardableResult
+    static func run(_ executable: String, _ arguments: [String]) -> (ok: Bool, output: String) {
+        let process = Process(), pipe = Pipe()
+        process.executableURL = URL(fileURLWithPath: executable)
+        process.arguments = arguments
+        process.standardOutput = pipe; process.standardError = pipe
+        do { try process.run() } catch { return (false, error.localizedDescription) }
+        let data = pipe.fileHandleForReading.readDataToEndOfFile()
+        process.waitUntilExit()
+        return (process.terminationStatus == 0, String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? "")
+    }
+
+    static func codexCanCallClaude(codex: String?) -> Bool {
+        guard let codex else { return false }
+        return run(codex, ["mcp", "get", codexServerName]).ok
+    }
+
+    static var claudeCanCallCodex: Bool {
+        (try? String(contentsOf: skillDirectory.appendingPathComponent("SKILL.md"), encoding: .utf8))?.contains(skillMarker) ?? false
+    }
+
+    /// Codex gets Claude Code as an MCP server (`claude mcp serve`).
+    static func setCodexCallsClaude(_ enabled: Bool, codex: String) -> (ok: Bool, output: String) {
+        if !enabled { return run(codex, ["mcp", "remove", codexServerName]) }
+        guard let claude = claudeExecutable else { return (false, "Claude Code CLI not found") }
+        return run(codex, ["mcp", "add", codexServerName, "--", claude, "mcp", "serve"])
+    }
+
+    /// Claude Code gets a skill that hands a task to `codex exec` and checks Codex quota first.
+    static func setClaudeCallsCodex(_ enabled: Bool, codex: String) -> (ok: Bool, output: String) {
+        let skill = skillDirectory.appendingPathComponent("SKILL.md")
+        if !enabled {
+            guard claudeCanCallCodex else { return (true, "") }
+            do { try FileManager.default.removeItem(at: skillDirectory); return (true, "") } catch { return (false, error.localizedDescription) }
+        }
+        let status = support.appendingPathComponent("status.json").path
+        let text = """
+        ---
+        name: codex-delegate
+        description: Hand a well-scoped coding task, investigation or second-opinion review to OpenAI Codex via its CLI. Use when the user asks for Codex, a second opinion, or when Claude quota is low and Codex has room.
+        ---
+        \(skillMarker)
+
+        # Delegate to Codex
+
+        1. Check quota first: read `\(status)`. If `suggestedAgent` is `codex`, or the user asked for Codex, continue. If the Codex window's `usedPercent` is 95 or higher, tell the user Codex is nearly out of quota instead of delegating.
+        2. Write a self-contained prompt: goal, relevant files, constraints and how to verify. Codex does not see this conversation.
+        3. Run it in the project folder:
+           - Review or question (no edits): `"\(codex)" exec --sandbox read-only -C "<project dir>" "<prompt>"`
+           - Implementation: `"\(codex)" exec --sandbox workspace-write -C "<project dir>" "<prompt>"`
+        4. Read Codex's final message, inspect any changed files with `git diff`, verify the result yourself, and report what Codex did.
+        """
+        do {
+            try FileManager.default.createDirectory(at: skillDirectory, withIntermediateDirectories: true)
+            try Data(text.utf8).write(to: skill, options: .atomic)
+            return (true, skill.path)
+        } catch { return (false, error.localizedDescription) }
+    }
+}

@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- **Agent collaboration** (menu bar → Agent collaboration…, off until chosen): let Codex call Claude Code as an MCP server (`claude mcp serve`), and/or give Claude Code a `codex-delegate` skill that hands tasks to `codex exec` after checking Codex quota. The card suggests the agent with more quota headroom; `status.json` exposes `suggestedAgent`.
 - **Usage statistics window** (menu bar → Usage statistics…): 24h / 7d / 30d totals and averages per hour, token curves per provider with an input / cache / output / reasoning breakdown, and quota-used curves with percentage points consumed per hour for every window. History is kept for 35 days in `usage-stats.json`; the first launch backfills 30 days of agent logs and earlier Codex quota checkpoints.
 - **Claude Pro/Max plan usage without a status line:** the 5-hour and weekly limits come from the same usage endpoint Claude Code uses, with the Claude Code login (macOS asks once for keychain access). Works for the Claude desktop app and remote sessions. Connected providers are added to the card automatically the first time.
 - The All agents row lists the top providers (for example `Codex 1.7B · Claude 780M`).

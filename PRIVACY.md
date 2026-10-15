@@ -6,7 +6,7 @@ The widget does not read conversation contents, session logs, prompts, or authen
 
 ## Stored locally
 
-In `~/Library/Application Support/CodexUsageWidget/`:
+In `~/Library/Application Support/QuotaPilot/`:
 
 - `history.json`: quota samples and a hashed account identifier.
 - `tokens.json`: cumulative token samples and a hashed account identifier.
@@ -24,7 +24,7 @@ The task ledger is local and manual. It stores user-entered task titles, project
 
 The usage event log has no automatic expiry in this prototype. It stores a 15-minute account checkpoint while polling is active, plus gap, account-switch, reset, source-correction, failure, and recovery events. It contains timestamps, quota values, the reported account-wide token total, source error codes, and hashed account keys; it contains no prompts or transcripts. **Export usage events…** copies the complete JSON Lines file to a user-selected location. Review it before sharing because it can reveal account usage patterns. Deleting the Application Support directory removes the local event log.
 
-To delete collected data, quit the widget and remove its Application Support directory. Preferences can be removed separately using the macOS defaults domain `local.codex.usage-widget`.
+To delete collected data, quit the widget and remove its Application Support directory. Preferences can be removed separately using the macOS defaults domain `io.github.dwagwd.quotapilot`.
 
 Local files and screenshots may disclose usage patterns. Share only redacted diagnostics. Public source archives deliberately exclude local state, credentials, and profiling output.
 

@@ -18,16 +18,16 @@ class InstallTests(unittest.TestCase):
             executable(scripts / 'build.sh', 'exit 0')
             running = root / 'running'; running.touch()
             dist = root / 'dist'
-            executable(dist / 'Codex Usage Widget.app/Contents/MacOS/CodexUsageWidget',
+            executable(dist / 'QuotaPilot.app/Contents/MacOS/QuotaPilot',
                        'test "$1" = "--quit"\nrm "$TEST_RUNNING"')
             executable(root / 'bin/pgrep', 'test -e "$TEST_RUNNING"')
             executable(root / 'bin/ditto', 'mkdir -p "$2"')
-            env = dict(os.environ, HOME=str(root / 'home'), CODEX_WIDGET_DIST_DIR=str(dist),
+            env = dict(os.environ, HOME=str(root / 'home'), QUOTAPILOT_DIST_DIR=str(dist),
                        TEST_RUNNING=str(running), PATH=str(root / 'bin') + ':' + os.environ['PATH'])
             result = subprocess.run(['bash', str(scripts / 'build-install.sh')], env=env,
                                     capture_output=True, text=True)
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assertFalse(running.exists())
-            self.assertTrue((root / 'home/Applications/Codex Usage Widget.app').exists())
+            self.assertTrue((root / 'home/Applications/QuotaPilot.app').exists())
 
 if __name__ == '__main__': unittest.main()

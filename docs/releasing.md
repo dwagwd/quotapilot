@@ -27,9 +27,9 @@ One-time setup on the release Mac:
 Then build a universal, signed, notarized, stapled app ZIP:
 
 ```sh
-CODEX_WIDGET_UNIVERSAL=1 \
-CODEX_WIDGET_SIGN_IDENTITY="Developer ID Application: <name> (<team ID>)" \
-CODEX_WIDGET_NOTARY_PROFILE=codex-widget \
+QUOTAPILOT_UNIVERSAL=1 \
+QUOTAPILOT_SIGN_IDENTITY="Developer ID Application: <name> (<team ID>)" \
+QUOTAPILOT_NOTARY_PROFILE=codex-widget \
 ./scripts/package.sh
 ```
 

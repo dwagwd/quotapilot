@@ -85,7 +85,7 @@ public struct L10n {
         "refresh": ["en": "Refresh now", "zh-Hant": "立即更新", "zh-Hans": "立即更新"],
         "toggleCollapsed": ["en": "Collapse / expand", "zh-Hant": "收合／展開", "zh-Hans": "收起／展开"],
         "pin": ["en": "Always on top", "zh-Hant": "保持置頂", "zh-Hans": "保持置顶"],
-        "quit": ["en": "Quit Codex Usage", "zh-Hant": "退出 Codex Usage", "zh-Hans": "退出 Codex Usage"],
+        "quit": ["en": "Quit QuotaPilot", "zh-Hant": "退出 QuotaPilot", "zh-Hans": "退出 QuotaPilot"],
         "selectWindow": ["en": "Select quota window", "zh-Hant": "選擇額度窗口", "zh-Hans": "选择额度窗口"],
         "dragHint": ["en": "Click to switch quota; drag blank space to move.", "zh-Hant": "點擊切換額度；拖曳空白處移動。", "zh-Hans": "点击切换额度；拖动空白处移动。"],
         "collapse": ["en": "Collapse", "zh-Hant": "收合", "zh-Hans": "收起"],

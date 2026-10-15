@@ -1,4 +1,4 @@
-# Codex Usage Widget
+# QuotaPilot
 
 原生 macOS 桌面用量小卡，顯示方案額度、Codex 帳號 token 速度與重置倒數。使用 AppKit／Swift，不需要瀏覽器執行環境，不透過模型對話輪詢。
 
@@ -34,9 +34,9 @@
 
 需要 macOS 13+、Swift 5.9+／Xcode Command Line Tools、測試用 Python 3，以及已登入 ChatGPT 帳號的 Codex App 或 CLI。Codex 核心小卡不依賴 Python，其他 agent 橋接需要 Python 3。
 
-**快速安裝：**從 [Releases](https://github.com/dwagwd/codex-plugin/releases/latest) 下載 `CodexUsageWidget-<版本>-macos-universal.zip`，解壓後把 **Codex Usage Widget.app** 移到「應用程式」。App 已簽章並經 Apple 公證，開啟時不會出現安全性警告。
+**快速安裝：**從 [Releases](https://github.com/dwagwd/codex-plugin/releases/latest) 下載 `QuotaPilot-<版本>-macos-universal.zip`，解壓後把 **QuotaPilot.app** 移到「應用程式」。App 已簽章並經 Apple 公證，開啟時不會出現安全性警告。
 
-**從原始碼建置：**先從 [Releases](https://github.com/dwagwd/codex-plugin/releases/latest) 下載來源 ZIP 並解壓，於資料夾開啟終端機；或先執行 `git clone https://github.com/dwagwd/codex-plugin.git codex-usage-widget`，再 `cd codex-usage-widget`。
+**從原始碼建置：**先從 [Releases](https://github.com/dwagwd/codex-plugin/releases/latest) 下載來源 ZIP 並解壓，於資料夾開啟終端機；或先執行 `git clone https://github.com/dwagwd/codex-plugin.git quotapilot`，再 `cd quotapilot`。
 
 ```sh
 ./scripts/check.sh
@@ -44,7 +44,7 @@
 ./scripts/launch.sh
 ```
 
-安裝於 `~/Applications/Codex Usage Widget.app`。重複啟動只顯示原本的小卡；不設定登入自動啟動。齒輪可調整偏好設定；點標題切换主額度，拖曳空白處移動。滑鼠停在速度上可查看實際觀測長度與定義。
+安裝於 `~/Applications/QuotaPilot.app`。重複啟動只顯示原本的小卡；不設定登入自動啟動。齒輪可調整偏好設定；點標題切换主額度，拖曳空白處移動。滑鼠停在速度上可查看實際觀測長度與定義。
 
 從選單列開啟「資料來源診斷」、開始／結束 Codex 任務紀錄、查看任務／用量事件或分別匯出兩種帳本。額度與帳號 Token 快照會和任務消耗分開保存；詳見[帳本原型說明](docs/task-ledger.md)。
 
@@ -64,6 +64,6 @@ Codex 額度來自 `account/rateLimits/read`，tokens 來自 `account/usage/read
 ./scripts/package.sh
 ```
 
-產出與建置快取預設在 `~/Library/Caches/CodexUsageWidget/`。發布步驟見 [releasing.md](docs/releasing.md)，測試範圍見 [validation.md](docs/validation.md)。
+產出與建置快取預設在 `~/Library/Caches/QuotaPilot/`。發布步驟見 [releasing.md](docs/releasing.md)，測試範圍見 [validation.md](docs/validation.md)。
 
-本機採樣在 `~/Library/Application Support/CodexUsageWidget/`，偏好設定屬於 `local.codex.usage-widget`。請勿將這些個人資料推送至 GitHub。移除時先退出 App；如有安裝其他 agent 橋接，依連接指南還原 statusLine 設定，再移除 App、資料及插件。
+本機採樣在 `~/Library/Application Support/QuotaPilot/`，偏好設定屬於 `io.github.dwagwd.quotapilot`。請勿將這些個人資料推送至 GitHub。移除時先退出 App；如有安裝其他 agent 橋接，依連接指南還原 statusLine 設定，再移除 App、資料及插件。

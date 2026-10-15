@@ -1,4 +1,4 @@
-# Codex Usage Widget
+# QuotaPilot
 
 A small, native macOS desktop widget for **plan quota**, **account token consumption**, and **reset countdowns**. Built with AppKit and Swift, without a browser runtime or model-turn polling.
 
@@ -37,13 +37,13 @@ Unofficial community project. Not affiliated with or endorsed by OpenAI, Anthrop
 
 Requirements: macOS 13+, Swift 5.9+ / Xcode Command Line Tools, Python 3 for tests and packaging, and Codex desktop or CLI signed in with a ChatGPT account. The core Codex app is native and does not require Python; optional provider bridges use Python 3.
 
-**Quick install:** download `CodexUsageWidget-<version>-macos-universal.zip` from [Releases](https://github.com/dwagwd/codex-plugin/releases/latest), unzip it, and move **Codex Usage Widget.app** to Applications. It is signed and notarized, so it opens without a Gatekeeper warning.
+**Quick install:** download `QuotaPilot-<version>-macos-universal.zip` from [Releases](https://github.com/dwagwd/codex-plugin/releases/latest), unzip it, and move **QuotaPilot.app** to Applications. It is signed and notarized, so it opens without a Gatekeeper warning.
 
-**From source:** download the source ZIP from [Releases](https://github.com/dwagwd/codex-plugin/releases/latest), extract it, and open a terminal in the extracted `codex-usage-widget` folder. Or clone the repository:
+**From source:** download the source ZIP from [Releases](https://github.com/dwagwd/codex-plugin/releases/latest), extract it, and open a terminal in the extracted `quotapilot` folder. Or clone the repository:
 
 ```sh
-git clone https://github.com/dwagwd/codex-plugin.git codex-usage-widget
-cd codex-usage-widget
+git clone https://github.com/dwagwd/codex-plugin.git quotapilot
+cd quotapilot
 ```
 
 Then build and launch:
@@ -54,7 +54,7 @@ Then build and launch:
 ./scripts/launch.sh
 ```
 
-The app is installed at `~/Applications/Codex Usage Widget.app`. Reopening it reveals the existing instance. Turn on **Open at login** in Settings to start it with macOS. Use the menu bar item to hide/show, refresh, pin, or quit.
+The app is installed at `~/Applications/QuotaPilot.app`. Reopening it reveals the existing instance. Turn on **Open at login** in Settings to start it with macOS. Use the menu bar item to hide/show, refresh, pin, or quit.
 
 Click the **gear** to configure language, observation window, rate units, additional quotas, RGB colors, energy saving, and provider imports, then **Apply**. Click the card title to select a quota window. Drag blank space to move the card. Hover over each rate for its source and actual observed duration.
 
@@ -88,13 +88,13 @@ Missing or unsupported token data shows `—` while quota continues to work. API
 ./scripts/package.sh   # Architecture-specific app ZIP + portable source ZIP
 ```
 
-Builds use `~/Library/Caches/CodexUsageWidget/` by default. Override `CODEX_WIDGET_BUILD_CACHE`, `CODEX_WIDGET_TEST_CACHE`, or `CODEX_WIDGET_DIST_DIR` as needed. `CODEX_USAGE_CODEX_PATH` selects a custom Codex executable when launching the native executable directly.
+Builds use `~/Library/Caches/QuotaPilot/` by default. Override `QUOTAPILOT_BUILD_CACHE`, `QUOTAPILOT_TEST_CACHE`, or `QUOTAPILOT_DIST_DIR` as needed. `CODEX_USAGE_CODEX_PATH` selects a custom Codex executable when launching the native executable directly.
 
 Packages use ad-hoc signing and are **not notarized**. Source builds are the supported installation path for this version. A manual GitHub Actions packaging workflow creates downloadable artifacts; it does not publish releases. [Release checklist](docs/releasing.md)
 
 ## Local data and removal
 
-Samples and diagnostic snapshots are stored in `~/Library/Application Support/CodexUsageWidget/`. Preferences use the `local.codex.usage-widget` defaults domain. Avoid uploading these files or unredacted screenshots to public issues.
+Samples and diagnostic snapshots are stored in `~/Library/Application Support/QuotaPilot/`. Preferences use the `io.github.dwagwd.quotapilot` defaults domain. Avoid uploading these files or unredacted screenshots to public issues.
 
 To remove: quit the widget, remove its app, optionally remove its local data and preferences, and remove the plugin from Codex if installed. No daemon is installed; a login item exists only if you turn on **Open at login**.
 

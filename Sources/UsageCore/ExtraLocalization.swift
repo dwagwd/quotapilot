@@ -21,7 +21,7 @@ let extraTranslations: [String: [String: String]] = [
     "refresh": ["ja": "今すぐ更新", "ko": "지금 새로 고침", "es": "Actualizar ahora", "fr": "Actualiser", "de": "Jetzt aktualisieren", "pt-BR": "Atualizar agora", "it": "Aggiorna ora"],
     "toggleCollapsed": ["ja": "折りたたむ／展開", "ko": "접기 / 펼치기", "es": "Contraer / expandir", "fr": "Réduire / développer", "de": "Ein- / ausklappen", "pt-BR": "Recolher / expandir", "it": "Comprimi / espandi"],
     "pin": ["ja": "常に最前面", "ko": "항상 위에 표시", "es": "Siempre encima", "fr": "Toujours au premier plan", "de": "Immer im Vordergrund", "pt-BR": "Sempre visível", "it": "Sempre in primo piano"],
-    "quit": ["ja": "Codex Usage を終了", "ko": "Codex Usage 종료", "es": "Salir de Codex Usage", "fr": "Quitter Codex Usage", "de": "Codex Usage beenden", "pt-BR": "Sair do Codex Usage", "it": "Esci da Codex Usage"],
+    "quit": ["ja": "QuotaPilot を終了", "ko": "QuotaPilot 종료", "es": "Salir de QuotaPilot", "fr": "Quitter QuotaPilot", "de": "QuotaPilot beenden", "pt-BR": "Sair do QuotaPilot", "it": "Esci da QuotaPilot"],
     "selectWindow": ["ja": "使用枠を選択", "ko": "사용 한도 선택", "es": "Seleccionar límite", "fr": "Choisir un quota", "de": "Kontingent wählen", "pt-BR": "Selecionar cota", "it": "Seleziona quota"],
     "collapse": ["ja": "折りたたむ", "ko": "접기", "es": "Contraer", "fr": "Réduire", "de": "Einklappen", "pt-BR": "Recolher", "it": "Comprimi"],
     "expand": ["ja": "展開", "ko": "펼치기", "es": "Expandir", "fr": "Développer", "de": "Ausklappen", "pt-BR": "Expandir", "it": "Espandi"],

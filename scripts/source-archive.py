@@ -16,7 +16,7 @@ with zipfile.ZipFile(target, "w", compression=zipfile.ZIP_DEFLATED) as archive:
             manifest = json.loads(data)
             manifest["version"] = version  # Local reinstall suffixes do not enter public releases.
             data = (json.dumps(manifest, indent=2, ensure_ascii=False)+"\n").encode()
-        info = zipfile.ZipInfo("codex-usage-widget/" + relative.as_posix())
+        info = zipfile.ZipInfo("quotapilot/" + relative.as_posix())
         info.external_attr = (0o100755 if path.suffix == ".sh" else 0o100644) << 16
         info.compress_type = zipfile.ZIP_DEFLATED
         archive.writestr(info, data)

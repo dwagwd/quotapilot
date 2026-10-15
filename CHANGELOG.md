@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- **Renamed to QuotaPilot** (app, executable, bundle ID `io.github.dwagwd.quotapilot`, data folder `~/Library/Application Support/QuotaPilot`, build variables `QUOTAPILOT_*`). The first launch moves the old data folder (leaving a symlink for installed bridges), copies preferences, and moves a saved DeepSeek key; the install script removes the old app.
 - **Per-second rates:** choose seconds as the rate unit (tokens/s, %/s); small quota rates get more decimals.
 - The 30-day statistics backfill reads file by file and resumes after a restart.
 - **Quota order** (Settings): as detected, most used, resets soonest or by name, plus pinning one agent to the top; applies to the compact, bar and detailed extra rows.

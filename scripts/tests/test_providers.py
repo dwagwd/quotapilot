@@ -61,7 +61,7 @@ class ProviderTests(unittest.TestCase):
             result = subprocess.run(installed['statusLine']['command'], shell=True, env=env,
                 input=json.dumps({'session_id': 'test'}), text=True, capture_output=True, check=True)
             self.assertEqual(result.stdout, 'original-status')
-            self.assertTrue((Path(folder) / 'Library/Application Support/CodexUsageWidget/providers/claude.json').exists())
+            self.assertTrue((Path(folder) / 'Library/Application Support/QuotaPilot/providers/claude.json').exists())
     def test_private_atomic_snapshot(self):
         with tempfile.TemporaryDirectory() as folder:
             s = b.normalize('claude', {'session_id': 'test'}, now=100)

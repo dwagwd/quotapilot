@@ -10,7 +10,7 @@ for name in required:
 version = (ROOT / "VERSION").read_text().strip()
 assert re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+", version), "Invalid VERSION"
 manifest = json.loads((ROOT / ".codex-plugin/plugin.json").read_text())
-assert manifest["name"] == "codex-usage-widget"
+assert manifest["name"] == "quotapilot"
 assert manifest["version"].split("+")[0] == version, "Plugin and app versions differ"
 assert "MIT License" in (ROOT / "LICENSE").read_text()
 # Match accidental machine-specific paths, real credentials, or private key material.

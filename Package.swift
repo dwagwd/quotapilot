@@ -1,7 +1,7 @@
 // swift-tools-version: 5.9
 import PackageDescription
-let package = Package(name: "CodexUsageWidget", platforms: [.macOS(.v13)], products: [
-    .executable(name: "CodexUsageWidget", targets: ["UsageWidget"])
+let package = Package(name: "QuotaPilot", platforms: [.macOS(.v13)], products: [
+    .executable(name: "QuotaPilot", targets: ["UsageWidget"])
 ], targets: [
     .target(name: "UsageCore"),
     .target(name: "UsageTransport", dependencies: ["UsageCore"]),

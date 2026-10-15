@@ -33,7 +33,7 @@ final class SettingsWindowController: NSWindowController {
                               styleMask: [.titled, .closable], backing: .buffered, defer: false)
         super.init(window: window)
         let l = L10n(settings.language)
-        window.title = "Codex Usage · " + l.text("settings")
+        window.title = "QuotaPilot · " + l.text("settings")
         window.isReleasedWhenClosed = false
         window.level = .floating
         window.center()

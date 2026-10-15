@@ -20,7 +20,7 @@ def main():
     config = base / "settings.json"
     data = json.loads(config.read_text()) if config.exists() else {}
     old = data.get("statusLine") or {}
-    bridge = Path.home() / "Library/Application Support/CodexUsageWidget/bridges"
+    bridge = Path.home() / "Library/Application Support/QuotaPilot/bridges"
     bridge.mkdir(parents=True, exist_ok=True, mode=0o700)
     script = bridge / (args.provider + "-statusline.py")
     # Prefer the stable system launcher; sys.executable may point inside a versioned Xcode bundle.

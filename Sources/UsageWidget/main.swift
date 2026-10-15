@@ -3,17 +3,38 @@ import UserNotifications
 import UsageCore
 import UsageTransport
 
-let appID = "local.codex.usage-widget"
+let appID = "io.github.dwagwd.quotapilot"
 if CommandLine.arguments.contains("--quit") {
     DistributedNotificationCenter.default().postNotificationName(Notification.Name(appID+".quit"), object: nil, userInfo: nil, deliverImmediately: true)
     exit(0)
 }
-let support = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Application Support/CodexUsageWidget", isDirectory: true)
+let support = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Application Support/QuotaPilot", isDirectory: true)
+migrateFromCodexUsageWidget()
 try FileManager.default.createDirectory(at: support, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
 let lockFD = open(support.appendingPathComponent("instance.lock").path, O_CREAT | O_RDWR, 0o600)
 guard lockFD >= 0, flock(lockFD, LOCK_EX | LOCK_NB) == 0 else {
     DistributedNotificationCenter.default().postNotificationName(Notification.Name(appID+".show"), object: nil, userInfo: nil, deliverImmediately: true)
     exit(0)
+}
+
+/// One-time move from the pre-rename "Codex Usage Widget": data folder (the old path stays as a symlink so
+/// installed status-line bridges keep working) and preferences.
+func migrateFromCodexUsageWidget() {
+    let fm = FileManager.default
+    let legacy = fm.homeDirectoryForCurrentUser.appendingPathComponent("Library/Application Support/CodexUsageWidget", isDirectory: true)
+    var isLink = false
+    if let type = try? fm.attributesOfItem(atPath: legacy.path)[.type] as? FileAttributeType { isLink = type == .typeSymbolicLink }
+    if !isLink, fm.fileExists(atPath: legacy.path), !fm.fileExists(atPath: support.path) {
+        if (try? fm.moveItem(at: legacy, to: support)) != nil {
+            try? fm.createSymbolicLink(at: legacy, withDestinationURL: support)
+        }
+    }
+    let defaults = UserDefaults.standard
+    if defaults.object(forKey: "settings") == nil, let old = UserDefaults(suiteName: "local.codex.usage-widget") {
+        for (key, value) in old.dictionaryRepresentation() where old.object(forKey: key) != nil && !key.hasPrefix("NS") && !key.hasPrefix("Apple") {
+            defaults.set(value, forKey: key)
+        }
+    }
 }
 
 final class FloatingPanel: NSPanel {
@@ -57,7 +78,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
     private var autoContinuePlanner = AutoContinuePlanner()
     private var autoContinueRunning = false
     private var lastAutoContinue: (at: Double, session: String?, result: String)?
-    private let agentScanQueue = DispatchQueue(label: "local.codex.usage-widget.agent-logs", qos: .utility)
+    private let agentScanQueue = DispatchQueue(label: "io.github.dwagwd.quotapilot.agent-logs", qos: .utility)
     private var agentScanner = AgentLogScanner(sources: AgentLogScanner.defaultSources(home: FileManager.default.homeDirectoryForCurrentUser))
     private var agentLedger = AgentTokenLedger()
     private var agentScanning = false
@@ -428,7 +449,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
     }
     private func setupPanel() {
         panel = FloatingPanel(contentRect: NSRect(x: 0, y: 0, width: 260, height: 128), styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
-        panel.title = "Codex Usage"
+        panel.title = "QuotaPilot"
         panel.isFloatingPanel = true; panel.hidesOnDeactivate = false
         panel.isReleasedWhenClosed = false; panel.isOpaque = false
         panel.backgroundColor = .clear; panel.hasShadow = true
@@ -477,7 +498,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
     }
     private func setupStatus() {
         if status == nil { status = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength) }
-        status.button?.image = NSImage(systemSymbolName: "gauge.with.dots.needle.50percent", accessibilityDescription: "Codex Usage")
+        status.button?.image = NSImage(systemSymbolName: "gauge.with.dots.needle.50percent", accessibilityDescription: "QuotaPilot")
         let menu = NSMenu()
         func add(_ name: String, _ action: Selector) {
             let item = NSMenuItem(title: name, action: action, keyEquivalent: ""); item.target = self; menu.addItem(item)
@@ -580,7 +601,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
         guard panel != nil else { return }
         let now = Date().timeIntervalSince1970
         let item = current
-        titleButton.title = collapsed ? (item?.name ?? "Codex") : ((item.map { title(for: $0) } ?? "Codex Usage") + " ▾")
+        titleButton.title = collapsed ? (item?.name ?? "Codex") : ((item.map { title(for: $0) } ?? "QuotaPilot") + " ▾")
         if let used = item?.window.usedPercent, used.isFinite, (0...100).contains(used) {
             valueLabel.stringValue = l.number(used, decimals: 0) + "%"
             progress.doubleValue = used
@@ -823,7 +844,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
     @objc private func showStats() {
         statsModel.store = statsStore
         statsModel.language = settings.language
-        if statsWindow == nil { statsWindow = StatsWindowController(model: statsModel, title: "Codex Usage · " + l.text("usageStats").replacingOccurrences(of: "…", with: "")) }
+        if statsWindow == nil { statsWindow = StatsWindowController(model: statsModel, title: "QuotaPilot · " + l.text("usageStats").replacingOccurrences(of: "…", with: "")) }
         statsWindow?.present()
     }
 

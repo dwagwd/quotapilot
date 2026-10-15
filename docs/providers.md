@@ -45,7 +45,7 @@ Cursor individual plan monitoring, per-model shared-plan quota attribution, and 
 
 ## Data and freshness contract
 
-Snapshots are restricted to `claude.json`, `antigravity.json`, and `cursor.json` under `~/Library/Application Support/CodexUsageWidget/providers/`. Files are written atomically with mode 0600, and the native importer accepts at most 256 KiB, 32 windows, a known provider, bounded identifiers, and a plausible observation timestamp. Provider IDs namespace every quota. Errors preserve the previous sample until it becomes stale; they never report zero usage. A gap over five minutes resets speed estimation.
+Snapshots are restricted to `claude.json`, `antigravity.json`, and `cursor.json` under `~/Library/Application Support/QuotaPilot/providers/`. Files are written atomically with mode 0600, and the native importer accepts at most 256 KiB, 32 windows, a known provider, bounded identifiers, and a plausible observation timestamp. Provider IDs namespace every quota. Errors preserve the previous sample until it becomes stale; they never report zero usage. A gap over five minutes resets speed estimation.
 
 ## Official references
 

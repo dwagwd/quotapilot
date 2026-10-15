@@ -1,18 +1,18 @@
 {
-  "name": "codex-usage-widget",
+  "name": "quotapilot",
   "version": "0.4.0",
   "description": "Native macOS widget for Codex plan quota, account token rates, and reset countdowns.",
   "author": {
-    "name": "Codex Usage Widget contributors"
+    "name": "QuotaPilot contributors"
   },
   "skills": "./skills/",
   "interface": {
-    "displayName": "Codex Usage Widget",
+    "displayName": "QuotaPilot",
     "shortDescription": "Plan quota, token rates, and reset countdowns on your desktop.",
     "longDescription": "Unofficial native macOS companion with ten interface languages, selectable quotas, RGB colors, energy saver, and optional coding-agent bridges.",
-    "developerName": "Codex Usage Widget contributors",
+    "developerName": "QuotaPilot contributors",
     "category": "Productivity",
     "capabilities": [],
-    "defaultPrompt": "Launch Codex Usage Widget and show its settings."
+    "defaultPrompt": "Launch QuotaPilot and show its settings."
   }
 }

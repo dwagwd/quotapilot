@@ -5,9 +5,24 @@ import UsageCore
 
 /// Stores provider API keys in the login keychain, never in preferences or files.
 enum KeychainSecret {
-    private static let service = "local.codex.usage-widget"
+    private static let service = "io.github.dwagwd.quotapilot"
+
+    /// Keys saved before the QuotaPilot rename live under the old service name.
+    private static let legacyService = "local.codex.usage-widget"
 
     static func read(_ account: String) -> String? {
+        if let value = read(account, service: service) { return value }
+        guard let legacy = read(account, service: legacyService) else { return nil }
+        if write(account, value: legacy) { _ = delete(account, service: legacyService) }
+        return legacy
+    }
+
+    @discardableResult
+    private static func delete(_ account: String, service: String) -> Bool {
+        SecItemDelete([kSecClass as String: kSecClassGenericPassword, kSecAttrService as String: service, kSecAttrAccount as String: account] as CFDictionary) == errSecSuccess
+    }
+
+    private static func read(_ account: String, service: String) -> String? {
         let query: [String: Any] = [kSecClass as String: kSecClassGenericPassword, kSecAttrService as String: service,
                                     kSecAttrAccount as String: account, kSecReturnData as String: true,
                                     kSecMatchLimit as String: kSecMatchLimitOne]
@@ -42,7 +57,7 @@ enum AgentDetection {
         guard let data = try? Data(contentsOf: settings),
               let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               let status = object["statusLine"] as? [String: Any], let command = status["command"] as? String else { return false }
-        return command.contains("CodexUsageWidget/bridges/")
+        return command.contains("QuotaPilot/bridges/") || command.contains("CodexUsageWidget/bridges/")
     }
 
     /// Runs the bundled setup script; it keeps the user's existing status line and backs up settings.
@@ -113,7 +128,7 @@ extension KeychainSecret {
 enum AgentCollaboration {
     enum Link: String, CaseIterable { case claudeToCodex, codexToClaude, claudeOrchestratesCodex, codexOrchestratesClaude, codexUsesClaudeTools }
     static let mcpName = "claude-tools"
-    static let marker = "<!-- installed by Codex Usage Widget -->"
+    static let marker = "<!-- installed by QuotaPilot -->"
     /// Set by a delegated run; a skill that sees it does not delegate again, so two agents cannot loop.
     static let depthVariable = "AGENT_DELEGATION_DEPTH"
 

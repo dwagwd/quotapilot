@@ -12,7 +12,7 @@ import tempfile
 import time
 
 PROVIDERS = ("claude", "antigravity", "cursor")
-SUPPORT = Path.home() / "Library/Application Support/CodexUsageWidget/providers"
+SUPPORT = Path.home() / "Library/Application Support/QuotaPilot/providers"
 
 
 def number(value):

@@ -47,7 +47,7 @@ public final class UsageClient {
     private var tokenFailures = 0
     private var suspended = false
     private var stopping = false
-    private(set) var executable: String?
+    public private(set) var executable: String?
     private var lastAttemptAt: Double?
     private var lastQuotaSuccessAt: Double?
     private var lastTokenAttemptAt: Double?

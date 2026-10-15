@@ -39,6 +39,12 @@ public struct L10n {
     }
     public static let table: [String: [String: String]] = {
         var result = baseTable
+        for (key, values) in agentFallbackTranslations {
+            result[key, default: [:]].merge(values) { _, new in new }
+        }
+        for (key, values) in agentTranslations {
+            result[key, default: [:]].merge(values) { _, new in new }
+        }
         for (key, values) in forecastTranslations {
             result[key, default: [:]].merge(values) { _, new in new }
         }

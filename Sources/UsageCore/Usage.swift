@@ -16,6 +16,7 @@ public struct Bucket: Codable {
     public let planType: String?
     public let primary: QuotaWindow?
     public let secondary: QuotaWindow?
+    public var rateLimitReachedType: String? = nil
 }
 public struct LimitsResponse: Codable {
     public let rateLimits: Bucket?
@@ -33,7 +34,8 @@ public struct LimitsResponse: Codable {
             let name = id == "codex" ? "Codex" : (b.limitName ?? id).replacingOccurrences(of: "GPT-5.3-Codex-Spark", with: "Spark")
             return [("primary", b.primary), ("secondary", b.secondary)].compactMap { slot, window in
                 guard let w = window else { return nil }
-                return WindowItem(id: id + ":" + slot, name: name, window: w, planType: b.planType)
+                return WindowItem(id: id + ":" + slot, name: name, window: w, planType: b.planType,
+                                  limitReached: !(b.rateLimitReachedType ?? "").isEmpty)
             }
         }
     }
@@ -43,6 +45,8 @@ public struct WindowItem {
     public let name: String
     public let window: QuotaWindow
     public var planType: String? = nil
+    /// The backend reports this bucket as rate-limited, independently of `usedPercent`.
+    public var limitReached: Bool = false
     public var title: String { name + " · " + durationLabel(window.windowDurationMins) }
 }
 public func durationLabel(_ minutes: Int?) -> String {
@@ -166,6 +170,18 @@ public struct WidgetSettings: Codable, Equatable {
     public var rateUnit: TimeUnit = .hour
     public var customization: Customization? = nil
     public var quotaAlerts: Bool? = nil
+    public var autoContinue: Bool? = nil
+    public var agentLogs: Bool? = nil
+    /// Resume an interrupted Codex session with `codex exec resume` once a full quota window resets.
+    public var autoContinueEnabled: Bool {
+        get { autoContinue ?? false }
+        set { autoContinue = newValue }
+    }
+    /// Read token counts from local Codex and Claude Code session logs.
+    public var agentLogsEnabled: Bool {
+        get { agentLogs ?? true }
+        set { agentLogs = newValue }
+    }
     public var quotaAlertsEnabled: Bool {
         get { quotaAlerts ?? false }
         set { quotaAlerts = newValue }

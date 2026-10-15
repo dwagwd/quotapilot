@@ -13,13 +13,15 @@ final class SettingsWindowController: NSWindowController {
     private let eco = NSButton(checkboxWithTitle: "", target: nil, action: nil)
     private let bridges = NSButton(checkboxWithTitle: "", target: nil, action: nil)
     private let alerts = NSButton(checkboxWithTitle: "", target: nil, action: nil)
+    private let autoContinue = NSButton(checkboxWithTitle: "", target: nil, action: nil)
+    private let agentLogs = NSButton(checkboxWithTitle: "", target: nil, action: nil)
     private var quotaChecks: [(String, NSButton)] = []
     private var rgbFields: [NSTextField] = []
     private let errorLabel = NSTextField(wrappingLabelWithString: "")
 
     init(settings: WidgetSettings, windows: [(String, String)], onApply: @escaping (WidgetSettings) -> Void) {
         self.settings = settings; applySettings = onApply
-        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 440, height: 710),
+        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 440, height: 770),
                               styleMask: [.titled, .closable], backing: .buffered, defer: false)
         super.init(window: window)
         let l = L10n(settings.language)
@@ -27,7 +29,7 @@ final class SettingsWindowController: NSWindowController {
         window.isReleasedWhenClosed = false
         window.level = .floating
         window.center()
-        let view = NSView(frame: NSRect(x: 0, y: 0, width: 440, height: 710))
+        let view = NSView(frame: NSRect(x: 0, y: 0, width: 440, height: 770))
         window.contentView = view
         func label(_ key: String, y: CGFloat) {
             let label = NSTextField(labelWithString: l.text(key))
@@ -108,6 +110,13 @@ final class SettingsWindowController: NSWindowController {
         apply.frame = NSRect(x: 332, y: 12, width: 88, height: 30); apply.bezelStyle = .rounded
         apply.keyEquivalent = "\r"
         for control in [languageMenu, intervalField, intervalMenu, rateMenu, hint, note, errorLabel, cancel, apply] { view.addSubview(control) }
+        // Make room for the agent options below the energy/alert row.
+        for control in view.subviews where control.frame.minY >= 148 { control.frame.origin.y += 60 }
+        autoContinue.title = l.text("autoContinue"); autoContinue.state = settings.autoContinueEnabled ? .on : .off
+        autoContinue.frame = NSRect(x: 22, y: 178, width: 396, height: 24); autoContinue.toolTip = l.text("autoContinueHelp")
+        agentLogs.title = l.text("agentLogs"); agentLogs.state = settings.agentLogsEnabled ? .on : .off
+        agentLogs.frame = NSRect(x: 22, y: 148, width: 396, height: 24); agentLogs.toolTip = l.text("agentLogsHelp")
+        view.addSubview(autoContinue); view.addSubview(agentLogs)
     }
     required init?(coder: NSCoder) { fatalError("Not used") }
     func present() { showWindow(nil); NSApp.activate(ignoringOtherApps: true); window?.makeKeyAndOrderFront(nil) }
@@ -139,6 +148,8 @@ final class SettingsWindowController: NSWindowController {
         options.energySaver = eco.state == .on; options.bridges = bridges.state == .on
         next.options = options
         next.quotaAlertsEnabled = alerts.state == .on
+        next.autoContinueEnabled = autoContinue.state == .on
+        next.agentLogsEnabled = agentLogs.state == .on
         guard next.isValid else { errorLabel.stringValue = L10n(settings.language).text("invalidInterval"); return }
         applySettings(next); close()
     }

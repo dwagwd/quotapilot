@@ -44,7 +44,7 @@ final class CustomizationTests: XCTestCase {
     func testPrimaryInterfaceHasTextOrFallbackForEveryKeyAndPercentNotation() {
         for language in WidgetLanguage.allCases where language != .system {
             for key in L10n.table.keys {
-                let resolved = L10n.table[key]?[language.rawValue] ?? (featureTranslations[key] == nil ? nil : L10n.table[key]?["en"])
+                let resolved = L10n.table[key]?[language.rawValue] ?? ((featureTranslations[key] ?? agentFallbackTranslations[key]) == nil ? nil : L10n.table[key]?["en"])
                 XCTAssertNotNil(resolved, "\(language.rawValue): \(key)")
             }
             XCTAssertEqual(L10n(language).text("points"), "%")

@@ -54,6 +54,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
     private var pendingUsageEventWrites: [UsageLedgerEvent] = []
     private let maxPendingUsageEventWrites = 1_000
     private var quotaAlertTracker = QuotaAlertTracker()
+    private var autoContinuePlanner = AutoContinuePlanner()
+    private var autoContinueRunning = false
+    private var lastAutoContinue: (at: Double, session: String?, result: String)?
+    private let agentScanQueue = DispatchQueue(label: "local.codex.usage-widget.agent-logs", qos: .utility)
+    private var agentScanner = AgentLogScanner(sources: AgentLogScanner.defaultSources(home: FileManager.default.homeDirectoryForCurrentUser))
+    private var agentLedger = AgentTokenLedger()
+    private var agentScanning = false
+    private var agentLastScanAt: Double?
+    private var agentTick: Timer?
+    private let agentsLabel = NSTextField(labelWithString: "")
     private let usageEventFileRotationBytes: UInt64 = 20 * 1_048_576
     private var usageEventLastAttemptAt: Double?
     private var usageEventLastSuccessAt: Double?
@@ -151,6 +161,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
         bridgeTick?.tolerance = 3
         RunLoop.main.add(bridgeTick!, forMode: .common)
         reloadBridges()
+        agentTick = Timer(timeInterval: 60, repeats: true) { [weak self] _ in
+            guard let self, !self.sleeping else { return }; self.scanAgentLogs()
+        }
+        agentTick?.tolerance = 10
+        RunLoop.main.add(agentTick!, forMode: .common)
+        scanAgentLogs()
         showPanel(); client.refresh()
     }
     private func startUITimer() {
@@ -170,8 +186,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
         if freshness != lastFreshness { render(); writeStatus(); return }
         guard !collapsed else { return }
         if let item = current {
-            let prefix = isStale(item, now: now) ? l.text("stale") + " · " : (item.window.resetsAt.map { $0 > now } ?? false ? l.text("reset") + " " : "")
-            let value = prefix + l.countdown(item.window.resetsAt, now: now)
+            let value = isStale(item, now: now) ? l.text("stale") + " · " + l.countdown(item.window.resetsAt, now: now) : resetText(item, now: now)
             if resetLabel.stringValue != value { resetLabel.stringValue = value }
         }
         for (index, item) in extraItems.enumerated() where index < extraLabels.count {
@@ -285,11 +300,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
         rateLabel.font = .systemFont(ofSize: 10)
         rateLabel.textColor = .secondaryLabelColor
         tokenLabel.font = .systemFont(ofSize: 11)
+        agentsLabel.font = .systemFont(ofSize: 11)
         observationLabel.font = .systemFont(ofSize: 9)
         observationLabel.textColor = .secondaryLabelColor
-        for label in [valueLabel, resetLabel, rateLabel, tokenLabel, observationLabel] { label.lineBreakMode = .byTruncatingTail }
+        for label in [valueLabel, resetLabel, rateLabel, tokenLabel, agentsLabel, observationLabel] { label.lineBreakMode = .byTruncatingTail }
         progress.style = .bar; progress.isIndeterminate = false; progress.minValue = 0; progress.maxValue = 100
-        for view in [titleButton, foldButton, settingsButton, valueLabel, resetLabel, rateLabel, tokenLabel, observationLabel, progress] { bg.addSubview(view) }
+        for view in [titleButton, foldButton, settingsButton, valueLabel, resetLabel, rateLabel, tokenLabel, agentsLabel, observationLabel, progress] { bg.addSubview(view) }
         resize()
         if defaults.object(forKey: "positionX") != nil {
             panel.setFrameOrigin(NSPoint(x: defaults.double(forKey: "positionX"), y: defaults.double(forKey: "positionY")))
@@ -324,7 +340,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
     private func resize() {
         adjustingFrame = true
         let old = panel.frame
-        let size = collapsed ? NSSize(width: 182, height: 32) : NSSize(width: 260, height: 128 + CGFloat(extraItems.count) * 58)
+        let size = collapsed ? NSSize(width: 182, height: 32) : NSSize(width: 260, height: 146 + CGFloat(extraItems.count) * 58)
         panel.setFrame(NSRect(x: old.minX, y: old.maxY-size.height, width: size.width, height: size.height), display: true)
         if collapsed {
             titleButton.frame = NSRect(x: 9, y: 6, width: 70, height: 20)
@@ -333,21 +349,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
             foldButton.frame = NSRect(x: 158, y: 6, width: 18, height: 20)
             valueLabel.font = .monospacedDigitSystemFont(ofSize: 12, weight: .semibold)
         } else {
-            titleButton.frame = NSRect(x: 10, y: 101, width: 202, height: 20)
-            settingsButton.frame = NSRect(x: 216, y: 101, width: 20, height: 20)
-            foldButton.frame = NSRect(x: 238, y: 101, width: 18, height: 20)
-            valueLabel.frame = NSRect(x: 167, y: 77, width: 78, height: 22)
+            titleButton.frame = NSRect(x: 10, y: 119, width: 202, height: 20)
+            settingsButton.frame = NSRect(x: 216, y: 119, width: 20, height: 20)
+            foldButton.frame = NSRect(x: 238, y: 119, width: 18, height: 20)
+            valueLabel.frame = NSRect(x: 167, y: 95, width: 78, height: 22)
             valueLabel.font = .monospacedDigitSystemFont(ofSize: 13, weight: .semibold)
-            progress.frame = NSRect(x: 12, y: 84, width: 143, height: 8)
-            resetLabel.frame = NSRect(x: 12, y: 58, width: 236, height: 17)
-            rateLabel.frame = NSRect(x: 12, y: 39, width: 236, height: 17)
-            tokenLabel.frame = NSRect(x: 12, y: 21, width: 236, height: 17)
+            progress.frame = NSRect(x: 12, y: 102, width: 143, height: 8)
+            resetLabel.frame = NSRect(x: 12, y: 76, width: 236, height: 17)
+            rateLabel.frame = NSRect(x: 12, y: 57, width: 236, height: 17)
+            tokenLabel.frame = NSRect(x: 12, y: 39, width: 236, height: 17)
+            agentsLabel.frame = NSRect(x: 12, y: 21, width: 236, height: 17)
             observationLabel.frame = NSRect(x: 12, y: 5, width: 236, height: 14)
         }
         extraLabels.forEach { $0.removeFromSuperview() }; extraLabels = []
         if !collapsed {
             let offset = CGFloat(extraItems.count) * 58
-            for view in [titleButton, settingsButton, foldButton, valueLabel, progress, resetLabel, rateLabel, tokenLabel, observationLabel] {
+            for view in [titleButton, settingsButton, foldButton, valueLabel, progress, resetLabel, rateLabel, tokenLabel, agentsLabel, observationLabel] {
                 view.frame.origin.y += offset
             }
             for index in extraItems.indices {
@@ -359,7 +376,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
             }
         }
         applyColors()
-        for view in [progress, resetLabel, rateLabel, tokenLabel, observationLabel] { view.isHidden = collapsed }
+        for view in [progress, resetLabel, rateLabel, tokenLabel, agentsLabel, observationLabel] { view.isHidden = collapsed }
         foldButton.title = collapsed ? "⌄" : "−"
         foldButton.toolTip = l.text(collapsed ? "expand" : "collapse")
         adjustingFrame = false
@@ -370,6 +387,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
         if !items.contains(where: { $0.id == selectedID }) { selectedID = items.first?.id }
         if tokenHistory.account != account { tokenAvailable = false }
         history.record(account: account, items: codexItems, now: Date().timeIntervalSince1970)
+        checkAutoContinue(now: Date().timeIntervalSince1970)
         if let data = try? JSONEncoder().encode(history) { try? data.write(to: support.appendingPathComponent("history.json"), options: .atomic) }
         ratesDirty = true; resize(); render(); writeStatus()
     }
@@ -412,7 +430,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
         let sourceError = item.flatMap { providerFor($0) } == nil ? errorMessage : nil
         let planUnavailable = itemStale || item?.window.validUsedPercent == nil || (item?.window.resetsAt.map { $0 <= now } ?? false)
         resetLabel.stringValue = itemStale ? (sourceUpdated == nil ? l.text(sourceError ?? "connecting") : l.text("stale") + " · " + l.countdown(item?.window.resetsAt, now: now)) :
-            (item?.window.resetsAt.map { $0 > now } ?? false ? l.text("reset") + " " : "") + l.countdown(item?.window.resetsAt, now: now)
+            (item.map { resetText($0, now: now) } ?? l.countdown(nil, now: now))
         rateLabel.stringValue = rateText(planRate, metric: "quota", unavailable: planUnavailable)
         tokenLabel.stringValue = "Codex · " + rateText(tokenRate, metric: "tokens", unavailable: tokenStale)
         let forecast = planUnavailable ? nil : forecastQuota(used: item?.window.validUsedPercent, perHour: planRate?.perHour, resetsAt: item?.window.resetsAt, now: now)
@@ -442,6 +460,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
             extraLabels[index].toolTip = extraLabels[index].stringValue + "\n" + l.text("quotaHelp")
         }
         checkQuotaAlerts(now: now)
+        renderAgentTokens(now: now)
         lastFreshness = items.map { isStale($0, now: now) || ($0.window.resetsAt.map { $0 <= now } ?? false) } + [stale, tokenStale]
         applyColors()
     }
@@ -482,6 +501,125 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
         }
     }
 
+    private func resetText(_ item: WindowItem, now: Double) -> String {
+        let countdown = (item.window.resetsAt.map { $0 > now } ?? false ? l.text("reset") + " " : "") + l.countdown(item.window.resetsAt, now: now)
+        guard let used = item.window.validUsedPercent else { return countdown }
+        return l.number(max(0, 100 - used), decimals: 0) + "% " + l.text("remaining") + " · " + countdown
+    }
+
+    // MARK: Local agent token logs
+
+    private func scanAgentLogs() {
+        guard settings.agentLogsEnabled else {
+            agentLedger = AgentTokenLedger(); agentLastScanAt = nil; render(); return
+        }
+        guard !agentScanning else { return }
+        agentScanning = true
+        let now = Date().timeIntervalSince1970
+        // Read at least five hours so switching to a short window still has data; at most the 31-day retention.
+        let windowStart = now - min(max(settings.lookback, 5 * 3600), agentLedger.retention)
+        let scanner = agentScanner
+        agentScanQueue.async { [weak self] in
+            let events = scanner.scan(windowStart: windowStart, now: now)
+            DispatchQueue.main.async {
+                guard let self else { return }
+                self.agentScanning = false
+                guard self.settings.agentLogsEnabled else { return }
+                for event in events { self.agentLedger.add(event) }
+                self.agentLedger.prune(now: now)
+                self.agentLastScanAt = now
+                self.render(); self.writeStatus()
+            }
+        }
+    }
+
+    private func providerName(_ id: String) -> String {
+        ["codex": "Codex", "claude": "Claude", "deepseek": "DeepSeek", "kimi": "Kimi", "glm": "GLM", "qwen": "Qwen",
+         "minimax": "MiniMax", "gemini": "Gemini", "gpt": "GPT"][id] ?? id
+    }
+
+    private func breakdownText(_ b: TokenBreakdown) -> String {
+        [l.text("tokenInput") + " " + l.compact(b.input),
+         l.text("tokenCacheRead") + " " + l.compact(b.cacheRead),
+         l.text("tokenCacheWrite") + " " + l.compact(b.cacheWrite),
+         l.text("tokenOutput") + " " + l.compact(b.output) + (b.reasoning > 0 ? " (" + l.text("tokenReasoning") + " " + l.compact(b.reasoning) + ")" : "")]
+            .joined(separator: " · ")
+    }
+
+    private func renderAgentTokens(now: Double) {
+        guard settings.agentLogsEnabled else {
+            agentsLabel.stringValue = l.text("allAgents") + " · " + l.text("agentLogsOff")
+            agentsLabel.textColor = .secondaryLabelColor; agentsLabel.toolTip = l.text("agentLogsHelp"); return
+        }
+        guard agentLastScanAt != nil else {
+            agentsLabel.stringValue = l.text("allAgents") + " · " + l.text("collecting")
+            agentsLabel.textColor = .secondaryLabelColor; agentsLabel.toolTip = l.text("agentLogsHelp"); return
+        }
+        let since = now - settings.lookback
+        let total = agentLedger.total(since: since, now: now)
+        let perUnit = total.total / max(settings.lookback, 60) * settings.rateUnit.seconds
+        agentsLabel.stringValue = l.text("allAgents") + " · " + l.compact(total.total) + " · ≈" + l.compact(perUnit) + "/" + l.unit(settings.rateUnit, short: true)
+        agentsLabel.textColor = .labelColor
+        var lines = [l.text("allAgents") + " · " + observationLabel.stringValue, l.text("tokenTotal") + " " + l.compact(total.total), breakdownText(total)]
+        for (provider, usage) in agentLedger.summary(since: since, now: now).sorted(by: { $0.value.total > $1.value.total }) {
+            lines.append(providerName(provider) + " " + l.compact(usage.total) + ": " + breakdownText(usage))
+        }
+        lines.append(l.text("agentLogsHelp"))
+        agentsLabel.toolTip = lines.joined(separator: "\n")
+    }
+
+    // MARK: Auto-continue
+
+    private func checkAutoContinue(now: Double) {
+        var action = AutoContinuePlanner.Action.none
+        for item in codexItems {
+            let result = autoContinuePlanner.observe(windowID: item.id, used: item.window.validUsedPercent, limitReached: item.limitReached, now: now)
+            if case .resume = result { action = result }
+        }
+        guard settings.autoContinueEnabled, case .resume(let blockedSince) = action, !autoContinueRunning,
+              let executable = client.executable else { return }
+        autoContinueRunning = true
+        let root = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".codex/sessions", isDirectory: true)
+        let logURL = support.appendingPathComponent("auto-continue.log")
+        DispatchQueue.global(qos: .utility).async { [weak self] in
+            let session = CodexSessionLocator.interruptedSession(root: root, blockedSince: blockedSince, now: now)
+            var result = "noSession"
+            if let session {
+                if !FileManager.default.fileExists(atPath: logURL.path) {
+                    FileManager.default.createFile(atPath: logURL.path, contents: Data(), attributes: [.posixPermissions: 0o600])
+                }
+                let process = Process()
+                process.executableURL = URL(fileURLWithPath: executable)
+                process.arguments = ["exec", "resume", session.id, autoContinueDefaultPrompt]
+                process.currentDirectoryURL = URL(fileURLWithPath: session.cwd)
+                process.standardInput = FileHandle.nullDevice
+                if let log = try? FileHandle(forWritingTo: logURL) {
+                    _ = try? log.seekToEnd()
+                    log.write(Data("\n=== \(Date()) resume \(session.id) in \(session.cwd)\n".utf8))
+                    process.standardOutput = log; process.standardError = log
+                }
+                do { try process.run(); result = "started" } catch { result = "launchFailed" }
+            }
+            DispatchQueue.main.async {
+                guard let self else { return }
+                self.autoContinueRunning = false
+                self.lastAutoContinue = (now, session?.id, result)
+                self.notifyAutoContinue(result: result, cwd: session?.cwd)
+                self.writeStatus()
+            }
+        }
+    }
+
+    private func notifyAutoContinue(result: String, cwd: String?) {
+        guard notificationsAvailable else { return }
+        UNUserNotificationCenter.current().delegate = self
+        UNUserNotificationCenter.current().requestAuthorization(options: [.alert]) { _, _ in }
+        let content = UNMutableNotificationContent()
+        content.title = l.text("autoContinue")
+        content.body = l.text(result == "started" ? "autoContinueStarted" : "autoContinueSkipped") + (cwd.map { " · " + URL(fileURLWithPath: $0).lastPathComponent } ?? "")
+        UNUserNotificationCenter.current().add(UNNotificationRequest(identifier: "autoContinue.\(Date().timeIntervalSince1970)", content: content, trigger: nil))
+    }
+
     private func forecastDetail(_ forecast: QuotaForecast?, now: Double) -> String {
         guard let forecast else { return "" }
         let value = forecast.exhaustsAt.map { l.text("forecastFullIn") + " " + l.countdown($0 > now ? $0 : now + 1, now: now) }
@@ -499,6 +637,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
             self.settings = next
             self.ratesDirty = true
             self.requestAlertAuthorizationIfNeeded()
+            self.scanAgentLogs()
             self.client.pollInterval = next.options.energySaver ? 120 : 60
             self.startUITimer(); self.reloadBridges(); self.rebuildItems()
             self.defaults.set(try? JSONEncoder().encode(next), forKey: "settings")
@@ -1215,6 +1354,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
         data["energySaver"] = settings.options.energySaver
         data["enabledBridges"] = settings.options.bridges
         data["quotaAlerts"] = settings.quotaAlertsEnabled
+        data["autoContinue"] = settings.autoContinueEnabled
+        data["autoContinueBlocked"] = autoContinuePlanner.isBlocked
+        if let last = lastAutoContinue {
+            var entry: [String: Any] = ["at": last.at, "result": last.result]
+            entry["session"] = last.session
+            data["lastAutoContinue"] = entry
+        }
+        if settings.agentLogsEnabled, let scanned = agentLastScanAt {
+            let since = now - settings.lookback
+            let summary = agentLedger.summary(since: since, now: now)
+            func encode(_ b: TokenBreakdown) -> [String: Double] {
+                ["input": b.input, "cacheRead": b.cacheRead, "cacheWrite": b.cacheWrite, "output": b.output, "reasoning": b.reasoning, "total": b.total]
+            }
+            data["agentTokens"] = ["windowSeconds": settings.lookback, "scannedAt": scanned,
+                                   "total": encode(agentLedger.total(since: since, now: now)),
+                                   "providers": summary.mapValues(encode)] as [String: Any]
+        }
         data["selectedWindow"] = current?.id
         data["usedPercent"] = current?.window.validUsedPercent
         data["resetsAt"] = current?.window.resetsAt

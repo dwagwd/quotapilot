@@ -100,6 +100,40 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
     private var ratesDirty = true
     private var lastFreshness: [Bool] = []
     private let dateFormatter = DateFormatter()
+    private static let extraRowHeight: CGFloat = 16
+    /// Extra windows grouped by provider, so a 5-hour and a weekly limit share one compact line.
+    private var extraGroups: [[WindowItem]] {
+        var order: [String] = [], groups: [String: [WindowItem]] = [:]
+        for item in extraItems {
+            let key = String(item.id.split(separator: ":").first ?? "")
+            if groups[key] == nil { order.append(key) }
+            groups[key, default: []].append(item)
+        }
+        return order.compactMap { groups[$0]?.sorted { ($0.window.windowDurationMins ?? .max) < ($1.window.windowDurationMins ?? .max) } }
+    }
+    private func shortWindow(_ minutes: Int?) -> String {
+        guard let m = minutes, m > 0 else { return "?" }
+        if m == 10080 { return l.text("weekTag") }
+        if m % 1440 == 0 { return "\(m / 1440)d" }
+        if m % 60 == 0 { return "\(m / 60)h" }
+        return "\(m)m"
+    }
+    private func shortCountdown(_ reset: Double?, now: Double) -> String {
+        guard let reset, reset > now else { return "" }
+        let s = Int(reset - now)
+        if s >= 86400 { return "↻\(s / 86400)d\(s % 86400 / 3600)h" }
+        if s >= 3600 { return "↻\(s / 3600)h\(s % 3600 / 60)m" }
+        return "↻\(max(1, s / 60))m"
+    }
+    /// e.g. `Claude  5h 24% ↻2h10m  週 95% ↻4h5m`
+    private func compactLine(_ group: [WindowItem], now: Double) -> String {
+        let name = group.first?.name ?? ""
+        return name + "  " + group.map { item in
+            let stale = isStale(item, now: now)
+            let pct = item.window.validUsedPercent.map { l.number($0, decimals: 0) + "%" } ?? "—"
+            return shortWindow(item.window.windowDurationMins) + " " + pct + (stale ? " ⚠︎" : " " + shortCountdown(item.window.resetsAt, now: now))
+        }.joined(separator: "  ")
+    }
     private var extraItems: [WindowItem] {
         guard settings.options.multiple else { return [] }
         return Array(items.filter { $0.id != current?.id && settings.options.windowIDs.contains($0.id) }.prefix(4))
@@ -218,11 +252,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
             let value = isStale(item, now: now) ? l.text("stale") + " · " + l.countdown(item.window.resetsAt, now: now) : resetText(item, now: now)
             if resetLabel.stringValue != value { resetLabel.stringValue = value }
         }
-        for (index, item) in extraItems.enumerated() where index < extraLabels.count {
-            var lines = extraLabels[index].stringValue.components(separatedBy: "\n")
-            guard lines.count == 3 else { continue }
-            lines[2] = (isStale(item, now: now) ? l.text("stale") + " · " : "") + l.countdown(item.window.resetsAt, now: now)
-            let value = lines.joined(separator: "\n")
+        for (index, group) in extraGroups.enumerated() where index < extraLabels.count {
+            let value = compactLine(group, now: now)
             if extraLabels[index].stringValue != value { extraLabels[index].stringValue = value }
         }
     }
@@ -372,7 +403,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
     private func resize() {
         adjustingFrame = true
         let old = panel.frame
-        let size = collapsed ? NSSize(width: 182, height: 32) : NSSize(width: 260, height: 146 + CGFloat(extraItems.count) * 58)
+        let size = collapsed ? NSSize(width: 182, height: 32) : NSSize(width: 260, height: 146 + CGFloat(extraGroups.count) * Self.extraRowHeight)
         panel.setFrame(NSRect(x: old.minX, y: old.maxY-size.height, width: size.width, height: size.height), display: true)
         if collapsed {
             titleButton.frame = NSRect(x: 9, y: 6, width: 70, height: 20)
@@ -395,15 +426,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
         }
         extraLabels.forEach { $0.removeFromSuperview() }; extraLabels = []
         if !collapsed {
-            let offset = CGFloat(extraItems.count) * 58
+            let offset = CGFloat(extraGroups.count) * Self.extraRowHeight
             for view in [titleButton, settingsButton, foldButton, valueLabel, progress, resetLabel, rateLabel, tokenLabel, agentsLabel, observationLabel] {
                 view.frame.origin.y += offset
             }
-            for index in extraItems.indices {
-                let label = NSTextField(wrappingLabelWithString: "")
+            for index in extraGroups.indices {
+                let label = NSTextField(labelWithString: "")
                 label.font = .monospacedDigitSystemFont(ofSize: 10, weight: .regular)
-                label.maximumNumberOfLines = 3
-                label.frame = NSRect(x: 12, y: CGFloat(extraItems.count - index - 1) * 58 + 4, width: 236, height: 52)
+                label.lineBreakMode = .byTruncatingTail
+                label.frame = NSRect(x: 12, y: CGFloat(extraGroups.count - index - 1) * Self.extraRowHeight + 4, width: 236, height: 14)
                 extraLabels.append(label); panel.contentView?.addSubview(label)
             }
         }
@@ -483,13 +514,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
         rateLabel.toolTip = detail + forecastDetail(forecast, now: now) + "\n" + l.text("quotaHelp") + observedDetail(planRate)
         tokenLabel.toolTip = detail + "\n" + l.text("tokensHelp") + observedDetail(tokenRate)
         status?.button?.toolTip = detail
-        for (index, extra) in extraItems.enumerated() where index < extraLabels.count {
-            let old = isStale(extra, now: now)
-            let percent = extra.window.validUsedPercent.map { l.number($0, decimals: 0) + "%" } ?? "—"
-            let line = title(for: extra) + " · " + percent
-            let rate = rateText(cachedRates[extra.id], metric: "quota", unavailable: old || extra.window.validUsedPercent == nil || (extra.window.resetsAt.map { $0 <= now } ?? false))
-            extraLabels[index].stringValue = line + "\n" + rate + "\n" + (old ? l.text("stale") + " · " : "") + l.countdown(extra.window.resetsAt, now: now)
-            extraLabels[index].toolTip = extraLabels[index].stringValue + "\n" + l.text("quotaHelp")
+        for (index, group) in extraGroups.enumerated() where index < extraLabels.count {
+            extraLabels[index].stringValue = compactLine(group, now: now)
+            extraLabels[index].textColor = group.contains { ($0.window.validUsedPercent ?? 0) >= 90 } ? .systemOrange : .labelColor
+            extraLabels[index].toolTip = group.map { extra -> String in
+                let old = isStale(extra, now: now)
+                let percent = extra.window.validUsedPercent.map { l.number($0, decimals: 0) + "%" } ?? "—"
+                let rate = rateText(cachedRates[extra.id], metric: "quota", unavailable: old || extra.window.validUsedPercent == nil || (extra.window.resetsAt.map { $0 <= now } ?? false))
+                return title(for: extra) + " · " + percent + "\n" + rate + "\n" + (old ? l.text("stale") + " · " : "") + resetText(extra, now: now)
+            }.joined(separator: "\n\n") + "\n" + l.text("quotaHelp")
         }
         checkQuotaAlerts(now: now)
         for window in items where !isStale(window, now: now) {

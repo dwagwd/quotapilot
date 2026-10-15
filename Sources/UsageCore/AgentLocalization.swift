@@ -1,6 +1,7 @@
 import Foundation
 
 let agentTranslations: [String: [String: String]] = [
+    "weekTag": ["en": "wk", "zh-Hant": "週", "zh-Hans": "周", "ja": "週", "ko": "주", "es": "sem", "fr": "sem", "de": "Wo", "pt-BR": "sem", "it": "sett"],
     "remaining": ["en": "left", "zh-Hant": "剩餘", "zh-Hans": "剩余", "ja": "残り", "ko": "남음", "es": "restante", "fr": "restant", "de": "übrig", "pt-BR": "restante", "it": "rimanente"],
     "allAgents": ["en": "All agents", "zh-Hant": "全部 agent", "zh-Hans": "全部 agent", "ja": "全エージェント", "ko": "전체 에이전트", "es": "Todos los agentes", "fr": "Tous les agents", "de": "Alle Agenten", "pt-BR": "Todos os agentes", "it": "Tutti gli agenti"],
     "agentLogsOff": ["en": "log reading off", "zh-Hant": "未讀取紀錄", "zh-Hans": "未读取记录", "ja": "ログ読み取りオフ", "ko": "로그 읽기 꺼짐", "es": "lectura de registros desactivada", "fr": "lecture des journaux désactivée", "de": "Protokolle aus", "pt-BR": "leitura de registros desligada", "it": "lettura log disattivata"],

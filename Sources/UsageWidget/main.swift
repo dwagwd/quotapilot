@@ -113,7 +113,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
             if groups[key] == nil { order.append(key) }
             groups[key, default: []].append(item)
         }
-        return order.compactMap { groups[$0]?.sorted { ($0.window.windowDurationMins ?? .max) < ($1.window.windowDurationMins ?? .max) } }
+        return sortQuotaGroups(order.compactMap { groups[$0]?.sorted { ($0.window.windowDurationMins ?? .max) < ($1.window.windowDurationMins ?? .max) } },
+                               sort: settings.quotaSort ?? .detected, pinned: settings.pinnedProviders ?? [], now: Date().timeIntervalSince1970)
     }
     private func shortWindow(_ minutes: Int?) -> String {
         guard let m = minutes, m > 0 else { return "?" }
@@ -150,7 +151,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
             if groups[key] == nil { order.append(key) }
             groups[key, default: []].append(item)
         }
-        return order.compactMap { groups[$0]?.sorted { ($0.window.windowDurationMins ?? .max) < ($1.window.windowDurationMins ?? .max) } }
+        return sortQuotaGroups(order.compactMap { groups[$0]?.sorted { ($0.window.windowDurationMins ?? .max) < ($1.window.windowDurationMins ?? .max) } },
+                               sort: settings.quotaSort ?? .detected, pinned: settings.pinnedProviders ?? [], now: Date().timeIntervalSince1970)
     }
     private func providerKey(_ group: [WindowItem]) -> String { String(group.first?.id.split(separator: ":").first ?? "") }
     /// Quota rate of the shortest window plus the provider's tokens in the observation window.

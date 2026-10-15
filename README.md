@@ -14,6 +14,7 @@ Unofficial community project. Not affiliated with or endorsed by OpenAI, Anthrop
 - Custom text/background RGB values (0–255) or automatic system appearance.
 - Energy saver: 120-second network polling and 15-second display updates. Hidden cards stop the UI timer; rate calculations are cached until new samples arrive.
 - Optional Claude Code and Antigravity CLI status-line bridges; Cursor Teams on-demand spend-cap collector. [Provider support and setup](docs/providers.md)
+- **Quota order** (Settings): sort agents by detection order, usage, next reset or name, and pin one agent to the top.
 - **Task routing rules**: pick who handles web/research, review, planning and implementation (Codex, Claude or Automatic), with automatic fallback when that agent is low on quota.
 - **Orchestrator mode** (Agent collaboration…): one agent plans and verifies while the other only implements — Claude Code → Codex (`orchestrate-codex`) or Codex → Claude Code (`orchestrate-claude`), with up to three fix rounds and quota checks.
 - **Card style** (Settings): Detailed, Compact (one line per agent with every limit, rate and tokens; total usage in the title) or Bars (one small bar per limit).

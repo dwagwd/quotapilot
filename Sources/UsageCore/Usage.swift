@@ -176,6 +176,9 @@ public struct WidgetSettings: Codable, Equatable {
     public var routerMode: RouterMode? = nil
     public var cardStyle: CardStyle? = nil
     public var taskRules: [String: String]? = nil
+    public var quotaSort: QuotaSort? = nil
+    /// Providers shown first, in this order (e.g. ["claude"]).
+    public var pinnedProviders: [String]? = nil
     public var taskRouting: [TaskKind: TaskAssignee] {
         get { Dictionary(uniqueKeysWithValues: TaskKind.allCases.map { ($0, TaskAssignee(rawValue: taskRules?[$0.rawValue] ?? "") ?? .auto) }) }
         set { taskRules = Dictionary(uniqueKeysWithValues: newValue.map { ($0.key.rawValue, $0.value.rawValue) }) }

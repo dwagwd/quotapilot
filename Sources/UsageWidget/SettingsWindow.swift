@@ -7,6 +7,9 @@ final class SettingsWindowController: NSWindowController {
     /// Opens app-level tools (agent collaboration, connections, statistics) from Settings as well as the menu bar.
     var openTool: ((String) -> Void)?
     private let styleMenu = NSPopUpButton(frame: .zero, pullsDown: false)
+    private let sortMenu = NSPopUpButton(frame: .zero, pullsDown: false)
+    private let pinMenu = NSPopUpButton(frame: .zero, pullsDown: false)
+    private let pinOptions = ["", "codex", "claude", "antigravity", "cursor"]
     private let languageMenu = NSPopUpButton()
     private let intervalField = NSTextField()
     private let intervalMenu = NSPopUpButton()
@@ -26,7 +29,7 @@ final class SettingsWindowController: NSWindowController {
 
     init(settings: WidgetSettings, windows: [(String, String)], onApply: @escaping (WidgetSettings) -> Void) {
         self.settings = settings; applySettings = onApply
-        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 440, height: 902),
+        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 440, height: 934),
                               styleMask: [.titled, .closable], backing: .buffered, defer: false)
         super.init(window: window)
         let l = L10n(settings.language)
@@ -34,7 +37,7 @@ final class SettingsWindowController: NSWindowController {
         window.isReleasedWhenClosed = false
         window.level = .floating
         window.center()
-        let view = NSView(frame: NSRect(x: 0, y: 0, width: 440, height: 902))
+        let view = NSView(frame: NSRect(x: 0, y: 0, width: 440, height: 934))
         window.contentView = view
         func label(_ key: String, y: CGFloat) {
             let label = NSTextField(labelWithString: l.text(key))
@@ -136,6 +139,16 @@ final class SettingsWindowController: NSWindowController {
         styleMenu.addItems(withTitles: CardStyle.allCases.map { l.text("style." + $0.rawValue) })
         styleMenu.selectItem(at: CardStyle.allCases.firstIndex(of: settings.cardStyle ?? .detailed) ?? 0)
         view.addSubview(styleMenu)
+        for control in view.subviews where control.frame.minY >= 148 { control.frame.origin.y += 32 }
+        let sortLabel = NSTextField(labelWithString: l.text("quotaSort"))
+        sortLabel.frame = NSRect(x: 22, y: 152, width: 154, height: 22); view.addSubview(sortLabel)
+        sortMenu.frame = NSRect(x: 180, y: 149, width: 128, height: 26)
+        sortMenu.addItems(withTitles: QuotaSort.allCases.map { l.text("sort." + $0.rawValue) })
+        sortMenu.selectItem(at: QuotaSort.allCases.firstIndex(of: settings.quotaSort ?? .detected) ?? 0)
+        pinMenu.frame = NSRect(x: 312, y: 149, width: 106, height: 26)
+        pinMenu.addItems(withTitles: pinOptions.map { $0.isEmpty ? l.text("pinNone") : l.text("pinFirst") + " " + ["codex": "Codex", "claude": "Claude", "antigravity": "Antigravity", "cursor": "Cursor"][$0, default: $0] })
+        pinMenu.selectItem(at: pinOptions.firstIndex(of: settings.pinnedProviders?.first ?? "") ?? 0)
+        view.addSubview(sortMenu); view.addSubview(pinMenu)
         for (index, tool) in ["agentCollaboration", "connectAgents", "usageStats"].enumerated() {
             let button = NSButton(title: l.text(tool).replacingOccurrences(of: "…", with: "") + "…", target: self, action: #selector(openToolButton(_:)))
             button.identifier = NSUserInterfaceItemIdentifier(tool)
@@ -182,6 +195,9 @@ final class SettingsWindowController: NSWindowController {
         next.agentLogsEnabled = agentLogs.state == .on
         next.autoConnectEnabled = autoConnect.state == .on
         next.cardStyle = CardStyle.allCases[styleMenu.indexOfSelectedItem]
+        next.quotaSort = QuotaSort.allCases[sortMenu.indexOfSelectedItem]
+        let pin = pinOptions[pinMenu.indexOfSelectedItem]
+        next.pinnedProviders = pin.isEmpty ? nil : [pin]
         if (openAtLogin.state == .on) != LoginItem.isEnabled, !LoginItem.set(openAtLogin.state == .on) {
             errorLabel.stringValue = L10n(settings.language).text("openAtLoginFailed"); return
         }

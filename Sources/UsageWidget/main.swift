@@ -972,13 +972,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
         modes.addItems(withTitles: RouterMode.allCases.map { l.text("router." + $0.rawValue) })
         modes.selectItem(at: RouterMode.allCases.firstIndex(of: settings.routerMode ?? .auto) ?? 0)
         let modeRow = NSStackView(views: [modeLabel, modes])
-        let stack = NSStackView(views: boxes + [modeRow])
-        stack.orientation = .vertical; stack.alignment = .leading; stack.frame = NSRect(x: 0, y: 0, width: 560, height: 160)
+        let ruleMenus = TaskKind.allCases.map { kind -> NSPopUpButton in
+            let menu = NSPopUpButton(frame: .zero, pullsDown: false)
+            menu.addItems(withTitles: TaskAssignee.allCases.map { $0 == .auto ? l.text("router.auto") : ($0 == .codex ? "Codex" : "Claude") })
+            menu.selectItem(at: TaskAssignee.allCases.firstIndex(of: settings.taskRouting[kind] ?? .auto) ?? 0)
+            return menu
+        }
+        let ruleRows = zip(TaskKind.allCases, ruleMenus).map { kind, menu in
+            NSStackView(views: [NSTextField(labelWithString: l.text("task." + kind.rawValue)), menu])
+        }
+        let rulesTitle = NSTextField(labelWithString: l.text("taskRules"))
+        rulesTitle.font = .boldSystemFont(ofSize: 11)
+        let stack = NSStackView(views: boxes + [modeRow, rulesTitle] + ruleRows)
+        stack.orientation = .vertical; stack.alignment = .leading; stack.frame = NSRect(x: 0, y: 0, width: 560, height: 300)
         alert.accessoryView = stack
         alert.addButton(withTitle: l.text("apply")); alert.addButton(withTitle: l.text("cancel"))
         guard alert.runModal() == .alertFirstButtonReturn else { return }
         var next = settings
         next.routerMode = RouterMode.allCases[modes.indexOfSelectedItem]
+        next.taskRouting = Dictionary(uniqueKeysWithValues: zip(TaskKind.allCases, ruleMenus).map { ($0, TaskAssignee.allCases[$1.indexOfSelectedItem]) })
         settings = next
         defaults.set(try? JSONEncoder().encode(next), forKey: "settings")
         var results: [String] = []
@@ -1821,6 +1833,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
                                          entry["limitingWindow"] = a.limitingWindow; entry["resetsAt"] = a.resetsAt
                                          return entry }]
         router["agent"] = decision.agent ?? NSNull()
+        router["byTask"] = Dictionary(uniqueKeysWithValues: TaskKind.allCases.map { kind -> (String, Any) in
+            let pick = AgentRouter.assign(kind, rules: settings.taskRouting, mode: settings.routerMode ?? .auto, items: items, now: now)
+            return (kind.rawValue, ["agent": pick.agent ?? NSNull(), "reason": pick.reason, "rule": settings.taskRouting[kind]?.rawValue ?? "auto"] as [String: Any])
+        })
         data["router"] = router
         data["suggestedAgent"] = decision.agent
         data["autoContinueBlocked"] = autoContinuePlanner.isBlocked

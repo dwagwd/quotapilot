@@ -175,6 +175,11 @@ public struct WidgetSettings: Codable, Equatable {
     public var autoConnect: Bool? = nil
     public var routerMode: RouterMode? = nil
     public var cardStyle: CardStyle? = nil
+    public var taskRules: [String: String]? = nil
+    public var taskRouting: [TaskKind: TaskAssignee] {
+        get { Dictionary(uniqueKeysWithValues: TaskKind.allCases.map { ($0, TaskAssignee(rawValue: taskRules?[$0.rawValue] ?? "") ?? .auto) }) }
+        set { taskRules = Dictionary(uniqueKeysWithValues: newValue.map { ($0.key.rawValue, $0.value.rawValue) }) }
+    }
     /// Connect detected agents (status-line bridges, provider imports, DeepSeek balance) without a manual step.
     public var autoConnectEnabled: Bool {
         get { autoConnect ?? true }

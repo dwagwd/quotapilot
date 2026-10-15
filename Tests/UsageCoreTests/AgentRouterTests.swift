@@ -37,4 +37,15 @@ final class AgentRouterTests: XCTestCase {
         XCTAssertEqual(decision.reason, "allLow")
         XCTAssertEqual(AgentRouter.decide(mode: .auto, items: [], now: 0).reason, "noData")
     }
+
+    func testTaskRulesWinUnlessThatAgentIsLow() {
+        let rules: [TaskKind: TaskAssignee] = [.web: .codex, .review: .codex, .plan: .claude, .implement: .claude]
+        let healthy = [item("codex:primary", used: 30), item("claude:five_hour:primary", used: 20), item("claude:seven_day:primary", used: 40)]
+        XCTAssertEqual(AgentRouter.assign(.web, rules: rules, mode: .auto, items: healthy, now: 0).agent, "codex")
+        XCTAssertEqual(AgentRouter.assign(.implement, rules: rules, mode: .auto, items: healthy, now: 0).agent, "claude")
+        let claudeLow = AgentRouter.assign(.implement, rules: rules, mode: .auto, items: current, now: 0)
+        XCTAssertEqual(claudeLow.agent, "codex")
+        XCTAssertEqual(claudeLow.reason, "ruleLowQuota")
+        XCTAssertEqual(AgentRouter.assign(.plan, rules: [:], mode: .preferClaude, items: current, now: 0).agent, "codex", "auto follows the quota router")
+    }
 }

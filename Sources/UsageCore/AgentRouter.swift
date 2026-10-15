@@ -59,3 +59,27 @@ public enum AgentRouter {
         }
     }
 }
+
+/// Kinds of work that can be routed to a specific agent.
+public enum TaskKind: String, Codable, CaseIterable { case web, review, plan, implement }
+
+/// Per-task preference: a named agent, or `auto` to follow the quota router.
+public enum TaskAssignee: String, Codable, CaseIterable { case auto, codex, claude }
+
+extension AgentRouter {
+    /// The agent for a kind of task: the user's choice when it has quota headroom, otherwise the other agent,
+    /// otherwise whatever the quota router picks.
+    public static func assign(_ kind: TaskKind, rules: [TaskKind: TaskAssignee], mode: RouterMode,
+                              items: [WindowItem], now: Double) -> (agent: String?, reason: String) {
+        let decision = decide(mode: mode, items: items, now: now)
+        guard let preferred = rules[kind], preferred != .auto else { return (decision.agent, "quota") }
+        let rooms = headroom(items: items, now: now)
+        func usable(_ id: String) -> Bool {
+            guard let room = rooms.first(where: { $0.provider == id }) else { return true }  // no quota data: trust the rule
+            return room.headroom >= minimumHeadroom
+        }
+        if usable(preferred.rawValue) { return (preferred.rawValue, "rule") }
+        let other = preferred == .codex ? "claude" : "codex"
+        return usable(other) ? (other, "ruleLowQuota") : (nil, "allLow")
+    }
+}

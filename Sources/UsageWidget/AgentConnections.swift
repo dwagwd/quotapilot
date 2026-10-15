@@ -169,13 +169,15 @@ enum AgentCollaboration {
             return writeSkill(at: codexSkill, enabled: enabled, text: codexSkillText(claude: claude))
         case .claudeOrchestratesCodex:
             let worker = "\(depthVariable)=1 \"\(codex)\" exec --sandbox workspace-write --skip-git-repo-check -C \"$REPO\" \"$(cat \"$SPEC\")\""
+            let readOnly = "\(depthVariable)=1 \"\(codex)\" exec --sandbox read-only --skip-git-repo-check -C \"$REPO\" \"$(cat \"$SPEC\")\""
             return writeSkill(at: claudeOrchestratorSkill, enabled: enabled,
-                              text: orchestratorText(name: "orchestrate-codex", me: "Claude Code", worker: "Codex", workerID: "codex", command: worker))
+                              text: orchestratorText(name: "orchestrate-codex", me: "Claude Code", meID: "claude", worker: "Codex", workerID: "codex", command: worker, readOnlyCommand: readOnly))
         case .codexOrchestratesClaude:
             guard let claude = claudeExecutable else { return (false, "Claude Code CLI not found") }
             let worker = "cd \"$REPO\" && \(depthVariable)=1 \"\(claude)\" -p --permission-mode acceptEdits \"$(cat \"$SPEC\")\""
+            let readOnly = "cd \"$REPO\" && \(depthVariable)=1 \"\(claude)\" -p --permission-mode plan \"$(cat \"$SPEC\")\""
             return writeSkill(at: codexOrchestratorSkill, enabled: enabled,
-                              text: orchestratorText(name: "orchestrate-claude", me: "Codex", worker: "Claude", workerID: "claude", command: worker))
+                              text: orchestratorText(name: "orchestrate-claude", me: "Codex", meID: "codex", worker: "Claude", workerID: "claude", command: worker, readOnlyCommand: readOnly))
         }
     }
 
@@ -197,7 +199,7 @@ enum AgentCollaboration {
     private static var routerNote: String {
         let status = support.appendingPathComponent("status.json").path
         return """
-        Before delegating, read `\(status)` → `router`. Delegate when `router.agent` names the other agent or the user explicitly asked for it. If `router.agent` is null or the other agent's `headroom` is below 10, tell the user its quota is low instead of delegating.
+        Before delegating, read `\(status)` → `router.byTask.review.agent` (the user's review rule with quota fallback). Delegate when it names the other agent or the user explicitly asked for it. If it is null, tell the user both agents are low on quota.
         If the environment variable `\(depthVariable)` is already set, you are running as a delegate: do the work yourself and never delegate again.
         """
     }
@@ -226,40 +228,49 @@ enum AgentCollaboration {
 
     /// The orchestrator plans, delegates implementation to the worker CLI, then verifies and accepts or sends
     /// focused fixes back. The worker only implements; it never re-plans, commits or delegates.
-    static func orchestratorText(name: String, me: String, worker: String, workerID: String, command: String) -> String {
+    static func orchestratorText(name: String, me: String, meID: String, worker: String, workerID: String,
+                                 command: String, readOnlyCommand: String) -> String {
         let status = support.appendingPathComponent("status.json").path
         return """
         ---
         name: \(name)
-        description: Orchestrator mode. \(me) plans and verifies; \(worker) does the implementation work. Use when the user asks to orchestrate, to split planning from implementation, or to have \(worker) do the work.
+        description: Orchestrator mode with task routing between \(me) and \(worker). The user's rules decide who handles web/research, review, planning and implementation; \(me) coordinates and verifies. Use when the user asks to orchestrate, to route work by task, or to have \(worker) do part of the work.
         ---
         \(marker)
 
-        # \(me) orchestrates, \(worker) works
+        # \(me) orchestrates, work is routed by task
 
-        If the environment variable `\(depthVariable)` is set, you are already a worker: do the task yourself and do not use this skill.
+        If the environment variable `\(depthVariable)` is set, you are already a delegate: do the task yourself and do not use this skill.
 
-        ## 0. Check quota
-        Read `\(status)` → `router.agents`. If \(worker)'s `headroom` is below 10, tell the user and do the work yourself instead. If your own headroom is below 10, keep planning and review short.
+        ## 0. Route each part of the work
+        Classify each part of the request as `web` (needs internet: browsing, online docs, package or API research), `review`, `plan` or `implement` (everything else).
+        Read `\(status)` → `router.byTask.<kind>.agent`. That value already applies the user's rules and falls back when an agent's quota is low.
+        - `\(meID)`: do that part yourself.
+        - `\(workerID)`: hand that part to \(worker) (steps below).
+        - `null`: both agents are low on quota; tell the user before continuing.
 
-        ## 1. Plan (you)
-        - Read the relevant code and decide the approach. Split large work into tasks that can each be verified on their own.
-        - For each task, write a spec file outside the repository (for example `SPEC=$(mktemp -t spec).md`) containing: goal, files to change, constraints and project conventions, acceptance criteria, and the exact commands to verify (tests, build, lint). Tell the worker: implement only, do not commit, do not change unrelated files, report what changed and any doubts.
+        ## 1. Plan
+        If `router.byTask.plan.agent` is you, read the code and plan yourself. If it is `\(workerID)`, write the request to a spec file and ask \(worker) for a plan (read-only):
 
-        ## 2. Delegate (\(worker))
-        From the repository root (`REPO=$(git rev-parse --show-toplevel)`), run:
+            \(readOnlyCommand)
 
-            \(command)
+        Either way, split the work into tasks you can verify one by one. For each task write a spec file outside the repository (`SPEC=$(mktemp -t spec).md`): goal, files to change, constraints and conventions, acceptance criteria, and exact verification commands. Tell the delegate: do only this task, do not commit, do not touch unrelated files, report what changed and any doubts.
 
-        Wait for it to finish and read its final report.
+        ## 2. Delegate
+        From the repository root (`REPO=$(git rev-parse --show-toplevel)`):
+        - Implementation or web work for \(worker):
 
-        ## 3. Verify (you)
-        - Inspect `git diff` against the spec. Run the verification commands yourself; do not trust the worker's claim.
-        - Accept only when every acceptance criterion holds and the checks pass.
-        - Otherwise write a short follow-up spec with the exact failures and run step 2 again. Stop after three rounds and report what is still failing.
+              \(command)
+
+        - Review or research that must not edit files:
+
+              \(readOnlyCommand)
+
+        ## 3. Verify (always you)
+        Inspect `git diff` against the spec and run the verification commands yourself; never accept a delegate's claim unchecked. If something fails, write a short follow-up spec with the exact failures and delegate again. Stop after three rounds and report what is still failing.
 
         ## 4. Report
-        Tell the user what was planned, what \(worker) changed, what you verified (with command output), and anything left. Commit only if the user's normal workflow asks you to.
+        Say who did which part (and why: rule or quota fallback), what changed, what you verified with command output, and what is left. Commit only if the user's normal workflow asks for it.
         """
     }
 

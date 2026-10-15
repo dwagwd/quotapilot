@@ -50,4 +50,16 @@ final class CustomizationTests: XCTestCase {
             XCTAssertEqual(L10n(language).text("points"), "%")
         }
     }
+    func testSecondsRateUnitAndPrecision() throws {
+        XCTAssertEqual(TimeUnit.second.seconds, 1)
+        XCTAssertEqual(Rate(perHour: 3600, observedSeconds: 600).value(per: .second), 1)
+        XCTAssertFalse(TimeUnit.intervalUnits.contains(.second))
+        XCTAssertEqual(TimeUnit.rateUnits.first, .second)
+        let l = L10n(.english)
+        XCTAssertEqual(l.rateNumber(2.0 / 3600), "0.0006")
+        XCTAssertEqual(l.rateNumber(0.25), "0.25")
+        XCTAssertEqual(l.unit(.second, short: true), "s")
+        var settings = WidgetSettings(); settings.rateUnit = .second
+        XCTAssertEqual(try JSONDecoder().decode(WidgetSettings.self, from: JSONEncoder().encode(settings)).rateUnit, .second)
+    }
 }

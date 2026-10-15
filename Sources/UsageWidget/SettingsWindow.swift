@@ -54,13 +54,13 @@ final class SettingsWindowController: NSWindowController {
         intervalField.stringValue = String(settings.intervalValue)
         intervalField.setAccessibilityLabel(l.text("observation"))
         intervalMenu.frame = NSRect(x: 282, y: 611, width: 136, height: 26)
-        intervalMenu.addItems(withTitles: TimeUnit.allCases.map { l.unit($0) })
-        intervalMenu.selectItem(at: TimeUnit.allCases.firstIndex(of: settings.intervalUnit) ?? 1)
+        intervalMenu.addItems(withTitles: TimeUnit.intervalUnits.map { l.unit($0) })
+        intervalMenu.selectItem(at: TimeUnit.intervalUnits.firstIndex(of: settings.intervalUnit) ?? 1)
         intervalMenu.setAccessibilityLabel(l.text("observationUnit"))
         label("rateUnit", y: 228)
         rateMenu.frame = NSRect(x: 180, y: 565, width: 238, height: 26)
-        rateMenu.addItems(withTitles: TimeUnit.allCases.map { l.unit($0) })
-        rateMenu.selectItem(at: TimeUnit.allCases.firstIndex(of: settings.rateUnit) ?? 1)
+        rateMenu.addItems(withTitles: TimeUnit.rateUnits.map { l.unit($0) })
+        rateMenu.selectItem(at: TimeUnit.rateUnits.firstIndex(of: settings.rateUnit) ?? 2)
         rateMenu.setAccessibilityLabel(l.text("rateUnit"))
         let hint = NSTextField(wrappingLabelWithString: l.text("rangeHint"))
         hint.frame = NSRect(x: 22, y: 522, width: 396, height: 34)
@@ -174,8 +174,8 @@ final class SettingsWindowController: NSWindowController {
         var next = settings
         next.language = WidgetLanguage.allCases[languageMenu.indexOfSelectedItem]
         next.intervalValue = value
-        next.intervalUnit = TimeUnit.allCases[intervalMenu.indexOfSelectedItem]
-        next.rateUnit = TimeUnit.allCases[rateMenu.indexOfSelectedItem]
+        next.intervalUnit = TimeUnit.intervalUnits[intervalMenu.indexOfSelectedItem]
+        next.rateUnit = TimeUnit.rateUnits[rateMenu.indexOfSelectedItem]
         let components = rgbFields.compactMap { Int($0.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)) }
         guard components.count == 6, components.allSatisfy({ (0...255).contains($0) }) else {
             errorLabel.stringValue = L10n(settings.language).text("invalidColor"); return

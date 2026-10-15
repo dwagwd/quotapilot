@@ -31,6 +31,11 @@ public struct L10n {
     public func number(_ value: Double, decimals: Int = 1) -> String {
         String(format: "%.*f", locale: locale, decimals, value)
     }
+    /// Small per-second quota rates need more decimals than per-hour ones.
+    public func rateNumber(_ value: Double) -> String {
+        let magnitude = abs(value)
+        return number(value, decimals: magnitude == 0 || magnitude >= 1 ? 1 : magnitude >= 0.01 ? 2 : 4)
+    }
     public func compact(_ value: Double) -> String {
         if value >= 1_000_000_000 { return number(value/1_000_000_000)+"B" }
         if value >= 1_000_000 { return number(value/1_000_000)+"M" }

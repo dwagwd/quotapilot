@@ -51,4 +51,13 @@ final class UsageStatsStoreTests: XCTestCase {
         store.prune(now: 10_800 + 36 * 86400)
         XCTAssertTrue(store.quotaWindowIDs.isEmpty)
     }
+
+    func testBackfillProgressSurvivesRestartAndClearsWhenDone() throws {
+        var store = UsageStatsStore()
+        store.markBackfilled(file: "/a.jsonl")
+        let restored = try JSONDecoder().decode(UsageStatsStore.self, from: JSONEncoder().encode(store))
+        XCTAssertEqual(restored.backfilledFiles, ["/a.jsonl"])
+        store.finishBackfill(at: 1)
+        XCTAssertNil(store.backfilledFiles)
+    }
 }

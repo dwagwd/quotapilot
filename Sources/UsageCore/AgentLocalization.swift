@@ -13,6 +13,8 @@ let agentTranslations: [String: [String: String]] = [
     "sort.name": ["en": "Name", "zh-Hant": "名稱", "zh-Hans": "名称", "ja": "名前", "ko": "이름", "es": "Nombre", "fr": "Nom", "de": "Name", "pt-BR": "Nome", "it": "Nome"],
     "pinNone": ["en": "No pin", "zh-Hant": "不置頂", "zh-Hans": "不置顶", "ja": "固定なし", "ko": "고정 없음", "es": "Sin fijar", "fr": "Aucun", "de": "Kein", "pt-BR": "Nenhum", "it": "Nessuno"],
     "pinFirst": ["en": "Pin", "zh-Hant": "置頂", "zh-Hans": "置顶", "ja": "固定", "ko": "고정", "es": "Fijar", "fr": "Épingler", "de": "Oben", "pt-BR": "Fixar", "it": "Fissa"],
+    "second": ["en": "Seconds", "zh-Hant": "秒", "zh-Hans": "秒", "ja": "秒", "ko": "초", "es": "Segundos", "fr": "Secondes", "de": "Sekunden", "pt-BR": "Segundos", "it": "Secondi"],
+    "secondShort": ["en": "s", "zh-Hant": "秒", "zh-Hans": "秒", "ja": "秒", "ko": "초", "es": "s", "fr": "s", "de": "s", "pt-BR": "s", "it": "s"],
     "remaining": ["en": "left", "zh-Hant": "剩餘", "zh-Hans": "剩余", "ja": "残り", "ko": "남음", "es": "restante", "fr": "restant", "de": "übrig", "pt-BR": "restante", "it": "rimanente"],
     "allAgents": ["en": "All agents", "zh-Hant": "全部 agent", "zh-Hans": "全部 agent", "ja": "全エージェント", "ko": "전체 에이전트", "es": "Todos los agentes", "fr": "Tous les agents", "de": "Alle Agenten", "pt-BR": "Todos os agentes", "it": "Tutti gli agenti"],
     "agentLogsOff": ["en": "log reading off", "zh-Hant": "未讀取紀錄", "zh-Hans": "未读取记录", "ja": "ログ読み取りオフ", "ko": "로그 읽기 꺼짐", "es": "lectura de registros desactivada", "fr": "lecture des journaux désactivée", "de": "Protokolle aus", "pt-BR": "leitura de registros desligada", "it": "lettura log disattivata"],

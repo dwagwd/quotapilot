@@ -185,6 +185,28 @@ public final class AgentLogScanner {
         return events
     }
 
+    /// Lists every log file modified since `windowStart`, oldest first, for a resumable backfill.
+    public func backfillCandidates(windowStart: Double) -> [(path: String, source: Int)] {
+        var result: [(String, Int, Double)] = []
+        for (index, source) in sources.enumerated() {
+            for path in jsonlFiles(in: source.root.resolvingSymlinksInPath()) {
+                var info = stat()
+                guard stat(path, &info) == 0 else { continue }
+                let modified = Double(info.st_mtimespec.tv_sec)
+                if modified >= windowStart { result.append((path, index, modified)) }
+            }
+        }
+        return result.sorted { $0.2 < $1.2 }.map { ($0.0, $0.1) }
+    }
+
+    /// Reads one file's events since `windowStart` without remembering an offset (backfill only).
+    public func backfillFile(_ path: String, source index: Int, windowStart: Double) -> [AgentTokenEvent] {
+        guard sources.indices.contains(index) else { return [] }
+        let events = scanFile(URL(fileURLWithPath: path), source: sources[index], windowStart: windowStart)
+        offsets.removeValue(forKey: path)
+        return events
+    }
+
     private func recentDayFolders(root: URL, now: Double) -> [URL] {
         let calendar = Calendar(identifier: .gregorian)
         let days = [0, -86400].flatMap { offset -> [URL] in

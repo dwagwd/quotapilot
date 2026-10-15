@@ -22,6 +22,8 @@ public struct UsageStatsStore: Codable {
     public private(set) var acceptAfter: Double = 0
     public private(set) var backfilledAt: Double?
     public private(set) var quotaBackfilledAt: Double?
+    /// Log files already read by an unfinished backfill, so a restart continues instead of starting over.
+    public private(set) var backfilledFiles: Set<String>? = nil
     private var tokenHours: [String: [String: TokenBreakdown]] = [:]
     private var recentKeys: [String: Double] = [:]
     private var quotaSamples: [String: [QuotaSample]] = [:]
@@ -44,6 +46,13 @@ public struct UsageStatsStore: Codable {
     /// Marks a 30-day log backfill as done; regular scans then only add newer events.
     public mutating func finishBackfill(at time: Double) {
         backfilledAt = time
+        backfilledFiles = nil
+    }
+
+    public mutating func markBackfilled(file: String) {
+        var files = backfilledFiles ?? []
+        files.insert(file)
+        backfilledFiles = files
     }
 
     public mutating func finishQuotaBackfill(at time: Double) { quotaBackfilledAt = time }

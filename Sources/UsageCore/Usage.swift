@@ -124,10 +124,13 @@ public func visibleOrigin(for frame: CGRect, screens: [CGRect]) -> CGPoint {
 public let historyRetentionSeconds: Double = 31 * 86400
 
 public enum TimeUnit: String, Codable, CaseIterable {
-    case minute, hour, day
+    case minute, hour, day, second
     public var seconds: Double {
-        switch self { case .minute: return 60; case .hour: return 3600; case .day: return 86400 }
+        switch self { case .second: return 1; case .minute: return 60; case .hour: return 3600; case .day: return 86400 }
     }
+    /// Observation windows are whole minutes or longer; rates can also be shown per second.
+    public static let intervalUnits: [TimeUnit] = [.minute, .hour, .day]
+    public static let rateUnits: [TimeUnit] = [.second, .minute, .hour, .day]
 }
 public enum WidgetLanguage: String, Codable, CaseIterable {
     case system, zhHant = "zh-Hant", zhHans = "zh-Hans", english = "en"

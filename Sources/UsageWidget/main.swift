@@ -159,7 +159,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
     private func providerExtras(_ group: [WindowItem], now: Double) -> String {
         var parts: [String] = []
         if let first = group.first, !isStale(first, now: now), let rate = cachedRates[first.id] {
-            parts.append("≈" + l.number(rate.value(per: settings.rateUnit), decimals: 1) + "%/" + l.unit(settings.rateUnit, short: true))
+            parts.append("≈" + l.rateNumber(rate.value(per: settings.rateUnit)) + "%/" + l.unit(settings.rateUnit, short: true))
         }
         let tokens = agentLedger.summary(since: now - settings.lookback, now: now)[providerKey(group)]?.total ?? 0
         if tokens > 0 { parts.append(l.compact(tokens)) }
@@ -572,7 +572,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
         if unavailable { return prefix + " · —" }
         guard let rate else { return prefix + " · " + l.text("collecting") }
         let value = rate.value(per: settings.rateUnit)
-        let number = metric == "tokens" ? l.compact(value) : l.number(value)
+        let number = metric == "tokens" ? l.compact(value) : l.rateNumber(value)
         let unit = metric == "tokens" ? "" : " " + l.text("points")
         return prefix + " · ≈" + number + unit + "/" + l.unit(settings.rateUnit, short: true)
     }
@@ -795,11 +795,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
         let scanner = AgentLogScanner(sources: AgentLogScanner.defaultSources(home: FileManager.default.homeDirectoryForCurrentUser))
         // Separate queue: the regular one-minute scans keep running while the long backfill reads.
         // .utility, not .background: background QoS throttles disk reads heavily, which made a 30-day backfill take hours.
+        let done = statsStore.backfilledFiles ?? []
         DispatchQueue.global(qos: .utility).async { [weak self] in
-            let events = scanner.scan(windowStart: now - 30 * 86400, now: now)
+            let windowStart = now - 30 * 86400
+            // File by file, saving progress, so quitting the app does not lose what was already read.
+            var lastSave = Date()
+            for file in scanner.backfillCandidates(windowStart: windowStart) where !done.contains(file.path) {
+                let events = scanner.backfillFile(file.path, source: file.source, windowStart: windowStart)
+                let save = Date().timeIntervalSince(lastSave) > 30
+                if save { lastSave = Date() }
+                DispatchQueue.main.sync {
+                    guard let self else { return }
+                    for event in events { self.statsStore.add(event) }
+                    self.statsStore.markBackfilled(file: file.path)
+                    if save { self.saveStats(now: Date().timeIntervalSince1970) }
+                }
+            }
             DispatchQueue.main.async {
                 guard let self else { return }
-                for event in events { self.statsStore.add(event) }
                 self.statsStore.finishBackfill(at: now)
                 self.statsModel.backfilling = false
                 self.saveStats(now: Date().timeIntervalSince1970)

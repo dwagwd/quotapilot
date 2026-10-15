@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- **Per-second rates:** choose seconds as the rate unit (tokens/s, %/s); small quota rates get more decimals.
+- The 30-day statistics backfill reads file by file and resumes after a restart.
 - **Quota order** (Settings): as detected, most used, resets soonest or by name, plus pinning one agent to the top; applies to the compact, bar and detailed extra rows.
 - **Task routing rules** (Agent collaboration): choose Codex, Claude or Automatic separately for web/research, code review, planning, and implementation/other work. Rules fall back to the other agent when the chosen one is under 10% quota; `status.json` exposes `router.byTask`, which the skills follow.
 - **Orchestrator mode** (Agent collaboration): `orchestrate-codex` lets Claude Code plan, write a spec, have Codex implement with `codex exec --sandbox workspace-write`, then verify the diff and checks itself and send focused fixes back (up to three rounds); `orchestrate-claude` is the same with Codex planning and Claude Code implementing (`claude -p --permission-mode acceptEdits`). Workers never commit or delegate.

@@ -1,0 +1,136 @@
+import Foundation
+
+public struct QuotaSample: Codable, Equatable {
+    public let t: Double
+    public let used: Double
+    public let reset: Double?
+    public init(t: Double, used: Double, reset: Double?) { self.t = t; self.used = used; self.reset = reset }
+}
+
+public struct TokenSeriesPoint: Equatable {
+    public let start: Double
+    public let provider: String
+    public let tokens: Double
+}
+
+/// Long-term usage history for the statistics window: hourly token totals per provider and sparse quota
+/// samples per window, kept for `retention` seconds and saved as one small JSON file.
+public struct UsageStatsStore: Codable {
+    public static let retention: Double = 35 * 86400
+    public static let quotaSampleInterval: Double = 600
+    /// Events older than this were either counted before or predate the history; it moves forward on save.
+    public private(set) var acceptAfter: Double = 0
+    public private(set) var backfilledAt: Double?
+    public private(set) var quotaBackfilledAt: Double?
+    private var tokenHours: [String: [String: TokenBreakdown]] = [:]
+    private var recentKeys: [String: Double] = [:]
+    private var quotaSamples: [String: [QuotaSample]] = [:]
+    public private(set) var windowTitles: [String: String] = [:]
+    private static let recentKeySpan: Double = 6 * 3600
+
+    public init() {}
+
+    private static func hourKey(_ t: Double) -> String { String(Int64((t / 3600).rounded(.down) * 3600)) }
+
+    /// Adds a token event once. Returns false for duplicates and for events at or before `acceptAfter`.
+    @discardableResult
+    public mutating func add(_ event: AgentTokenEvent) -> Bool {
+        guard event.timestamp > acceptAfter, recentKeys[event.dedupeKey] == nil else { return false }
+        recentKeys[event.dedupeKey] = event.timestamp
+        tokenHours[event.provider, default: [:]][Self.hourKey(event.timestamp), default: TokenBreakdown()].add(event.usage)
+        return true
+    }
+
+    /// Marks a 30-day log backfill as done; regular scans then only add newer events.
+    public mutating func finishBackfill(at time: Double) {
+        backfilledAt = time
+    }
+
+    public mutating func finishQuotaBackfill(at time: Double) { quotaBackfilledAt = time }
+
+    /// Records a quota reading at most every ten minutes per window, or sooner when the value or reset changes.
+    public mutating func recordQuota(windowID: String, title: String, used: Double?, resetsAt: Double?, now: Double) {
+        guard let used, used.isFinite, (0...100).contains(used), now.isFinite else { return }
+        windowTitles[windowID] = title
+        var samples = quotaSamples[windowID] ?? []
+        if let last = samples.last {
+            guard now > last.t else { return }
+            if now - last.t < Self.quotaSampleInterval && last.used == used && last.reset == resetsAt { return }
+        }
+        samples.append(QuotaSample(t: now, used: used, reset: resetsAt))
+        quotaSamples[windowID] = samples
+    }
+
+    /// Before saving: forget dedupe keys older than six hours and stop accepting events from that far back.
+    public mutating func prune(now: Double) {
+        let cutoff = now - Self.retention
+        acceptAfter = max(acceptAfter, now - Self.recentKeySpan)
+        recentKeys = recentKeys.filter { $0.value > acceptAfter }
+        for provider in Array(tokenHours.keys) {
+            tokenHours[provider] = tokenHours[provider]?.filter { (Double($0.key) ?? 0) + 3600 > cutoff }
+            if tokenHours[provider]?.isEmpty == true { tokenHours.removeValue(forKey: provider) }
+        }
+        for id in Array(quotaSamples.keys) {
+            quotaSamples[id] = quotaSamples[id]?.filter { $0.t > cutoff }
+            if quotaSamples[id]?.isEmpty == true { quotaSamples.removeValue(forKey: id); windowTitles.removeValue(forKey: id) }
+        }
+    }
+
+    public var providers: [String] { tokenHours.keys.sorted() }
+    public var quotaWindowIDs: [String] { quotaSamples.keys.sorted() }
+
+    public func tokenTotals(since: Double, now: Double) -> [String: TokenBreakdown] {
+        var result: [String: TokenBreakdown] = [:]
+        for (provider, hours) in tokenHours {
+            for (key, usage) in hours {
+                guard let start = Double(key), start + 3600 > since, start <= now else { continue }
+                result[provider, default: TokenBreakdown()].add(usage)
+            }
+        }
+        return result
+    }
+
+    /// Token totals per provider in buckets of `bucket` seconds (a multiple of an hour), oldest first.
+    /// Buckets without usage are reported as zero so lines drop to the baseline instead of interpolating.
+    public func tokenSeries(since: Double, now: Double, bucket: Double) -> [TokenSeriesPoint] {
+        let size = max(3600, (bucket / 3600).rounded() * 3600)
+        let first = (since / size).rounded(.down) * size
+        var sums: [String: [Double: Double]] = [:]
+        for (provider, hours) in tokenHours {
+            for (key, usage) in hours {
+                guard let start = Double(key), start >= first, start <= now else { continue }
+                sums[provider, default: [:]][(start / size).rounded(.down) * size, default: 0] += usage.total
+            }
+        }
+        var points: [TokenSeriesPoint] = []
+        for provider in sums.keys.sorted() {
+            var start = first
+            while start <= now {
+                points.append(TokenSeriesPoint(start: start, provider: provider, tokens: sums[provider]?[start] ?? 0))
+                start += size
+            }
+        }
+        return points
+    }
+
+    public func quotaSeries(windowID: String, since: Double) -> [QuotaSample] {
+        (quotaSamples[windowID] ?? []).filter { $0.t >= since }
+    }
+
+    /// Average percentage points consumed per hour of observed time. Increases count; a drop or a new reset time
+    /// starts a new cycle whose value counts from zero. Gaps over six hours are excluded from observed time.
+    public func quotaConsumptionPerHour(windowID: String, since: Double) -> (perHour: Double, consumed: Double, hours: Double)? {
+        let samples = quotaSeries(windowID: windowID, since: since)
+        guard samples.count >= 2 else { return nil }
+        var consumed = 0.0, seconds = 0.0
+        for (previous, current) in zip(samples, samples.dropFirst()) {
+            let gap = current.t - previous.t
+            guard gap > 0, gap <= 6 * 3600 else { continue }
+            seconds += gap
+            let reset = current.used < previous.used || (current.reset != previous.reset && current.reset != nil && previous.reset != nil && abs((current.reset ?? 0) - (previous.reset ?? 0)) > 60)
+            consumed += reset ? current.used : max(0, current.used - previous.used)
+        }
+        guard seconds >= 600 else { return nil }
+        return (consumed / (seconds / 3600), consumed, seconds / 3600)
+    }
+}

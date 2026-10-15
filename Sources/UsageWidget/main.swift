@@ -70,6 +70,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
     private var autoConnectTick: Timer?
     private var autoConnectResults: [String: String] = [:]
     private var claudePlanTick: Timer?
+    private var statsStore = UsageStatsStore()
+    private let statsModel = StatsModel()
+    private var statsWindow: StatsWindowController?
     private var claudePlanError: String?
     private var claudePlanFetching = false
     private let usageEventFileRotationBytes: UInt64 = 20 * 1_048_576
@@ -134,6 +137,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
         if let saved = loadPrivateLedger(TaskLedger.self, named: "task-ledger.json") { taskLedger = saved }
         if let saved = loadPrivateLedger(AccountObservationLedger.self, named: "account-observations.json") { accountObservations = saved }
         loadUsageEventLedger()
+        if let saved = loadPrivateLedger(UsageStatsStore.self, named: "usage-stats.json") { statsStore = saved }
         client.pollInterval = settings.options.energySaver ? 120 : 60
         setupPanel(); setupStatus()
         requestAlertAuthorizationIfNeeded()
@@ -174,6 +178,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
         }
         agentTick?.tolerance = 10
         RunLoop.main.add(agentTick!, forMode: .common)
+        backfillStats()
         scanAgentLogs()
         deepSeekTick = Timer(timeInterval: 600, repeats: true) { [weak self] _ in
             guard let self, !self.sleeping else { return }; self.refreshDeepSeek()
@@ -352,6 +357,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
         add(l.text("exportTaskLedger"), #selector(exportTaskLedger))
         add(l.text("usageEventHistory"), #selector(showUsageEventHistory))
         add(l.text("exportUsageEvents"), #selector(exportUsageEvents))
+        add(l.text("usageStats"), #selector(showStats))
         add(l.text("connectAgents"), #selector(connectAgents))
         add(l.text("sourceDiagnostics"), #selector(showSourceDiagnostics))
         add(l.text("toggleCollapsed"), #selector(toggleCollapsed))
@@ -485,6 +491,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
             extraLabels[index].toolTip = extraLabels[index].stringValue + "\n" + l.text("quotaHelp")
         }
         checkQuotaAlerts(now: now)
+        for window in items where !isStale(window, now: now) {
+            statsStore.recordQuota(windowID: window.id, title: title(for: window), used: window.window.validUsedPercent, resetsAt: window.window.resetsAt, now: now)
+        }
         renderAgentTokens(now: now)
         lastFreshness = items.map { isStale($0, now: now) || ($0.window.resetsAt.map { $0 <= now } ?? false) } + [stale, tokenStale]
         applyColors()
@@ -550,7 +559,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
                 guard let self else { return }
                 self.agentScanning = false
                 guard self.settings.agentLogsEnabled else { return }
-                for event in events { self.agentLedger.add(event) }
+                for event in events where self.agentLedger.add(event) { self.statsStore.add(event) }
+                self.saveStats(now: now)
                 self.agentLedger.prune(now: now)
                 self.agentLastScanAt = now
                 self.render(); self.writeStatus()
@@ -598,6 +608,58 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
         if deepSeekError { lines.append(l.text("deepSeekError")) }
         lines.append(l.text("agentLogsHelp"))
         agentsLabel.toolTip = lines.joined(separator: "\n")
+    }
+
+    // MARK: Statistics
+
+    private func saveStats(now: Double) {
+        statsStore.prune(now: now)
+        if let data = try? JSONEncoder().encode(statsStore) {
+            let url = support.appendingPathComponent("usage-stats.json")
+            if (try? data.write(to: url, options: .atomic)) != nil {
+                try? FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: url.path)
+            }
+        }
+        if statsWindow?.window?.isVisible == true { statsModel.store = statsStore; statsModel.language = settings.language }
+    }
+
+    /// One-time history: 30 days of agent token logs and the Codex quota checkpoints already in the event ledger.
+    private func backfillStats() {
+        let now = Date().timeIntervalSince1970
+        if statsStore.quotaBackfilledAt == nil {
+            for file in usageEventFiles() {
+                guard let text = try? String(contentsOf: file, encoding: .utf8) else { continue }
+                for line in text.split(separator: "\n") {
+                    guard let event = try? JSONDecoder().decode(UsageLedgerEvent.self, from: Data(line.utf8)),
+                          event.kind == .checkpoint, let observation = event.observation else { continue }
+                    for window in observation.quotaWindows {
+                        let title = window.name + " · " + l.duration(window.windowDurationMins)
+                        statsStore.recordQuota(windowID: window.id, title: title, used: window.usedPercent, resetsAt: window.resetsAt, now: observation.capturedAt)
+                    }
+                }
+            }
+            statsStore.finishQuotaBackfill(at: now)
+        }
+        guard settings.agentLogsEnabled, statsStore.backfilledAt == nil else { return }
+        statsModel.backfilling = true
+        let scanner = AgentLogScanner(sources: AgentLogScanner.defaultSources(home: FileManager.default.homeDirectoryForCurrentUser))
+        agentScanQueue.async { [weak self] in
+            let events = scanner.scan(windowStart: now - 30 * 86400, now: now)
+            DispatchQueue.main.async {
+                guard let self else { return }
+                for event in events { self.statsStore.add(event) }
+                self.statsStore.finishBackfill(at: now)
+                self.statsModel.backfilling = false
+                self.saveStats(now: Date().timeIntervalSince1970)
+            }
+        }
+    }
+
+    @objc private func showStats() {
+        statsModel.store = statsStore
+        statsModel.language = settings.language
+        if statsWindow == nil { statsWindow = StatsWindowController(model: statsModel, title: "Codex Usage · " + l.text("usageStats").replacingOccurrences(of: "…", with: "")) }
+        statsWindow?.present()
     }
 
     // MARK: Connections

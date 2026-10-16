@@ -33,6 +33,21 @@ Unofficial community project. Not affiliated with or endorsed by OpenAI, Anthrop
 - Local sample history, saved position/settings, stale-data indicators, automatic reconnection, and manual startup.
 - Source diagnostics for Codex and optional bridges; a long-term account usage event ledger for gaps, account switches, resets, and source corrections; and local task records with verification outcomes. Task-specific token attribution stays unavailable unless a source can directly identify a session.
 
+## Windows and Linux: the `quotapilot` CLI
+
+The menu bar app is macOS-only. On **macOS, Linux and Windows** the `quotapilot` command shows the same data and router:
+
+```sh
+quotapilot status            # quota per agent, tokens (24 h), routing by task
+quotapilot watch             # refresh in the terminal every 60 s
+quotapilot route review      # prints codex or claude (exit 3 if both are low)
+quotapilot stats --hours 168 # tokens by agent and purpose for 7 days
+quotapilot config rule web codex
+quotapilot status --json     # for scripts and skills
+```
+
+Build it with Swift 6.2 or later: `swift build -c release --product quotapilot` (binary in `.build/release/`). It needs the Codex CLI on `PATH` for Codex quota and an existing Claude Code login for Claude plan usage. Settings are stored in `~/.local/state/quotapilot/cli-config.json` (Linux) or `%LOCALAPPDATA%\QuotaPilot\cli-config.json` (Windows); on macOS the app's settings are used.
+
 ## Build and install
 
 Requirements: macOS 13+, Swift 5.9+ / Xcode Command Line Tools, Python 3 for tests and packaging, and Codex desktop or CLI signed in with a ChatGPT account. The core Codex app is native and does not require Python; optional provider bridges use Python 3.

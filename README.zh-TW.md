@@ -34,6 +34,8 @@
 
 需要 macOS 13+、Swift 5.9+／Xcode Command Line Tools、測試用 Python 3，以及已登入 ChatGPT 帳號的 Codex App 或 CLI。Codex 核心小卡不依賴 Python，其他 agent 橋接需要 Python 3。
 
+**Windows／Linux：`quotapilot` 命令列工具。**選單列 App 只支援 macOS；在 macOS、Linux、Windows 都可以用 `quotapilot status`（各 agent 額度、24 小時 Token、依工作分派）、`quotapilot watch`（終端機即時更新）、`quotapilot route review`（輸出 codex 或 claude）、`quotapilot stats --hours 168`、`quotapilot config rule web codex`，加上 `--json` 可供腳本與 skill 使用。以 Swift 6.2 以上執行 `swift build -c release --product quotapilot` 建置。
+
 **快速安裝：**從 [Releases](https://github.com/dwagwd/codex-plugin/releases/latest) 下載 `QuotaPilot-<版本>-macos-universal.zip`，解壓後把 **QuotaPilot.app** 移到「應用程式」。App 已簽章並經 Apple 公證，開啟時不會出現安全性警告。
 
 **從原始碼建置：**先從 [Releases](https://github.com/dwagwd/codex-plugin/releases/latest) 下載來源 ZIP 並解壓，於資料夾開啟終端機；或先執行 `git clone https://github.com/dwagwd/codex-plugin.git quotapilot`，再 `cd quotapilot`。

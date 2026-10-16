@@ -214,7 +214,7 @@ enum AgentCollaboration {
     private static var routerNote: String {
         let status = support.appendingPathComponent("status.json").path
         return """
-        Before delegating, read `\(status)` → `router.byTask.review.agent` (the user's review rule with quota fallback). Delegate when it names the other agent or the user explicitly asked for it. If it is null, tell the user both agents are low on quota.
+        Before delegating, run `quotapilot route review` if that command exists (prints `codex`, `claude` or `none`); otherwise read `\(status)` → `router.byTask.review.agent`. Both apply the user's review rule with quota fallback. Delegate when it names the other agent or the user explicitly asked for it. If it is null, tell the user both agents are low on quota.
         If the environment variable `\(depthVariable)` is already set, you are running as a delegate: do the work yourself and never delegate again.
         """
     }
@@ -259,7 +259,7 @@ enum AgentCollaboration {
 
         ## 0. Route each part of the work
         Classify each part of the request as `web` (needs internet: browsing, online docs, package or API research), `review`, `plan` or `implement` (everything else).
-        Read `\(status)` → `router.byTask.<kind>.agent`. That value already applies the user's rules and falls back when an agent's quota is low.
+        Run `quotapilot route <kind>` if that command exists (prints `codex`, `claude` or `none`); otherwise read `\(status)` → `router.byTask.<kind>.agent`. Either applies the user's rules and falls back when an agent's quota is low.
         - `\(meID)`: do that part yourself.
         - `\(workerID)`: hand that part to \(worker) (steps below).
         - `null`: both agents are low on quota; tell the user before continuing.

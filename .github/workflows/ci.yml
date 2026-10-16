@@ -5,7 +5,7 @@ on:
 permissions:
   contents: read
 jobs:
-  test:
+  macos:
     strategy:
       fail-fast: false
       matrix:
@@ -19,3 +19,30 @@ jobs:
         run: ./scripts/check.sh
       - name: Build native app
         run: ./scripts/build.sh
+  linux:
+    runs-on: ubuntu-latest
+    container: swift:6.2
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - name: Build and test core and CLI
+        run: |
+          apt-get update -qq && apt-get install -y -qq python3 >/dev/null
+          swift test
+          swift build -c release --product quotapilot
+          .build/release/quotapilot version
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: compnerd/gha-setup-swift@v0.3.0
+        with:
+          branch: swift-6.2-release
+          tag: 6.2-RELEASE
+      - name: Build CLI
+        run: |
+          swift build -c release --product quotapilot
+          .build\release\quotapilot.exe version

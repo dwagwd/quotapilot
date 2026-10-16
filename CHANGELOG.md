@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- **Current model and reroute detection:** shows the model each agent is using (Codex: requested model and reasoning effort from the session log; Claude Code: the model that actually answered). When Codex reports a `model_reroute` (the server answered with a different model than requested, e.g. for content it flags as high-risk), the card marks the agent with ⚠︎, sends a notification, and `status.json` / `quotapilot status` list the reroute with its reason.
 - **Windows and Linux: the `quotapilot` command-line tool.** `status`, `watch`, `route <web|review|plan|implement>`, `stats` and `config` work on macOS, Linux and Windows: Codex quota through the Codex app server, Claude plan usage through the Claude Code login (`~/.claude/.credentials.json`, or the keychain on macOS), token breakdowns from local logs, and the same quota router and task rules. The core no longer depends on Apple-only APIs. The menu bar app remains macOS-only.
 - Fix Codex quota going stale: request rate limits before `account/read`, which current Codex app servers do not answer first.
 - **Renamed to QuotaPilot** (app, executable, bundle ID `io.github.dwagwd.quotapilot`, data folder `~/Library/Application Support/QuotaPilot`, build variables `QUOTAPILOT_*`). The first launch moves the old data folder (leaving a symlink for installed bridges), copies preferences, and moves a saved DeepSeek key; the install script removes the old app.

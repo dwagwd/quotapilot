@@ -82,6 +82,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
     private var agentScanner = AgentLogScanner(sources: AgentLogScanner.defaultSources(home: FileManager.default.homeDirectoryForCurrentUser))
     private var agentLedger = AgentTokenLedger()
     private var agentScanning = false
+    private var modelTracker = AgentModelTracker()
     private var agentLastScanAt: Double?
     private var agentTick: Timer?
     private let agentsLabel = NSTextField(labelWithString: "")
@@ -243,7 +244,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
                                              : (group.first?.name ?? "") + (extras.isEmpty ? "" : "  " + extras)
             if field.stringValue != text { field.stringValue = text }
             field.textColor = group.contains { ($0.window.validUsedPercent ?? 0) >= 90 } ? .systemOrange : .labelColor
-            field.toolTip = group.map { title(for: $0) + " · " + resetText($0, now: now) }.joined(separator: "\n")
+            let provider = providerKey(group)
+            if rerouteNote(provider, now: now) != nil && !field.stringValue.hasSuffix("⚠︎") { field.stringValue += "  ⚠︎" }
+            field.toolTip = (group.map { title(for: $0) + " · " + resetText($0, now: now) }
+                + [modelLine(provider).map { l.text("currentModel") + ": " + $0 }, rerouteNote(provider, now: now)].compactMap { $0 })
+                .joined(separator: "\n")
         }
         for row in styledBars where row.group < groups.count && row.window < groups[row.group].count {
             let item = groups[row.group][row.window]
@@ -297,6 +302,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
         setupPanel(); setupStatus()
         requestAlertAuthorizationIfNeeded()
         client.onResult = { [weak self] response, account in self?.received(response, account: account) }
+        client.onReroute = { [weak self] from, to, reason in
+            guard let self else { return }
+            let event = AgentModelEvent(provider: "codex", timestamp: Date().timeIntervalSince1970, kind: .rerouted,
+                                        model: to ?? "unknown", fromModel: from, effort: nil, reason: reason)
+            if self.modelTracker.observe(event) { self.notifyReroute(event); self.render(); self.writeStatus() }
+        }
         client.onTokens = { [weak self] total, account in
             guard let self else { return }
             self.tokenAvailable = total.map { $0.isFinite && $0 >= 0 } ?? false
@@ -722,9 +733,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
         let scanner = agentScanner
         agentScanQueue.async { [weak self] in
             let events = scanner.scan(windowStart: windowStart, now: now)
+            let models = scanner.lastModelEvents
             DispatchQueue.main.async {
                 guard let self else { return }
                 self.agentScanning = false
+                for model in models where self.modelTracker.observe(model) && model.timestamp > now - 7200 {
+                    self.notifyReroute(model)
+                }
                 guard self.settings.agentLogsEnabled else { return }
                 for event in events where self.agentLedger.add(event) { self.statsStore.add(event) }
                 self.saveStats(now: now)
@@ -777,6 +792,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
         lines.append(l.text("suggestedAgent") + " (" + l.text("router." + (settings.routerMode ?? .auto).rawValue) + "): "
             + (decision.agent.map(providerName) ?? l.text("routerNone"))
             + " · " + decision.agents.map { providerName($0.provider) + " " + l.number($0.headroom, decimals: 0) + "%" }.joined(separator: " / "))
+        for provider in modelTracker.current.keys.sorted() {
+            lines.append(l.text("currentModel") + " · " + providerName(provider) + ": " + (modelLine(provider) ?? "—"))
+        }
+        for provider in ["codex", "claude"] { if let note = rerouteNote(provider, now: now) { lines.append("⚠︎ " + providerName(provider) + " " + note) } }
         lines.append(l.text("agentLogsHelp"))
         agentsLabel.toolTip = lines.joined(separator: "\n")
     }
@@ -1061,6 +1080,28 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
         guard alert.runModal() == .alertFirstButtonReturn else { return }
         KeychainSecret.write("deepseek", value: field.stringValue.trimmingCharacters(in: .whitespacesAndNewlines))
         refreshDeepSeek(); render()
+    }
+
+    // MARK: Models
+
+    private func modelLine(_ provider: String) -> String? {
+        guard let current = modelTracker.current[provider] else { return nil }
+        return current.model + (current.effort.map { " (" + $0 + ")" } ?? "")
+    }
+
+    private func rerouteNote(_ provider: String, now: Double) -> String? {
+        guard let last = modelTracker.recentReroutes(provider: provider, since: now - 3600).last else { return nil }
+        return l.text("rerouted") + " " + (last.fromModel ?? "?") + " → " + last.model + (last.reason.map { " · " + $0 } ?? "")
+    }
+
+    private func notifyReroute(_ event: AgentModelEvent) {
+        guard notificationsAvailable else { return }
+        UNUserNotificationCenter.current().delegate = self
+        UNUserNotificationCenter.current().requestAuthorization(options: [.alert]) { _, _ in }
+        let content = UNMutableNotificationContent()
+        content.title = providerName(event.provider) + " · " + l.text("rerouted")
+        content.body = (event.fromModel ?? "?") + " → " + event.model + (event.reason.map { " · " + $0 } ?? "")
+        UNUserNotificationCenter.current().add(UNNotificationRequest(identifier: "reroute.\(event.timestamp)", content: content, trigger: nil))
     }
 
     // MARK: Auto-continue
@@ -1861,6 +1902,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
         data["openAtLogin"] = LoginItem.isEnabled
         data["autoConnectResults"] = autoConnectResults
         data["claudePlanError"] = claudePlanError
+        data["models"] = Dictionary(uniqueKeysWithValues: modelTracker.current.map { provider, current -> (String, Any) in
+            (provider, ["model": current.model, "effort": current.effort ?? NSNull(), "at": current.at] as [String: Any])
+        })
+        data["reroutes"] = modelTracker.reroutes.suffix(10).map { r -> [String: Any] in
+            ["provider": r.provider, "at": r.timestamp, "from": r.fromModel ?? NSNull(), "to": r.model, "reason": r.reason ?? NSNull()]
+        }
         let decision = AgentRouter.decide(mode: settings.routerMode ?? .auto, items: items, now: now)
         var router: [String: Any] = ["mode": (settings.routerMode ?? .auto).rawValue, "reason": decision.reason,
                                      "minimumHeadroom": AgentRouter.minimumHeadroom,

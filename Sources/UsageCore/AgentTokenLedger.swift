@@ -143,8 +143,10 @@ public final class AgentLogScanner {
         public let provider: String
         public let root: URL
         public let parse: (String) -> AgentTokenEvent?
-        public init(provider: String, root: URL, parse: @escaping (String) -> AgentTokenEvent?) {
-            self.provider = provider; self.root = root; self.parse = parse
+        public let parseModel: ((String) -> AgentModelEvent?)?
+        public init(provider: String, root: URL, parse: @escaping (String) -> AgentTokenEvent?,
+                    parseModel: ((String) -> AgentModelEvent?)? = nil) {
+            self.provider = provider; self.root = root; self.parse = parse; self.parseModel = parseModel
         }
     }
     public let sources: [Source]
@@ -156,8 +158,10 @@ public final class AgentLogScanner {
     public init(sources: [Source]) { self.sources = sources }
 
     public static func defaultSources(home: URL) -> [Source] {
-        [Source(provider: "codex", root: home.appendingPathComponent(".codex/sessions", isDirectory: true), parse: AgentLogParser.codexEvent),
-         Source(provider: "claude", root: home.appendingPathComponent(".claude/projects", isDirectory: true), parse: AgentLogParser.claudeEvent)]
+        [Source(provider: "codex", root: home.appendingPathComponent(".codex/sessions", isDirectory: true), parse: AgentLogParser.codexEvent,
+                parseModel: AgentLogParser.codexModelEvent),
+         Source(provider: "claude", root: home.appendingPathComponent(".claude/projects", isDirectory: true), parse: AgentLogParser.claudeEvent,
+                parseModel: AgentLogParser.claudeModelEvent)]
     }
 
     private var knownFiles: [String: Int] = [:]  // path -> source index
@@ -170,6 +174,7 @@ public final class AgentLogScanner {
     public func scan(windowStart: Double, now: Double = Date().timeIntervalSince1970) -> [AgentTokenEvent] {
         var events: [AgentTokenEvent] = []
         lastScanBytes = 0
+        lastModelEvents = []
         let full = now - lastFullEnumeration >= fullEnumerationInterval
         if full { lastFullEnumeration = now }
         for (index, source) in sources.enumerated() {
@@ -304,8 +309,17 @@ public final class AgentLogScanner {
         return events
     }
 
+    /// Model observations found by the last scan (requested/served models and reroutes).
+    public private(set) var lastModelEvents: [AgentModelEvent] = []
+
     private func parseLines(_ data: Data, source: Source) -> [AgentTokenEvent] {
         guard let text = String(data: data, encoding: .utf8) else { return [] }
-        return text.split(separator: "\n", omittingEmptySubsequences: true).compactMap { source.parse(String($0)) }
+        var events: [AgentTokenEvent] = []
+        for line in text.split(separator: "\n", omittingEmptySubsequences: true) {
+            let string = String(line)
+            if let event = source.parse(string) { events.append(event) }
+            if let parseModel = source.parseModel, let model = parseModel(string) { lastModelEvents.append(model) }
+        }
+        return events
     }
 }

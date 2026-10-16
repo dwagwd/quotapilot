@@ -99,11 +99,14 @@ func fetchClaudeWindows() -> (windows: [WindowItem], error: String?) {
     return (snapshot.limits.windows(), nil)
 }
 
+var modelTracker = AgentModelTracker()
+
 func tokenSummary(hours: Double) -> [String: TokenBreakdown] {
     let now = Date().timeIntervalSince1970
     let scanner = AgentLogScanner(sources: AgentLogScanner.defaultSources(home: FileManager.default.homeDirectoryForCurrentUser))
     var ledger = AgentTokenLedger()
     for event in scanner.scan(windowStart: now - hours * 3600, now: now) { ledger.add(event) }
+    for model in scanner.lastModelEvents { modelTracker.observe(model) }
     return ledger.summary(since: now - hours * 3600, now: now)
 }
 
@@ -199,7 +202,9 @@ func statusObject(_ snapshot: Snapshot) -> [String: Any] {
              "windowDurationMins": item.window.windowDurationMins ?? NSNull(), "resetsAt": item.window.resetsAt ?? NSNull(), "limitReached": item.limitReached]
         },
         "tokens": ["hours": snapshot.tokenHours, "total": breakdownJSON(total), "providers": snapshot.tokens.mapValues(breakdownJSON)] as [String: Any],
-        "router": routerObject(snapshot)
+        "router": routerObject(snapshot),
+        "models": Dictionary(uniqueKeysWithValues: modelTracker.current.map { ($0.key, ["model": $0.value.model, "effort": $0.value.effort ?? NSNull(), "at": $0.value.at] as [String: Any]) }),
+        "reroutes": modelTracker.reroutes.map { ["provider": $0.provider, "at": $0.timestamp, "from": $0.fromModel ?? NSNull(), "to": $0.model, "reason": $0.reason ?? NSNull()] as [String: Any] }
     ]
 }
 
@@ -221,6 +226,15 @@ func renderText(_ snapshot: Snapshot) -> String {
         lines.append("Tokens (\(window)): " + l.compact(total.total) + " · ≈" + l.compact(total.total / snapshot.tokenHours) + "/h · "
                      + snapshot.tokens.sorted { $0.value.total > $1.value.total }.map { providerName($0.key) + " " + l.compact($0.value.total) }.joined(separator: " · "))
         lines.append("  " + breakdownText(total))
+    }
+    if !modelTracker.current.isEmpty {
+        lines.append("Models: " + modelTracker.current.sorted { $0.key < $1.key }.map { provider, current in
+            providerName(provider) + " " + current.model + (current.effort.map { " (\($0))" } ?? "")
+        }.joined(separator: " · "))
+    }
+    for reroute in modelTracker.reroutes.suffix(3) {
+        let formatter = DateFormatter(); formatter.dateFormat = "MM-dd HH:mm"
+        lines.append("⚠ Rerouted \(formatter.string(from: Date(timeIntervalSince1970: reroute.timestamp))): \(reroute.fromModel ?? "?") → \(reroute.model)" + (reroute.reason.map { " (\($0))" } ?? ""))
     }
     let mode = snapshot.settings.routerMode ?? .auto
     lines.append("Route (\(mode.rawValue)): " + TaskKind.allCases.map { kind in

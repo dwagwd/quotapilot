@@ -40,6 +40,8 @@ public final class UsageClient {
     public var onDiagnostics: ((ClientDiagnostics) -> Void)?
     private var pendingTokenAccount: String?
     public var onFailure: ((String) -> Void)?
+    /// Called for the app server's model-reroute notification (requested model, served model, reason).
+    public var onReroute: ((String?, String?, String?) -> Void)?
     private var process: Process?
     private var input: Pipe?
     private var output: Pipe?
@@ -193,7 +195,14 @@ public final class UsageClient {
         while let newline = buffer.firstIndex(of: 10) {
             let line = buffer.prefix(upTo: newline); buffer.removeSubrange(...newline)
             guard let json = try? JSONSerialization.jsonObject(with: line) as? [String: Any] else { continue }
-            // Ignore unrelated notifications and server requests: this client only reads account limits.
+            if json["id"] == nil, let method = json["method"] as? String, method.lowercased().contains("reroute") {
+                let params = json["params"] as? [String: Any] ?? [:]
+                let reason = (params["reason"] as? String) ?? ((params["reason"] as? [String: Any])?["type"] as? String)
+                onReroute?(params["fromModel"] as? String ?? params["from_model"] as? String,
+                           params["toModel"] as? String ?? params["to_model"] as? String ?? params["model"] as? String, reason)
+                continue
+            }
+            // Ignore other notifications and server requests: this client only reads account limits.
             guard let id = json["id"] as? Int, (1...4).contains(id) else { continue }
             if id == 4, pendingTokenAccount != nil, json["error"] != nil { finishTokens(nil, errorCode: "tokenReadFailed"); continue }
             if json["error"] != nil { fail("readFailed"); return }

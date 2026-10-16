@@ -1,6 +1,7 @@
 import XCTest
 import Foundation
 import UsageTransport
+@testable import UsageCore
 
 final class TransportTests: XCTestCase {
     private var directories: [URL] = []
@@ -133,5 +134,10 @@ final class TransportTests: XCTestCase {
         XCTAssertTrue(candidates.contains(bundled))
         XCTAssertLessThan(candidates.firstIndex(of: bundled)!, candidates.firstIndex(of: "/bin/codex")!)
         XCTAssertEqual(UsageClient.executableCandidates(environment: ["CODEX_USAGE_CODEX_PATH": "/x/codex"], home: "/h").first, "/x/codex")
+    }
+    func testPortableSHA256MatchesKnownVectors() {
+        XCTAssertEqual(Portable.sha256Hex(""), "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855")
+        XCTAssertEqual(Portable.sha256Hex("abc"), "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad")
+        XCTAssertEqual(Portable.sha256Hex(String(repeating: "a", count: 1000)).count, 64)
     }
 }

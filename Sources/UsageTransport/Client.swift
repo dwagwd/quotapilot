@@ -1,5 +1,4 @@
 import Foundation
-import CryptoKit
 import UsageCore
 
 public struct ClientDiagnostics: Codable, Equatable {
@@ -20,6 +19,14 @@ public struct ClientDiagnostics: Codable, Equatable {
 }
 
 // All mutable state is confined to the main queue. No model turns are created.
+private func forceKill(_ process: Process) {
+    #if os(Windows)
+    process.terminate()
+    #else
+    kill(process.processIdentifier, SIGKILL)
+    #endif
+}
+
 public final class UsageClient {
     private let overrideExecutable: String?
     private let requestTimeout: Double
@@ -78,6 +85,10 @@ public final class UsageClient {
         guard ready else { return }
         inFlight = true; publishDiagnostics()
         armTimeout()
+        accountReadDone = false; heldLimits = nil
+        // Ask for limits first: current Codex app servers do not answer account/read until another
+        // request has been handled, and limits already carry the account ID.
+        send(["id": 3, "method": "account/rateLimits/read", "params": [:]])
         send(["id": 2, "method": "account/read", "params": [:]])
     }
     public func suspend() { suspended = true; disconnect(); retryTimer?.invalidate(); nextAttemptAt = nil; publishDiagnostics() }
@@ -90,7 +101,7 @@ public final class UsageClient {
         if let child {
             let deadline = Date().addingTimeInterval(2)
             while child.isRunning && Date() < deadline { Thread.sleep(forTimeInterval: 0.02) }
-            if child.isRunning { kill(child.processIdentifier, SIGKILL); child.waitUntilExit() }
+            if child.isRunning { forceKill(child); child.waitUntilExit() }
         }
     }
 
@@ -104,9 +115,15 @@ public final class UsageClient {
                  "\(root)/\(app)/Contents/Resources/codex"]
             }
         }
-        return [env["CODEX_USAGE_CODEX_PATH"]].compactMap { $0 } + bundles
+        #if os(Windows)
+        let pathEntries = (env["PATH"] ?? env["Path"] ?? "").split(separator: ";").map { String($0) + "\\codex.exe" }
+        let extra = [env["APPDATA"].map { $0 + "\\npm\\codex.exe" }, env["LOCALAPPDATA"].map { $0 + "\\Programs\\codex\\codex.exe" }].compactMap { $0 }
+        return [env["QUOTAPILOT_CODEX_PATH"], env["CODEX_USAGE_CODEX_PATH"]].compactMap { $0 } + pathEntries + extra
+        #else
+        return [env["QUOTAPILOT_CODEX_PATH"], env["CODEX_USAGE_CODEX_PATH"]].compactMap { $0 } + bundles
             + (env["PATH"] ?? "").split(separator: ":").map { String($0)+"/codex" }
-            + ["/opt/homebrew/bin/codex", "/usr/local/bin/codex"]
+            + ["/opt/homebrew/bin/codex", "/usr/local/bin/codex", home + "/.local/bin/codex", home + "/.npm-global/bin/codex"]
+        #endif
     }
 
     private func start() {
@@ -152,6 +169,24 @@ public final class UsageClient {
             try input?.fileHandleForWriting.write(contentsOf: data)
         } catch { fail("sendFailed") }
     }
+    private var heldLimits: LimitsResponse?
+    private var accountReadDone = false
+
+    private func deliver(_ limits: LimitsResponse) {
+        guard let identity = limits.accountId.map({ Self.hash($0) }) ?? accountIdentity else {
+            fail("loginRequired"); return
+        }
+        timeout?.invalidate(); failures = 0; lastFailureCode = nil
+        lastQuotaSuccessAt = Date().timeIntervalSince1970
+        pendingTokenAccount = identity
+        onResult?(limits, identity); publishDiagnostics()
+        armTimeout()
+        lastTokenAttemptAt = Date().timeIntervalSince1970
+        lastTokenAttemptAccountKey = identity
+        lastTokenErrorCode = nil; publishDiagnostics()
+        send(["id": 4, "method": "account/usage/read", "params": [:]])
+    }
+
     private func receive(_ data: Data) {
         buffer.append(data)
         guard buffer.count < 8 * 1024 * 1024 else { fail("responseTooLarge"); return }
@@ -174,24 +209,14 @@ public final class UsageClient {
                 let account = result["account"] as? [String: Any]
                 let identity = (account?["id"] as? String) ?? (account?["email"] as? String)
                 accountIdentity = identity.map { Self.hash($0) }
-                send(["id": 3, "method": "account/rateLimits/read", "params": [:]])
+                accountReadDone = true
+                // Limits that arrived first without an account ID were held for this identity.
+                if let held = heldLimits { heldLimits = nil; deliver(held) }
             case 3:
-                do {
-                    let bytes = try JSONSerialization.data(withJSONObject: result)
-                    let limits = try JSONDecoder().decode(LimitsResponse.self, from: bytes)
-                    guard let identity = limits.accountId.map({ Self.hash($0) }) ?? accountIdentity else {
-                        fail("loginRequired"); return
-                    }
-                    timeout?.invalidate(); failures = 0; lastFailureCode = nil
-                    lastQuotaSuccessAt = Date().timeIntervalSince1970
-                    pendingTokenAccount = identity
-                    onResult?(limits, identity); publishDiagnostics()
-                    armTimeout()
-                    lastTokenAttemptAt = Date().timeIntervalSince1970
-                    lastTokenAttemptAccountKey = identity
-                    lastTokenErrorCode = nil; publishDiagnostics()
-                    send(["id": 4, "method": "account/usage/read", "params": [:]])
-                } catch { fail("invalidQuota") }
+                guard let bytes = try? JSONSerialization.data(withJSONObject: result),
+                      let limits = try? JSONDecoder().decode(LimitsResponse.self, from: bytes) else { fail("invalidQuota"); return }
+                if limits.accountId == nil && !accountReadDone { heldLimits = limits; continue }
+                deliver(limits)
             case 4:
                 let bytes = try? JSONSerialization.data(withJSONObject: result)
                 let usage = bytes.flatMap { try? JSONDecoder().decode(TokenUsageResponse.self, from: $0) }
@@ -214,7 +239,7 @@ public final class UsageClient {
         schedule(after: pollInterval)
     }
     private static func hash(_ value: String) -> String {
-        SHA256.hash(data: Data(value.utf8)).map { String(format: "%02x", $0) }.joined()
+        Portable.sha256Hex(value)
     }
     private func armTimeout() {
         timeout?.invalidate()
@@ -246,7 +271,7 @@ public final class UsageClient {
         if let old, old.isRunning {
             old.terminate()
             DispatchQueue.global().asyncAfter(deadline: .now()+2) {
-                if old.isRunning { kill(old.processIdentifier, SIGKILL) }
+                if old.isRunning { forceKill(old) }
             }
         }
         pendingTokenAccount = nil; process = nil; input = nil; output = nil; ready = false; inFlight = false; buffer = Data()

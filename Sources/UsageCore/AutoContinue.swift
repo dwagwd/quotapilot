@@ -46,9 +46,7 @@ public enum CodexSessionLocator {
         guard let enumerator = FileManager.default.enumerator(at: base, includingPropertiesForKeys: [], options: [.skipsHiddenFiles]) else { return nil }
         var candidates: [(String, Double)] = []
         for case let url as URL in enumerator where url.pathExtension == "jsonl" {
-            var info = stat()
-            guard stat(url.path, &info) == 0 else { continue }
-            let modified = Double(info.st_mtimespec.tv_sec)
+            guard let modified = Portable.status(url.path)?.modified else { continue }
             if modified >= blockedSince - activityMargin && modified <= now { candidates.append((url.path, modified)) }
         }
         for (path, modified) in candidates.sorted(by: { $0.1 > $1.1 }) {

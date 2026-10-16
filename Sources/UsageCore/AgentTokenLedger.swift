@@ -190,9 +190,7 @@ public final class AgentLogScanner {
         var result: [(String, Int, Double)] = []
         for (index, source) in sources.enumerated() {
             for path in jsonlFiles(in: source.root.resolvingSymlinksInPath()) {
-                var info = stat()
-                guard stat(path, &info) == 0 else { continue }
-                let modified = Double(info.st_mtimespec.tv_sec)
+                guard let modified = Portable.status(path)?.modified else { continue }
                 if modified >= windowStart { result.append((path, index, modified)) }
             }
         }
@@ -232,12 +230,10 @@ public final class AgentLogScanner {
     private func scanFile(_ url: URL, source: Source, windowStart: Double) -> [AgentTokenEvent] {
         let key = url.path
         // POSIX stat: FileManager.attributesOfItem can take ~100 ms per file on some external volumes.
-        var info = stat()
-        guard stat(key, &info) == 0, (info.st_mode & S_IFMT) == S_IFREG else {
+        guard let info = Portable.status(key), info.isRegular else {
             knownFiles.removeValue(forKey: key); offsets.removeValue(forKey: key); return []
         }
-        let size = UInt64(info.st_size)
-        let modified = Double(info.st_mtimespec.tv_sec) + Double(info.st_mtimespec.tv_nsec) / 1e9
+        let size = info.size, modified = info.modified
         guard modified >= windowStart else { return [] }
         if let offset = offsets[key] {
             if size < offset { offsets[key] = 0; return readForward(url, from: 0, size: size, source: source, windowStart: windowStart) }

@@ -1,5 +1,7 @@
 import Foundation
+#if canImport(CoreGraphics)
 import CoreGraphics
+#endif
 
 public struct QuotaWindow: Codable, Equatable {
     public let usedPercent: Double?

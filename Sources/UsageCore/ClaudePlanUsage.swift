@@ -1,5 +1,4 @@
 import Foundation
-import CryptoKit
 
 /// Claude subscription (Pro/Max) usage from the endpoint Claude Code itself uses:
 /// `GET https://api.anthropic.com/api/oauth/usage` with the user's Claude Code login.
@@ -34,7 +33,7 @@ public enum ClaudePlanUsage {
                                                     secondary: nil)
         }
         guard !buckets.isEmpty else { return nil }
-        let identity = SHA256.hash(data: Data(("claude-plan:" + (plan ?? "")).utf8)).map { String(format: "%02x", $0) }.joined()
+        let identity = Portable.sha256Hex("claude-plan:" + (plan ?? ""))
         return ProviderSnapshot(provider: "claude", account: identity, updatedAt: now,
                                 limits: LimitsResponse(rateLimits: nil, rateLimitsByLimitId: buckets, accountId: nil))
     }

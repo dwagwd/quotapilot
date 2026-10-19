@@ -175,6 +175,7 @@ public final class AgentLogScanner {
         var events: [AgentTokenEvent] = []
         lastScanBytes = 0
         lastModelEvents = []
+        lastSpeedSamples = []
         let full = now - lastFullEnumeration >= fullEnumerationInterval
         if full { lastFullEnumeration = now }
         for (index, source) in sources.enumerated() {
@@ -261,7 +262,7 @@ public final class AgentLogScanner {
             carry.append(chunk)
             guard let lastNewline = carry.lastIndex(of: 0x0A) else { continue }
             let complete = carry[carry.startIndex...lastNewline]
-            events += parseLines(complete, source: source).filter { $0.timestamp >= windowStart }
+            events += parseLines(complete, source: source, path: url.path).filter { $0.timestamp >= windowStart }
             carry = Data(carry[carry.index(after: lastNewline)...])
         }
         // Keep a trailing partial line for the next scan.
@@ -311,15 +312,32 @@ public final class AgentLogScanner {
 
     /// Model observations found by the last scan (requested/served models and reroutes).
     public private(set) var lastModelEvents: [AgentModelEvent] = []
+    /// Per-call output speed found by the last scan. Calls that span a read boundary are skipped.
+    public private(set) var lastSpeedSamples: [OutputSpeedSample] = []
 
-    private func parseLines(_ data: Data, source: Source) -> [AgentTokenEvent] {
+    /// Returns and clears samples collected outside `scan` (backfill reads).
+    public func takeSpeedSamples() -> [OutputSpeedSample] {
+        defer { lastSpeedSamples = [] }
+        return lastSpeedSamples
+    }
+
+    /// Call timers carried across incremental reads, so a request and its response written in different
+    /// scans are still paired.
+    private var timers: [String: CallTimer] = [:]
+
+    private func parseLines(_ data: Data, source: Source, path: String? = nil) -> [AgentTokenEvent] {
         guard let text = String(data: data, encoding: .utf8) else { return [] }
         var events: [AgentTokenEvent] = []
+        var timer = path.flatMap { timers[$0] } ?? CallTimer(provider: source.provider)
+        defer { if let path { timers[path] = timer } }
         for line in text.split(separator: "\n", omittingEmptySubsequences: true) {
             let string = String(line)
             if let event = source.parse(string) { events.append(event) }
             if let parseModel = source.parseModel, let model = parseModel(string) { lastModelEvents.append(model) }
+            lastSpeedSamples += timer.feed(string)
         }
+        // Claude responses finish with their last block; keep them open while the file is still being written.
+        if path == nil { lastSpeedSamples += timer.flush() }
         return events
     }
 }

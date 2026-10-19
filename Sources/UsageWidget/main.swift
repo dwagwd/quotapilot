@@ -734,9 +734,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
         agentScanQueue.async { [weak self] in
             let events = scanner.scan(windowStart: windowStart, now: now)
             let models = scanner.lastModelEvents
+            let speeds = scanner.lastSpeedSamples
             DispatchQueue.main.async {
                 guard let self else { return }
                 self.agentScanning = false
+                for sample in speeds { self.statsStore.addSpeed(sample) }
                 for model in models where self.modelTracker.observe(model) && model.timestamp > now - 7200 {
                     self.notifyReroute(model)
                 }
@@ -792,6 +794,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
         lines.append(l.text("suggestedAgent") + " (" + l.text("router." + (settings.routerMode ?? .auto).rawValue) + "): "
             + (decision.agent.map(providerName) ?? l.text("routerNone"))
             + " · " + decision.agents.map { providerName($0.provider) + " " + l.number($0.headroom, decimals: 0) + "%" }.joined(separator: " / "))
+        for (provider, speed) in statsStore.outputSpeed(since: since, now: now).sorted(by: { $0.key < $1.key }) {
+            lines.append(l.text("outputSpeed") + " · " + providerName(provider) + ": ≈" + l.number(speed.tokensPerSecond, decimals: 0) + " tok/s")
+        }
+        if statsStore.outputSpeed(since: since, now: now).isEmpty == false { lines.append(l.text("outputSpeedHelp")) }
         for provider in modelTracker.current.keys.sorted() {
             lines.append(l.text("currentModel") + " · " + providerName(provider) + ": " + (modelLine(provider) ?? "—"))
         }
@@ -842,11 +848,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
             var lastSave = Date()
             for file in scanner.backfillCandidates(windowStart: windowStart) where !done.contains(file.path) {
                 let events = scanner.backfillFile(file.path, source: file.source, windowStart: windowStart)
+                let speedBatch = scanner.takeSpeedSamples()
                 let save = Date().timeIntervalSince(lastSave) > 30
                 if save { lastSave = Date() }
                 DispatchQueue.main.sync {
                     guard let self else { return }
                     for event in events { self.statsStore.add(event) }
+                    for sample in speedBatch { self.statsStore.addSpeed(sample) }
                     self.statsStore.markBackfilled(file: file.path)
                     if save { self.saveStats(now: Date().timeIntervalSince1970) }
                 }

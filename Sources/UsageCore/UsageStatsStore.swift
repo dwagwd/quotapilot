@@ -27,6 +27,8 @@ public struct UsageStatsStore: Codable {
     private var tokenHours: [String: [String: TokenBreakdown]] = [:]
     private var recentKeys: [String: Double] = [:]
     private var quotaSamples: [String: [QuotaSample]] = [:]
+    /// Output tokens and model-call seconds per provider per hour, for output speed (decode lower bound).
+    private var speedHours: [String: [String: [Double]]]? = nil
     public private(set) var windowTitles: [String: String] = [:]
     private static let recentKeySpan: Double = 6 * 3600
 
@@ -41,6 +43,52 @@ public struct UsageStatsStore: Codable {
         recentKeys[event.dedupeKey] = event.timestamp
         tokenHours[event.provider, default: [:]][Self.hourKey(event.timestamp), default: TokenBreakdown()].add(event.usage)
         return true
+    }
+
+    @discardableResult
+    public mutating func addSpeed(_ sample: OutputSpeedSample) -> Bool {
+        let key = "speed|" + sample.key
+        guard sample.timestamp > acceptAfter, recentKeys[key] == nil else { return false }
+        recentKeys[key] = sample.timestamp
+        var hours = speedHours ?? [:]
+        var pair = hours[sample.provider]?[Self.hourKey(sample.timestamp)] ?? [0, 0]
+        pair[0] += sample.outputTokens; pair[1] += sample.seconds
+        hours[sample.provider, default: [:]][Self.hourKey(sample.timestamp)] = pair
+        speedHours = hours
+        return true
+    }
+
+    /// Output tokens per second of model-call time per provider since `since`.
+    public func outputSpeed(since: Double, now: Double) -> [String: (tokensPerSecond: Double, outputTokens: Double, seconds: Double)] {
+        var result: [String: (Double, Double, Double)] = [:]
+        for (provider, hours) in speedHours ?? [:] {
+            var tokens = 0.0, seconds = 0.0
+            for (key, pair) in hours where pair.count == 2 {
+                guard let start = Double(key), start + 3600 > since, start <= now else { continue }
+                tokens += pair[0]; seconds += pair[1]
+            }
+            if seconds > 0 { result[provider] = (tokens / seconds, tokens, seconds) }
+        }
+        return result
+    }
+
+    /// Hourly or daily output speed per provider, oldest first; empty buckets are omitted.
+    public func speedSeries(since: Double, now: Double, bucket: Double) -> [TokenSeriesPoint] {
+        let size = max(3600, (bucket / 3600).rounded() * 3600)
+        var sums: [String: [Double: [Double]]] = [:]
+        for (provider, hours) in speedHours ?? [:] {
+            for (key, pair) in hours where pair.count == 2 {
+                guard let start = Double(key), start + 3600 > since, start <= now else { continue }
+                let slot = (start / size).rounded(.down) * size
+                var acc = sums[provider]?[slot] ?? [0, 0]; acc[0] += pair[0]; acc[1] += pair[1]
+                sums[provider, default: [:]][slot] = acc
+            }
+        }
+        return sums.keys.sorted().flatMap { provider in
+            (sums[provider] ?? [:]).sorted { $0.key < $1.key }.compactMap { slot, acc in
+                acc[1] > 0 ? TokenSeriesPoint(start: slot, provider: provider, tokens: acc[0] / acc[1]) : nil
+            }
+        }
     }
 
     /// Marks a 30-day log backfill as done; regular scans then only add newer events.
@@ -79,6 +127,13 @@ public struct UsageStatsStore: Codable {
         for provider in Array(tokenHours.keys) {
             tokenHours[provider] = tokenHours[provider]?.filter { (Double($0.key) ?? 0) + 3600 > cutoff }
             if tokenHours[provider]?.isEmpty == true { tokenHours.removeValue(forKey: provider) }
+        }
+        if var hours = speedHours {
+            for provider in Array(hours.keys) {
+                hours[provider] = hours[provider]?.filter { (Double($0.key) ?? 0) + 3600 > cutoff }
+                if hours[provider]?.isEmpty == true { hours.removeValue(forKey: provider) }
+            }
+            speedHours = hours
         }
         for id in Array(quotaSamples.keys) {
             quotaSamples[id] = quotaSamples[id]?.filter { $0.t > cutoff }

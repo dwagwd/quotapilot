@@ -63,6 +63,26 @@ struct StatsView: View {
                         .frame(height: 180)
                     }.padding(4)
                 }
+                GroupBox(l.text("outputSpeed") + " (tok/s)") {
+                    VStack(alignment: .leading, spacing: 6) {
+                        let speeds = model.store.outputSpeed(since: since, now: now)
+                        if speeds.isEmpty {
+                            Text(l.text("collecting")).font(.caption).foregroundStyle(.secondary)
+                        } else {
+                            Text(speeds.sorted { $0.key < $1.key }.map { providerName($0.key) + " ≈" + l.number($0.value.tokensPerSecond, decimals: 0) + " tok/s" }.joined(separator: "  ·  "))
+                                .font(.headline)
+                        }
+                        Chart {
+                            ForEach(Array(model.store.speedSeries(since: since, now: now, bucket: range.bucket).enumerated()), id: \.offset) { _, point in
+                                LineMark(x: .value("Time", Date(timeIntervalSince1970: point.start)), y: .value("tok/s", point.tokens))
+                                    .foregroundStyle(by: .value("Provider", providerName(point.provider)))
+                                    .interpolationMethod(.monotone)
+                            }
+                        }
+                        .frame(height: 140)
+                        Text(l.text("outputSpeedHelp")).font(.caption2).foregroundStyle(.secondary)
+                    }.padding(4)
+                }
                 GroupBox(l.text("statsQuota")) {
                     VStack(alignment: .leading, spacing: 6) {
                         ForEach(model.store.quotaWindowIDs, id: \.self) { id in

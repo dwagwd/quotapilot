@@ -60,4 +60,14 @@ final class UsageStatsStoreTests: XCTestCase {
         store.finishBackfill(at: 1)
         XCTAssertNil(store.backfilledFiles)
     }
+
+    func testOutputSpeedIsTokensOverCallTime() {
+        var store = UsageStatsStore()
+        let a = OutputSpeedSample(provider: "codex", timestamp: 3_700, outputTokens: 400, reasoningTokens: 0, seconds: 10, key: "a")
+        XCTAssertTrue(store.addSpeed(a))
+        XCTAssertFalse(store.addSpeed(a))
+        store.addSpeed(OutputSpeedSample(provider: "codex", timestamp: 3_800, outputTokens: 200, reasoningTokens: 0, seconds: 20, key: "b"))
+        XCTAssertEqual(store.outputSpeed(since: 0, now: 10_000)["codex"]?.tokensPerSecond ?? 0, 20, accuracy: 0.001)
+        XCTAssertEqual(store.speedSeries(since: 0, now: 10_000, bucket: 3600).map(\.tokens), [20])
+    }
 }

@@ -100,6 +100,15 @@ func fetchClaudeWindows() -> (windows: [WindowItem], error: String?) {
 }
 
 var modelTracker = AgentModelTracker()
+var speedSamples: [OutputSpeedSample] = []
+
+/// Per-agent output speed: output tokens (with reasoning) over model-call time. A lower bound on decode tok/s.
+func speedText() -> [String] {
+    Dictionary(grouping: speedSamples, by: \.provider).sorted { $0.key < $1.key }.compactMap { provider, samples in
+        guard let s = OutputSpeedSummary(samples) else { return nil }
+        return "\(providerName(provider)) ≈\(l.number(s.tokensPerSecond, decimals: 0)) tok/s (median \(l.number(s.medianTokensPerSecond, decimals: 0)), \(s.calls) calls)"
+    }
+}
 
 func tokenSummary(hours: Double) -> [String: TokenBreakdown] {
     let now = Date().timeIntervalSince1970
@@ -107,6 +116,7 @@ func tokenSummary(hours: Double) -> [String: TokenBreakdown] {
     var ledger = AgentTokenLedger()
     for event in scanner.scan(windowStart: now - hours * 3600, now: now) { ledger.add(event) }
     for model in scanner.lastModelEvents { modelTracker.observe(model) }
+    speedSamples = scanner.lastSpeedSamples.filter { $0.timestamp >= now - hours * 3600 }
     return ledger.summary(since: now - hours * 3600, now: now)
 }
 
@@ -227,6 +237,8 @@ func renderText(_ snapshot: Snapshot) -> String {
                      + snapshot.tokens.sorted { $0.value.total > $1.value.total }.map { providerName($0.key) + " " + l.compact($0.value.total) }.joined(separator: " · "))
         lines.append("  " + breakdownText(total))
     }
+    let speeds = speedText()
+    if !speeds.isEmpty { lines.append("Output speed: " + speeds.joined(separator: " · ") + "  (output ÷ call time, decode lower bound)") }
     if !modelTracker.current.isEmpty {
         lines.append("Models: " + modelTracker.current.sorted { $0.key < $1.key }.map { provider, current in
             providerName(provider) + " " + current.model + (current.effort.map { " (\($0))" } ?? "")
@@ -298,13 +310,19 @@ case "stats":
     let summary = tokenSummary(hours: hours)
     let total = summary.values.reduce(into: TokenBreakdown()) { $0.add($1) }
     if wantsJSON {
-        printJSON(["hours": hours, "total": breakdownJSON(total), "providers": summary.mapValues(breakdownJSON)])
+        let speed = Dictionary(grouping: speedSamples, by: \.provider).compactMapValues { samples -> [String: Any]? in
+            guard let s = OutputSpeedSummary(samples) else { return nil }
+            return ["tokensPerSecond": s.tokensPerSecond, "medianTokensPerSecond": s.medianTokensPerSecond, "calls": s.calls, "outputTokens": s.outputTokens, "seconds": s.seconds]
+        }
+        printJSON(["hours": hours, "total": breakdownJSON(total), "providers": summary.mapValues(breakdownJSON), "outputSpeed": speed])
     } else {
         print("Tokens in the last \(Int(hours)) h: \(l.compact(total.total)) · ≈\(l.compact(total.total / hours))/h · ≈\(l.compact(total.total / hours / 3600))/s")
         print("  " + breakdownText(total))
         for (provider, usage) in summary.sorted(by: { $0.value.total > $1.value.total }) {
             print(providerName(provider).padding(toLength: 9, withPad: " ", startingAt: 0) + l.compact(usage.total) + "  " + breakdownText(usage))
         }
+        for line in speedText() { print("Output speed  " + line) }
+        print("  Output speed = output tokens (incl. reasoning) ÷ model-call time. The time includes prefill and time to first token, so it is a lower bound on decode (TG) tok/s.")
     }
 case "config":
     var settings = loadSettings()

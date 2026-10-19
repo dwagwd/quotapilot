@@ -187,11 +187,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
         if tokens > 0 { parts.append(l.compact(tokens)) }
         return parts.joined(separator: " ")
     }
+    /// Output tokens per second of model-call time across agents (decode lower bound), or nil without samples.
+    private func combinedOutputSpeed(now: Double) -> Double? {
+        let speeds = statsStore.outputSpeed(since: now - max(settings.lookback, 3600), now: now).values
+        let seconds = speeds.reduce(0) { $0 + $1.seconds }
+        return seconds > 0 ? speeds.reduce(0) { $0 + $1.outputTokens } / seconds : nil
+    }
+    private func outputSpeedText(now: Double) -> String? {
+        combinedOutputSpeed(now: now).map { l.text("outputShort") + " ≈" + l.number($0, decimals: 0) + " tok/s" }
+    }
     private func styledTitle(now: Double) -> String {
         let total = agentLedger.total(since: now - settings.lookback, now: now).total
         guard settings.agentLogsEnabled, agentLastScanAt != nil else { return l.text("allAgents") + " · " + l.text("collecting") + " ▾" }
-        let perUnit = total / max(settings.lookback, 60) * settings.rateUnit.seconds
-        return l.text("allAgents") + " " + l.compact(total) + " · ≈" + l.compact(perUnit) + "/" + l.unit(settings.rateUnit, short: true) + " ▾"
+        return l.text("allAgents") + " " + l.compact(total) + (outputSpeedText(now: now).map { " · " + $0 } ?? "") + " ▾"
     }
     private func layoutStyled() {
         styledViews.forEach { $0.removeFromSuperview() }; styledViews = []; styledLines = []; styledBars = []
@@ -779,11 +787,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
         let perUnit = total.total / max(settings.lookback, 60) * settings.rateUnit.seconds
         let perProvider = agentLedger.summary(since: since, now: now).sorted { $0.value.total > $1.value.total }
             .prefix(3).map { providerName($0.key) + " " + l.compact($0.value.total) }
-        agentsLabel.stringValue = l.text("allAgents") + " " + l.compact(total.total) + (perProvider.isEmpty ? "" : " · " + perProvider.joined(separator: " · "))
-            + (deepSeekBalances.first.map { " · DS " + l.number($0.total, decimals: 2) + " " + $0.currency } ?? "")
+        var parts: [String] = [l.text("allAgents") + " " + l.compact(total.total)]
+        if let speed = outputSpeedText(now: now) { parts.append(speed) }
+        parts += perProvider
+        if let balance = deepSeekBalances.first { parts.append("DS " + l.number(balance.total, decimals: 2) + " " + balance.currency) }
+        agentsLabel.stringValue = parts.joined(separator: " · ")
         agentsLabel.textColor = .labelColor
         var lines = [l.text("allAgents") + " · " + observationLabel.stringValue,
-                     l.text("tokenTotal") + " " + l.compact(total.total) + " · ≈" + l.compact(perUnit) + "/" + l.unit(settings.rateUnit, short: true),
+                     l.text("tokenTotal") + " " + l.compact(total.total) + " · " + l.text("consumptionRate") + " ≈" + l.compact(perUnit) + "/" + l.unit(settings.rateUnit, short: true),
                      breakdownText(total)]
         for (provider, usage) in agentLedger.summary(since: since, now: now).sorted(by: { $0.value.total > $1.value.total }) {
             lines.append(providerName(provider) + " " + l.compact(usage.total) + ": " + breakdownText(usage))

@@ -62,7 +62,7 @@ public struct L10n {
         return result
     }()
     private static let baseTable: [String: [String: String]] = [
-        "accountTokens": ["en": "Account tokens", "zh-Hant": "帳號 tokens", "zh-Hans": "账号 tokens"],
+        "accountTokens": ["en": "Account tokens incl. cache", "zh-Hant": "帳號 tokens（含快取）", "zh-Hans": "账号 tokens（含缓存）"],
         "observationUnit": ["en": "Observation unit", "zh-Hant": "觀測單位", "zh-Hans": "观测单位"],
         "settings": ["en": "Settings", "zh-Hant": "設定", "zh-Hans": "设置"],
         "language": ["en": "Language", "zh-Hant": "語言", "zh-Hans": "语言"],

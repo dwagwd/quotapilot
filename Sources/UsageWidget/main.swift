@@ -168,7 +168,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
     /// Every quota window grouped by provider, for the compact and bar styles.
     private var providerGroups: [[WindowItem]] {
         var order: [String] = [], groups: [String: [WindowItem]] = [:]
-        for item in items {
+        // With "multiple quotas" chosen in Settings, show the selected window plus the chosen extras; otherwise all.
+        // Selection works per agent: a chosen window (even one the backend no longer reports, such as a removed
+        // Codex secondary window) keeps that agent's line, with all of its current windows.
+        func provider(_ id: String) -> String { String(id.split(separator: ":").first ?? "") }
+        let chosen = Set((settings.options.windowIDs + [current?.id].compactMap { $0 }).map(provider))
+        let visible = settings.options.multiple && !settings.options.windowIDs.isEmpty ? items.filter { chosen.contains(provider($0.id)) } : items
+        for item in visible {
             let key = String(item.id.split(separator: ":").first ?? "")
             if groups[key] == nil { order.append(key) }
             groups[key, default: []].append(item)
@@ -185,6 +191,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
         }
         let tokens = agentLedger.summary(since: now - settings.lookback, now: now)[providerKey(group)]?.total ?? 0
         if tokens > 0 { parts.append(l.compact(tokens)) }
+        if let speed = statsStore.outputSpeed(since: now - max(settings.lookback, 3600), now: now)[providerKey(group)] {
+            parts.append(l.number(speed.tokensPerSecond, decimals: 0) + "t/s")
+        }
+        if let model = shortModel(providerKey(group)) { parts.append(model) }
         return parts.joined(separator: " ")
     }
     /// Output tokens per second of model-call time across agents (decode lower bound), or nil without samples.
@@ -205,7 +215,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
         styledViews.forEach { $0.removeFromSuperview() }; styledViews = []; styledLines = []; styledBars = []
         guard !collapsed, cardStyle != .detailed, let content = panel.contentView else { return }
         let groups = providerGroups
-        let width: CGFloat = cardStyle == .compact ? 300 : 260
+        let width: CGFloat = cardStyle == .compact ? 340 : 260
         let rows = groups.map { cardStyle == .compact ? CGFloat(16) : 15 + CGFloat($0.count) * 13 }
         let height = 30 + rows.reduce(0, +) + 6
         let old = panel.frame
@@ -231,6 +241,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
                 for windowIndex in group.indices {
                     y -= 13
                     let tag = label(.monospacedDigitSystemFont(ofSize: 9, weight: .regular), NSRect(x: 12, y: y, width: 26, height: 12))
+                    tag.textColor = foregroundColor
                     tag.stringValue = shortWindow(group[windowIndex].window.windowDurationMins)
                     let bar = NSProgressIndicator(frame: NSRect(x: 40, y: y + 3, width: 112, height: 6))
                     bar.style = .bar; bar.isIndeterminate = false; bar.minValue = 0; bar.maxValue = 100; bar.controlSize = .mini
@@ -251,7 +262,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
             let text = cardStyle == .compact ? compactLine(group, now: now) + (extras.isEmpty ? "" : "  " + extras)
                                              : (group.first?.name ?? "") + (extras.isEmpty ? "" : "  " + extras)
             if field.stringValue != text { field.stringValue = text }
-            field.textColor = group.contains { ($0.window.validUsedPercent ?? 0) >= 90 } ? .systemOrange : .labelColor
+            field.textColor = group.contains { ($0.window.validUsedPercent ?? 0) >= 90 } ? .systemOrange : foregroundColor
             let provider = providerKey(group)
             if rerouteNote(provider, now: now) != nil && !field.stringValue.hasSuffix("⚠︎") { field.stringValue += "  ⚠︎" }
             field.toolTip = (group.map { title(for: $0) + " · " + resetText($0, now: now) }
@@ -264,7 +275,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
             row.bar.doubleValue = used ?? 0
             let text = (used.map { l.number($0, decimals: 0) + "%" } ?? "—") + " " + (isStale(item, now: now) ? "⚠︎" : shortCountdown(item.window.resetsAt, now: now))
             if row.text.stringValue != text { row.text.stringValue = text }
-            row.text.textColor = (used ?? 0) >= 90 ? .systemOrange : .labelColor
+            row.text.textColor = (used ?? 0) >= 90 ? .systemOrange : foregroundColor
             row.text.toolTip = title(for: item) + " · " + resetText(item, now: now)
         }
     }
@@ -397,6 +408,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
             let value = compactLine(group, now: now)
             if extraLabels[index].stringValue != value { extraLabels[index].stringValue = value }
         }
+    }
+    /// The text color from Settings (custom RGB or the system label color).
+    private var foregroundColor: NSColor {
+        let rgb = settings.options.foreground
+        return settings.options.customColors ? NSColor(srgbRed: Double(rgb.red)/255, green: Double(rgb.green)/255, blue: Double(rgb.blue)/255, alpha: 1) : .labelColor
     }
     private func applyColors() {
         func color(_ rgb: UsageCore.RGBColor) -> NSColor { NSColor(srgbRed: Double(rgb.red)/255, green: Double(rgb.green)/255, blue: Double(rgb.blue)/255, alpha: 1) }
@@ -556,7 +572,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
         valueLabel.isHidden = false
         let old = panel.frame
         let size = collapsed ? NSSize(width: 182, height: 32) : NSSize(width: 260, height: 146 + CGFloat(extraGroups.count) * Self.extraRowHeight)
-        panel.setFrame(NSRect(x: old.width == 300 ? old.maxX - size.width : old.minX, y: old.maxY-size.height, width: size.width, height: size.height), display: true)
+        panel.setFrame(NSRect(x: old.width > 260 ? old.maxX - size.width : old.minX, y: old.maxY-size.height, width: size.width, height: size.height), display: true)
         if collapsed {
             titleButton.frame = NSRect(x: 9, y: 6, width: 70, height: 20)
             valueLabel.frame = NSRect(x: 78, y: 6, width: 49, height: 20)
@@ -674,7 +690,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
                 return title(for: extra) + " · " + percent + "\n" + rate + "\n" + (old ? l.text("stale") + " · " : "") + resetText(extra, now: now)
             }.joined(separator: "\n\n") + "\n" + l.text("quotaHelp")
         }
-        if cardStyle != .detailed && !collapsed && styledLines.count != providerGroups.count { resize() }
+        if cardStyle != .detailed && !collapsed {
+            let groups = providerGroups
+            let expectedBars = cardStyle == .bars ? groups.reduce(0) { $0 + $1.count } : 0
+            if styledLines.count != groups.count || styledBars.count != expectedBars { resize() }
+        }
         renderStyled(now: now)
         checkQuotaAlerts(now: now)
         for window in items where !isStale(window, now: now) {
@@ -1103,6 +1123,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
 
     // MARK: Models
 
+    /// e.g. `opus-5-5/med` or `gpt-6.1-sol/ultra` for the compact line.
+    private func shortModel(_ provider: String) -> String? {
+        guard let current = modelTracker.current[provider] else { return nil }
+        var name = current.model
+        for prefix in ["claude-", "models/"] where name.hasPrefix(prefix) { name.removeFirst(prefix.count) }
+        let effort = current.effort.map { $0 == "medium" ? "med" : $0 }
+        return name + (effort.map { "/" + $0 } ?? "")
+    }
     private func modelLine(_ provider: String) -> String? {
         guard let current = modelTracker.current[provider] else { return nil }
         return current.model + (current.effort.map { " (" + $0 + ")" } ?? "")

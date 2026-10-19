@@ -2,7 +2,8 @@
 import PackageDescription
 
 // The core, transport and `quotapilot` command-line tool build on macOS, Linux and Windows.
-// The menu bar app (AppKit, SwiftUI Charts) is macOS-only.
+// The menu bar app (AppKit, SwiftUI Charts) is macOS-only. Its product is QuotaPilotApp so it does not collide
+// with the `quotapilot` CLI on case-insensitive file systems; build.sh installs it as QuotaPilot.app/…/QuotaPilot.
 var products: [Product] = [.executable(name: "quotapilot", targets: ["QuotaPilotCLI"])]
 var targets: [Target] = [
     .target(name: "UsageCore"),
@@ -11,7 +12,7 @@ var targets: [Target] = [
     .testTarget(name: "UsageCoreTests", dependencies: ["UsageCore", "UsageTransport"])
 ]
 #if os(macOS)
-products.append(.executable(name: "QuotaPilot", targets: ["UsageWidget"]))
+products.append(.executable(name: "QuotaPilotApp", targets: ["UsageWidget"]))
 targets.append(.executableTarget(name: "UsageWidget", dependencies: ["UsageCore", "UsageTransport"]))
 #endif
 

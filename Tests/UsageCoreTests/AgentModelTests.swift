@@ -17,9 +17,10 @@ final class AgentModelTests: XCTestCase {
         XCTAssertEqual(event.reason, "high_risk_cyber_activity")
         XCTAssertNil(AgentLogParser.codexModelEvent(#"{"type":"response_item","payload":{"type":"message","text":"turn_context"}}"#))
 
-        let claude = #"{"type":"assistant","timestamp":"2026-10-16T03:46:00Z","message":{"id":"m","model":"claude-opus-5-5","usage":{"input_tokens":1}}}"#
+        let claude = #"{"type":"assistant","timestamp":"2026-10-16T03:46:00Z","effort":"medium","message":{"id":"m","model":"claude-opus-5-5","usage":{"input_tokens":1}}}"#
         XCTAssertEqual(AgentLogParser.claudeModelEvent(claude)?.model, "claude-opus-5-5")
         XCTAssertEqual(AgentLogParser.claudeModelEvent(claude)?.kind, .served)
+        XCTAssertEqual(AgentLogParser.claudeModelEvent(claude)?.effort, "medium")
     }
 
     func testTrackerKeepsLatestModelAndDeduplicatesReroutes() {
@@ -33,5 +34,13 @@ final class AgentModelTests: XCTestCase {
         XCTAssertFalse(tracker.observe(reroute))
         XCTAssertEqual(tracker.recentReroutes(provider: "codex", since: 15).count, 1)
         XCTAssertTrue(tracker.recentReroutes(provider: "codex", since: 25).isEmpty)
+    }
+
+    func testOlderEventFillsMissingEffort() {
+        var tracker = AgentModelTracker()
+        tracker.observe(AgentModelEvent(provider: "claude", timestamp: 20, kind: .served, model: "opus", fromModel: nil, effort: nil, reason: nil))
+        tracker.observe(AgentModelEvent(provider: "claude", timestamp: 10, kind: .served, model: "opus", fromModel: nil, effort: "high", reason: nil))
+        XCTAssertEqual(tracker.current["claude"]?.effort, "high")
+        XCTAssertEqual(tracker.current["claude"]?.at, 20)
     }
 }

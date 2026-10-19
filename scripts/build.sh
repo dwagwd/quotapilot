@@ -14,7 +14,7 @@ swift build --scratch-path "$BUILD_CACHE" -c release --disable-index-store --job
 BIN_DIR="$(swift build --scratch-path "$BUILD_CACHE" -c release --show-bin-path ${ARCH_FLAGS[@]+"${ARCH_FLAGS[@]}"})"
 APP="$DIST_DIR/QuotaPilot.app"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
-cp "$BIN_DIR/QuotaPilot" "$APP/Contents/MacOS/QuotaPilot"
+cp "$BIN_DIR/QuotaPilotApp" "$APP/Contents/MacOS/QuotaPilot"
 # Bundled so "Connect agents…" can install status-line bridges without a source checkout.
 cp "$PLUGIN_ROOT/scripts/provider_bridge.py" "$PLUGIN_ROOT/scripts/setup-provider.py" "$APP/Contents/Resources/"
 cat > "$APP/Contents/Info.plist" <<PLIST

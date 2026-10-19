@@ -56,7 +56,7 @@ extension AgentLogParser {
               let model = message["model"] as? String, !model.isEmpty, !model.hasPrefix("<"),
               let time = timestamp(object["timestamp"]) else { return nil }
         return AgentModelEvent(provider: providerForModel(model), timestamp: time, kind: .served, model: model,
-                               fromModel: nil, effort: nil, reason: nil)
+                               fromModel: nil, effort: object["effort"] as? String, reason: nil)
     }
 }
 
@@ -81,8 +81,12 @@ public struct AgentModelTracker {
             if reroutes.count > 50 { reroutes.removeFirst(reroutes.count - 50) }
             return true
         }
-        if let existing = current[event.provider], existing.at > event.timestamp { return false }
-        current[event.provider] = Current(model: event.model, effort: event.effort ?? (event.kind == .served ? nil : current[event.provider]?.effort), at: event.timestamp)
+        if let existing = current[event.provider], existing.at > event.timestamp {
+            // Logs are read newest-first on the first scan: keep the newest model but fill a missing effort.
+            if existing.effort == nil, let effort = event.effort { current[event.provider]?.effort = effort }
+            return false
+        }
+        current[event.provider] = Current(model: event.model, effort: event.effort ?? current[event.provider]?.effort, at: event.timestamp)
         return false
     }
 

@@ -182,6 +182,14 @@ public struct WidgetSettings: Codable, Equatable {
     public var cardStyle: CardStyle? = nil
     public var taskRules: [String: String]? = nil
     public var quotaSort: QuotaSort? = nil
+    /// Card fields the user turned off (all are shown by default).
+    public var hiddenFields: [String]? = nil
+    public func shows(_ field: CardField) -> Bool { !(hiddenFields ?? []).contains(field.rawValue) }
+    public mutating func set(_ field: CardField, visible: Bool) {
+        var hidden = Set(hiddenFields ?? [])
+        if visible { hidden.remove(field.rawValue) } else { hidden.insert(field.rawValue) }
+        hiddenFields = hidden.isEmpty ? nil : hidden.sorted()
+    }
     /// Providers shown first, in this order (e.g. ["claude"]).
     public var pinnedProviders: [String]? = nil
     public var taskRouting: [TaskKind: TaskAssignee] {

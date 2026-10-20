@@ -62,4 +62,14 @@ final class CustomizationTests: XCTestCase {
         var settings = WidgetSettings(); settings.rateUnit = .second
         XCTAssertEqual(try JSONDecoder().decode(WidgetSettings.self, from: JSONEncoder().encode(settings)).rateUnit, .second)
     }
+    func testCardFieldsDefaultVisibleAndToggle() throws {
+        var settings = WidgetSettings()
+        XCTAssertTrue(CardField.allCases.allSatisfy { settings.shows($0) })
+        settings.set(.model, visible: false); settings.set(.effort, visible: false)
+        XCTAssertFalse(settings.shows(.model))
+        let restored = try JSONDecoder().decode(WidgetSettings.self, from: JSONEncoder().encode(settings))
+        XCTAssertEqual(restored.hiddenFields, ["effort", "model"])
+        var back = restored; back.set(.model, visible: true); back.set(.effort, visible: true)
+        XCTAssertNil(back.hiddenFields)
+    }
 }

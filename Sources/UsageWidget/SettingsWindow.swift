@@ -8,6 +8,7 @@ final class SettingsWindowController: NSWindowController {
     var openTool: ((String) -> Void)?
     private let styleMenu = NSPopUpButton(frame: .zero, pullsDown: false)
     private let sortMenu = NSPopUpButton(frame: .zero, pullsDown: false)
+    private var fieldBoxes: [NSButton] = []
     private let pinMenu = NSPopUpButton(frame: .zero, pullsDown: false)
     private let pinOptions = ["", "codex", "claude", "antigravity", "cursor"]
     private let languageMenu = NSPopUpButton()
@@ -29,7 +30,7 @@ final class SettingsWindowController: NSWindowController {
 
     init(settings: WidgetSettings, windows: [(String, String)], onApply: @escaping (WidgetSettings) -> Void) {
         self.settings = settings; applySettings = onApply
-        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 440, height: 934),
+        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 440, height: 1006),
                               styleMask: [.titled, .closable], backing: .buffered, defer: false)
         super.init(window: window)
         let l = L10n(settings.language)
@@ -37,7 +38,7 @@ final class SettingsWindowController: NSWindowController {
         window.isReleasedWhenClosed = false
         window.level = .floating
         window.center()
-        let view = NSView(frame: NSRect(x: 0, y: 0, width: 440, height: 934))
+        let view = NSView(frame: NSRect(x: 0, y: 0, width: 440, height: 1006))
         window.contentView = view
         func label(_ key: String, y: CGFloat) {
             let label = NSTextField(labelWithString: l.text(key))
@@ -149,6 +150,17 @@ final class SettingsWindowController: NSWindowController {
         pinMenu.addItems(withTitles: pinOptions.map { $0.isEmpty ? l.text("pinNone") : l.text("pinFirst") + " " + ["codex": "Codex", "claude": "Claude", "antigravity": "Antigravity", "cursor": "Cursor"][$0, default: $0] })
         pinMenu.selectItem(at: pinOptions.firstIndex(of: settings.pinnedProviders?.first ?? "") ?? 0)
         view.addSubview(sortMenu); view.addSubview(pinMenu)
+        // Optional parts of each agent line (Compact and Bars).
+        for control in view.subviews where control.frame.minY >= 148 { control.frame.origin.y += 72 }
+        let fieldsLabel = NSTextField(labelWithString: l.text("cardFields"))
+        fieldsLabel.frame = NSRect(x: 22, y: 196, width: 396, height: 18); view.addSubview(fieldsLabel)
+        for (index, field) in CardField.allCases.enumerated() {
+            let box = NSButton(checkboxWithTitle: l.text("field." + field.rawValue), target: nil, action: nil)
+            box.state = settings.shows(field) ? .on : .off
+            box.frame = NSRect(x: 22 + CGFloat(index % 4) * 100, y: index < 4 ? 172 : 150, width: 98, height: 22)
+            box.identifier = NSUserInterfaceItemIdentifier(field.rawValue)
+            fieldBoxes.append(box); view.addSubview(box)
+        }
         for (index, tool) in ["agentCollaboration", "connectAgents", "usageStats"].enumerated() {
             let button = NSButton(title: l.text(tool).replacingOccurrences(of: "…", with: "") + "…", target: self, action: #selector(openToolButton(_:)))
             button.identifier = NSUserInterfaceItemIdentifier(tool)
@@ -196,6 +208,9 @@ final class SettingsWindowController: NSWindowController {
         next.autoConnectEnabled = autoConnect.state == .on
         next.cardStyle = CardStyle.allCases[styleMenu.indexOfSelectedItem]
         next.quotaSort = QuotaSort.allCases[sortMenu.indexOfSelectedItem]
+        for box in fieldBoxes {
+            if let raw = box.identifier?.rawValue, let field = CardField(rawValue: raw) { next.set(field, visible: box.state == .on) }
+        }
         let pin = pinOptions[pinMenu.indexOfSelectedItem]
         next.pinnedProviders = pin.isEmpty ? nil : [pin]
         if (openAtLogin.state == .on) != LoginItem.isEnabled, !LoginItem.set(openAtLogin.state == .on) {

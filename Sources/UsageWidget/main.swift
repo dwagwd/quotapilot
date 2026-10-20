@@ -158,7 +158,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
         return name + "  " + group.map { item in
             let stale = isStale(item, now: now)
             let pct = item.window.validUsedPercent.map { l.number($0, decimals: 0) + "%" } ?? "—"
-            return shortWindow(item.window.windowDurationMins) + " " + pct + (stale ? " ⚠︎" : " " + shortCountdown(item.window.resetsAt, now: now))
+            let countdown = settings.shows(.countdown) ? " " + shortCountdown(item.window.resetsAt, now: now) : ""
+            return shortWindow(item.window.windowDurationMins) + " " + pct + (stale ? " ⚠︎" : countdown)
         }.joined(separator: "  ")
     }
     private var cardStyle: CardStyle { settings.cardStyle ?? .detailed }
@@ -191,12 +192,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
     /// Quota rate of the shortest window plus the provider's tokens in the observation window.
     private func providerExtras(_ group: [WindowItem], now: Double) -> String {
         var parts: [String] = []
-        if let first = group.first, !isStale(first, now: now), let rate = cachedRates[first.id] {
+        if settings.shows(.quotaRate), let first = group.first, !isStale(first, now: now), let rate = cachedRates[first.id] {
             parts.append("≈" + l.rateNumber(rate.value(per: settings.rateUnit)) + "%/" + l.unit(settings.rateUnit, short: true))
         }
         let tokens = agentLedger.summary(since: now - settings.lookback, now: now)[providerKey(group)]?.total ?? 0
-        if tokens > 0 { parts.append(l.compact(tokens)) }
-        if let speed = statsStore.outputSpeed(since: now - max(settings.lookback, 3600), now: now)[providerKey(group)] {
+        if settings.shows(.tokens), tokens > 0 { parts.append(l.compact(tokens)) }
+        if settings.shows(.outputSpeed), let speed = statsStore.outputSpeed(since: now - max(settings.lookback, 3600), now: now)[providerKey(group)] {
             parts.append(l.number(speed.tokensPerSecond, decimals: 0) + "t/s")
         }
         if let model = shortModel(providerKey(group)) { parts.append(model) }
@@ -214,7 +215,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
     private func styledTitle(now: Double) -> String {
         let total = agentLedger.total(since: now - settings.lookback, now: now).total
         guard settings.agentLogsEnabled, agentLastScanAt != nil else { return l.text("allAgents") + " · " + l.text("collecting") + " ▾" }
-        return l.text("allAgents") + " " + l.compact(total) + (outputSpeedText(now: now).map { " · " + $0 } ?? "") + " ▾"
+        var parts: [String] = []
+        if settings.shows(.total) { parts.append(l.text("allAgents") + " " + l.compact(total)) }
+        if settings.shows(.outputSpeed), let speed = outputSpeedText(now: now) { parts.append(speed) }
+        return (parts.isEmpty ? "QuotaPilot" : parts.joined(separator: " · ")) + " ▾"
     }
     private func layoutStyled() {
         styledViews.forEach { $0.removeFromSuperview() }; styledViews = []; styledLines = []; styledBars = []
@@ -813,8 +817,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
         let perProvider = agentLedger.summary(since: since, now: now).sorted { $0.value.total > $1.value.total }
             .prefix(3).map { providerName($0.key) + " " + l.compact($0.value.total) }
         var parts: [String] = [l.text("allAgents") + " " + l.compact(total.total)]
-        if let speed = outputSpeedText(now: now) { parts.append(speed) }
-        parts += perProvider
+        if settings.shows(.outputSpeed), let speed = outputSpeedText(now: now) { parts.append(speed) }
+        if settings.shows(.tokens) { parts += perProvider }
         if let balance = deepSeekBalances.first { parts.append("DS " + l.number(balance.total, decimals: 2) + " " + balance.currency) }
         agentsLabel.stringValue = parts.joined(separator: " · ")
         agentsLabel.textColor = .labelColor
@@ -1130,10 +1134,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
 
     /// e.g. `opus-5-5/med` or `gpt-6.1-sol/ultra` for the compact line.
     private func shortModel(_ provider: String) -> String? {
-        guard let current = modelTracker.current[provider] else { return nil }
-        var name = current.model
+        guard let current = modelTracker.current[provider], settings.shows(.model) || settings.shows(.effort) else { return nil }
+        var name = settings.shows(.model) ? current.model : ""
         for prefix in ["claude-", "models/"] where name.hasPrefix(prefix) { name.removeFirst(prefix.count) }
-        let effort = current.effort.map { $0 == "medium" ? "med" : $0 }
+        let effort = settings.shows(.effort) ? current.effort.map { $0 == "medium" ? "med" : $0 } : nil
+        if name.isEmpty { return effort }
         return name + (effort.map { "/" + $0 } ?? "")
     }
     private func modelLine(_ provider: String) -> String? {

@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- **Choose what each agent line shows** (Settings): reset time, quota rate, tokens, output tok/s, model, effort and the all-agent total can each be turned off.
 - Compact and Bars styles now follow Settings: custom text color, and the quota selection (per agent; a selected window the backend no longer reports, such as an old Codex secondary window, keeps that agent visible). Each agent line adds its output tok/s and current model/effort (e.g. `opus-5-5/med`, `gpt-6.1-sol/medium`); Claude effort comes from Claude Code's log.
 - Fix intermittent link failures and a possible wrong app binary: the app and CLI products were `QuotaPilot` and `quotapilot`, the same file on case-insensitive disks. The app product is now `QuotaPilotApp`.
 - The card's headline token rate is now output tok/s (decode lower bound) instead of all tokens per second; the all-token figure, dominated by cache reads, is labelled "consumption incl. cache" in the tooltip, and the Codex account row says "incl. cache".

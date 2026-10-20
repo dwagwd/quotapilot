@@ -169,11 +169,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
     private var providerGroups: [[WindowItem]] {
         var order: [String] = [], groups: [String: [WindowItem]] = [:]
         // With "multiple quotas" chosen in Settings, show the selected window plus the chosen extras; otherwise all.
-        // Selection works per agent: a chosen window (even one the backend no longer reports, such as a removed
-        // Codex secondary window) keeps that agent's line, with all of its current windows.
+        // Compact and Bars show the selected window plus the windows ticked in Settings (window by window, so an
+        // unticked 5-hour limit disappears). A ticked window the backend no longer reports (such as Codex's old
+        // secondary window) keeps all of that agent's current windows. With nothing ticked, every window shows.
         func provider(_ id: String) -> String { String(id.split(separator: ":").first ?? "") }
-        let chosen = Set((settings.options.windowIDs + [current?.id].compactMap { $0 }).map(provider))
-        let visible = settings.options.multiple && !settings.options.windowIDs.isEmpty ? items.filter { chosen.contains(provider($0.id)) } : items
+        let ticked = settings.options.windowIDs
+        let present = Set(items.map(\.id))
+        let staleProviders = Set(ticked.filter { !present.contains($0) }.map(provider))
+            .subtracting(ticked.filter { present.contains($0) }.map(provider))
+        let chosen = Set(ticked).union([current?.id].compactMap { $0 })
+        let visible = ticked.isEmpty ? items : items.filter { chosen.contains($0.id) || staleProviders.contains(provider($0.id)) }
         for item in visible {
             let key = String(item.id.split(separator: ":").first ?? "")
             if groups[key] == nil { order.append(key) }

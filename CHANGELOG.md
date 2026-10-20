@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- **App icon:** a quota gauge with a paper-plane needle, drawn by `scripts/make-icon.swift` (`assets/AppIcon.icns`).
 - The Settings window fits the screen, scrolls, resizes, and zooms (pinch, or − / 100% / + in its title bar).
 - **Choose what each agent line shows** (Settings): reset time, quota rate, tokens, output tok/s, model, effort and the all-agent total can each be turned off.
 - Compact and Bars styles now follow Settings: custom text color, and the quota selection (per agent; a selected window the backend no longer reports, such as an old Codex secondary window, keeps that agent visible). Each agent line adds its output tok/s and current model/effort (e.g. `opus-5-5/med`, `gpt-6.1-sol/medium`); Claude effort comes from Claude Code's log.

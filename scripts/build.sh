@@ -17,11 +17,13 @@ mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp "$BIN_DIR/QuotaPilotApp" "$APP/Contents/MacOS/QuotaPilot"
 # Bundled so "Connect agents…" can install status-line bridges without a source checkout.
 cp "$PLUGIN_ROOT/scripts/provider_bridge.py" "$PLUGIN_ROOT/scripts/setup-provider.py" "$APP/Contents/Resources/"
+cp "$PLUGIN_ROOT/assets/AppIcon.icns" "$APP/Contents/Resources/AppIcon.icns"
 cat > "$APP/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0"><dict>
 <key>CFBundleIdentifier</key><string>io.github.dwagwd.quotapilot</string>
+<key>CFBundleIconFile</key><string>AppIcon</string>
 <key>CFBundleName</key><string>QuotaPilot</string>
 <key>CFBundleDisplayName</key><string>QuotaPilot</string>
 <key>CFBundleExecutable</key><string>QuotaPilot</string>

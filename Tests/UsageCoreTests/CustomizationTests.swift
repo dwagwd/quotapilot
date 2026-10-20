@@ -76,7 +76,7 @@ final class CustomizationTests: XCTestCase {
         let all = Set(SystemField.allCases)
         XCTAssertEqual(systemLine(cpu: 53.6, gpu: 8, temperatureC: 63.6, memory: 78.3, disk: 95.5, fields: all, fahrenheit: false),
                        "CPU 54% · GPU 8% · 64°C · RAM 78% · Disk 96%")
-        XCTAssertEqual(systemLine(cpu: nil, gpu: nil, temperatureC: 100, memory: nil, disk: nil, fields: [.temperature, .cpu], fahrenheit: true), "212°F")
+        XCTAssertEqual(systemLine(cpu: nil, gpu: nil, temperatureC: 100, memory: nil, disk: nil, fields: [.temperature, .cpu], fahrenheit: true), "CPU — · 212°F")
         var settings = WidgetSettings()
         XCTAssertFalse(settings.showsSystem(.cpu))
         settings.systemFields = ["cpu"]; settings.temperatureUnit = "f"

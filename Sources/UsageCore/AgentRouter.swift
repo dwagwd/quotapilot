@@ -14,13 +14,14 @@ public func systemLine(cpu: Double?, gpu: Double?, temperatureC: Double?, memory
                        fields: Set<SystemField>, fahrenheit: Bool) -> String {
     var parts: [String] = []
     func pct(_ v: Double) -> String { String(format: "%.0f%%", v) }
-    if fields.contains(.cpu), let cpu { parts.append("CPU " + pct(cpu)) }
-    if fields.contains(.gpu), let gpu { parts.append("GPU " + pct(gpu)) }
-    if fields.contains(.temperature), let t = temperatureC {
-        parts.append(fahrenheit ? String(format: "%.0f°F", t * 9 / 5 + 32) : String(format: "%.0f°C", t))
+    // A selected reading that is not available yet shows "—" so the line keeps its shape.
+    if fields.contains(.cpu) { parts.append("CPU " + (cpu.map(pct) ?? "—")) }
+    if fields.contains(.gpu) { parts.append("GPU " + (gpu.map(pct) ?? "—")) }
+    if fields.contains(.temperature) {
+        parts.append(temperatureC.map { fahrenheit ? String(format: "%.0f°F", $0 * 9 / 5 + 32) : String(format: "%.0f°C", $0) } ?? (fahrenheit ? "—°F" : "—°C"))
     }
-    if fields.contains(.memory), let memory { parts.append("RAM " + pct(memory)) }
-    if fields.contains(.disk), let disk { parts.append("Disk " + pct(disk)) }
+    if fields.contains(.memory) { parts.append("RAM " + (memory.map(pct) ?? "—")) }
+    if fields.contains(.disk) { parts.append("Disk " + (disk.map(pct) ?? "—")) }
     return parts.joined(separator: " · ")
 }
 

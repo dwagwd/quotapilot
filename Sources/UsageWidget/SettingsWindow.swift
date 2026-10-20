@@ -241,7 +241,7 @@ final class SettingsWindowController: NSWindowController {
         var options = settings.options
         options.multiple = multiple.state == .on
         let selected = quotaChecks.filter { $0.1.state == .on }.map { $0.0 }
-        guard selected.count <= 4 else { errorLabel.stringValue = L10n(settings.language).text("selectionHint"); return }
+        guard selected.count <= 8 else { errorLabel.stringValue = L10n(settings.language).text("selectionHint"); return }
         options.windowIDs = selected
         options.customColors = colors.state == .on
         options.foreground = RGBColor(components[0], components[1], components[2])

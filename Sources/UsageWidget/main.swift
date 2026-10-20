@@ -163,6 +163,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
         }.joined(separator: "  ")
     }
     private var cardStyle: CardStyle { settings.cardStyle ?? .detailed }
+    private let maxExtraWindows = 8
     private let systemMonitor = SystemMonitor()
     private var systemSnapshot = SystemSnapshot()
     private var systemTick: Timer?
@@ -177,6 +178,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
         systemTick?.invalidate(); systemTick = nil
         guard !systemFieldsSelected.isEmpty else { return }
         systemSnapshot = systemMonitor.sample()
+        // CPU load needs two samples; take the second one right away instead of waiting a full interval.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [weak self] in
+            guard let self, !self.systemFieldsSelected.isEmpty else { return }
+            self.systemSnapshot = self.systemMonitor.sample(); self.renderSystem()
+        }
         systemTick = Timer(timeInterval: settings.options.energySaver ? 15 : 5, repeats: true) { [weak self] _ in
             guard let self, !self.sleeping else { return }
             self.systemSnapshot = self.systemMonitor.sample()
@@ -325,7 +331,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
     }
     private var extraItems: [WindowItem] {
         guard settings.options.multiple else { return [] }
-        return Array(items.filter { $0.id != current?.id && settings.options.windowIDs.contains($0.id) }.prefix(4))
+        return Array(items.filter { $0.id != current?.id && settings.options.windowIDs.contains($0.id) }.prefix(maxExtraWindows))
     }
     private var selectedID: String?
     private var lastUpdate: Date?
@@ -1082,7 +1088,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
         var options = next.options
         options.bridges = true
         if !options.multiple { options.multiple = true; options.windowIDs = [] }
-        for id in windows.sorted() where !options.windowIDs.contains(id) && options.windowIDs.count < 4 { options.windowIDs.append(id) }
+        for id in windows.sorted() where !options.windowIDs.contains(id) && options.windowIDs.count < maxExtraWindows { options.windowIDs.append(id) }
         next.options = options
         settings = next
         defaults.set(try? JSONEncoder().encode(next), forKey: "settings")
@@ -1996,6 +2002,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
         data["openAtLogin"] = LoginItem.isEnabled
         data["autoConnectResults"] = autoConnectResults
         data["claudePlanError"] = claudePlanError
+        if !systemFieldsSelected.isEmpty {
+            data["system"] = ["cpuPercent": systemSnapshot.cpuPercent ?? NSNull(), "gpuPercent": systemSnapshot.gpuPercent ?? NSNull(),
+                              "temperatureC": systemSnapshot.temperatureC ?? NSNull(), "memoryPercent": systemSnapshot.memoryPercent ?? NSNull(),
+                              "diskPercent": systemSnapshot.diskPercent ?? NSNull(), "line": systemText] as [String: Any]
+        }
         data["models"] = Dictionary(uniqueKeysWithValues: modelTracker.current.map { provider, current -> (String, Any) in
             (provider, ["model": current.model, "effort": current.effort ?? NSNull(), "at": current.at] as [String: Any])
         })

@@ -9,6 +9,8 @@ final class SettingsWindowController: NSWindowController {
     private let styleMenu = NSPopUpButton(frame: .zero, pullsDown: false)
     private let sortMenu = NSPopUpButton(frame: .zero, pullsDown: false)
     private var fieldBoxes: [NSButton] = []
+    private var systemBoxes: [NSButton] = []
+    private let temperatureMenu = NSPopUpButton(frame: .zero, pullsDown: false)
     private let pinMenu = NSPopUpButton(frame: .zero, pullsDown: false)
     private let pinOptions = ["", "codex", "claude", "antigravity", "cursor"]
     private let languageMenu = NSPopUpButton()
@@ -33,7 +35,7 @@ final class SettingsWindowController: NSWindowController {
         // The form is taller than many screens: the window opens at a height that fits, scrolls, resizes,
         // and zooms (pinch, or the − / + buttons in the title bar).
         let visible = NSScreen.main?.visibleFrame.height ?? 900
-        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 456, height: min(1006, visible - 40)),
+        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 456, height: min(1056, visible - 40)),
                               styleMask: [.titled, .closable, .resizable, .miniaturizable], backing: .buffered, defer: false)
         super.init(window: window)
         let l = L10n(settings.language)
@@ -41,7 +43,7 @@ final class SettingsWindowController: NSWindowController {
         window.isReleasedWhenClosed = false
         window.level = .floating
         window.center()
-        let view = NSView(frame: NSRect(x: 0, y: 0, width: 440, height: 1006))
+        let view = NSView(frame: NSRect(x: 0, y: 0, width: 440, height: 1056))
         let formScroll = NSScrollView(frame: window.contentLayoutRect)
         formScroll.hasVerticalScroller = true; formScroll.hasHorizontalScroller = true; formScroll.autohidesScrollers = true
         formScroll.allowsMagnification = true; formScroll.minMagnification = 0.6; formScroll.maxMagnification = 2.0
@@ -180,6 +182,21 @@ final class SettingsWindowController: NSWindowController {
             box.identifier = NSUserInterfaceItemIdentifier(field.rawValue)
             fieldBoxes.append(box); view.addSubview(box)
         }
+        // System readings (off by default).
+        for control in view.subviews where control.frame.minY >= 148 { control.frame.origin.y += 50 }
+        let systemTitle = NSTextField(labelWithString: l.text("systemFields"))
+        systemTitle.frame = NSRect(x: 22, y: 174, width: 300, height: 18); view.addSubview(systemTitle)
+        for (index, field) in SystemField.allCases.enumerated() {
+            let box = NSButton(checkboxWithTitle: l.text("system." + field.rawValue), target: nil, action: nil)
+            box.state = settings.showsSystem(field) ? .on : .off
+            box.frame = NSRect(x: 22 + CGFloat(index) * 70, y: 150, width: 68, height: 22)
+            box.identifier = NSUserInterfaceItemIdentifier(field.rawValue)
+            systemBoxes.append(box); view.addSubview(box)
+        }
+        temperatureMenu.addItems(withTitles: ["°C", "°F"])
+        temperatureMenu.selectItem(at: settings.usesFahrenheit ? 1 : 0)
+        temperatureMenu.frame = NSRect(x: 360, y: 148, width: 64, height: 26)
+        view.addSubview(temperatureMenu)
         for (index, tool) in ["agentCollaboration", "connectAgents", "usageStats"].enumerated() {
             let button = NSButton(title: l.text(tool).replacingOccurrences(of: "…", with: "") + "…", target: self, action: #selector(openToolButton(_:)))
             button.identifier = NSUserInterfaceItemIdentifier(tool)
@@ -237,6 +254,9 @@ final class SettingsWindowController: NSWindowController {
         next.autoConnectEnabled = autoConnect.state == .on
         next.cardStyle = CardStyle.allCases[styleMenu.indexOfSelectedItem]
         next.quotaSort = QuotaSort.allCases[sortMenu.indexOfSelectedItem]
+        next.systemFields = systemBoxes.filter { $0.state == .on }.compactMap { $0.identifier?.rawValue }
+        if next.systemFields?.isEmpty == true { next.systemFields = nil }
+        next.temperatureUnit = temperatureMenu.indexOfSelectedItem == 1 ? "f" : "c"
         for box in fieldBoxes {
             if let raw = box.identifier?.rawValue, let field = CardField(rawValue: raw) { next.set(field, visible: box.state == .on) }
         }

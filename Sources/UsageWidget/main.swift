@@ -163,6 +163,34 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
         }.joined(separator: "  ")
     }
     private var cardStyle: CardStyle { settings.cardStyle ?? .detailed }
+    private let systemMonitor = SystemMonitor()
+    private var systemSnapshot = SystemSnapshot()
+    private var systemTick: Timer?
+    private var systemLabelStyled: NSTextField?
+    private var systemFieldsSelected: Set<SystemField> { Set(SystemField.allCases.filter { settings.showsSystem($0) }) }
+    private var systemText: String {
+        systemLine(cpu: systemSnapshot.cpuPercent, gpu: systemSnapshot.gpuPercent, temperatureC: systemSnapshot.temperatureC,
+                   memory: systemSnapshot.memoryPercent, disk: systemSnapshot.diskPercent, fields: systemFieldsSelected, fahrenheit: settings.usesFahrenheit)
+    }
+    /// Samples system readings every 5 s (15 s with energy saver) only while some are shown.
+    private func restartSystemTimer() {
+        systemTick?.invalidate(); systemTick = nil
+        guard !systemFieldsSelected.isEmpty else { return }
+        systemSnapshot = systemMonitor.sample()
+        systemTick = Timer(timeInterval: settings.options.energySaver ? 15 : 5, repeats: true) { [weak self] _ in
+            guard let self, !self.sleeping else { return }
+            self.systemSnapshot = self.systemMonitor.sample()
+            self.renderSystem()
+        }
+        systemTick?.tolerance = 1
+        RunLoop.main.add(systemTick!, forMode: .common)
+    }
+    private func renderSystem() {
+        let text = systemText
+        if let label = systemLabelStyled { label.stringValue = text; label.textColor = foregroundColor }
+        if cardStyle == .detailed && !collapsed { render() }
+        _ = text
+    }
     private var styledViews: [NSView] = []
     private var styledLines: [(label: NSTextField, group: Int)] = []
     private var styledBars: [(bar: NSProgressIndicator, text: NSTextField, group: Int, window: Int)] = []
@@ -226,7 +254,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
         let groups = providerGroups
         let width: CGFloat = cardStyle == .compact ? 340 : 260
         let rows = groups.map { cardStyle == .compact ? CGFloat(16) : 15 + CGFloat($0.count) * 13 }
-        let height = 30 + rows.reduce(0, +) + 6
+        let systemRow: CGFloat = systemFieldsSelected.isEmpty ? 0 : 16
+        let height = 30 + rows.reduce(0, +) + systemRow + 6
         let old = panel.frame
         // Keep the right edge in place: the card usually sits in the top-right corner.
         panel.setFrame(NSRect(x: old.maxX - width, y: old.maxY - height, width: width, height: height), display: true)
@@ -259,6 +288,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
                     styledBars.append((bar, text, index, windowIndex))
                 }
             }
+        }
+        systemLabelStyled = nil
+        if !systemFieldsSelected.isEmpty {
+            let field = label(.monospacedDigitSystemFont(ofSize: 9, weight: .regular), NSRect(x: 12, y: 5, width: width - 24, height: 13))
+            field.stringValue = systemText; field.textColor = foregroundColor
+            systemLabelStyled = field
         }
     }
     private func renderStyled(now: Double) {
@@ -390,6 +425,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
         claudePlanTick?.tolerance = 15
         RunLoop.main.add(claudePlanTick!, forMode: .common)
         refreshClaudePlan()
+        restartSystemTimer()
         showPanel(); client.refresh()
     }
     private func startUITimer() {
@@ -676,6 +712,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
         tokenLabel.textColor = tokenStale ? .secondaryLabelColor : .labelColor
         let partial = [planRate, tokenRate].compactMap { $0 }.contains { $0.observedSeconds < settings.lookback }
         observationLabel.stringValue = l.text("last") + " \(settings.intervalValue) " + l.unit(settings.intervalUnit, short: true) + (partial ? " · " + l.text("estimate") : "")
+            + (systemFieldsSelected.isEmpty ? "" : " · " + systemText)
         let formatter = dateFormatter; formatter.locale = l.locale; formatter.dateStyle = .medium; formatter.timeStyle = .medium
         let resetDate = item?.window.resetsAt.map { formatter.string(from: Date(timeIntervalSince1970: $0)) } ?? l.text("unknown")
         let updated = sourceUpdated.map { formatter.string(from: $0) } ?? l.text("unavailable")
@@ -1230,7 +1267,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
             self.settings = next
             self.ratesDirty = true
             self.requestAlertAuthorizationIfNeeded()
-            self.scanAgentLogs(); self.autoConnectAgents()
+            self.scanAgentLogs(); self.autoConnectAgents(); self.restartSystemTimer()
             self.client.pollInterval = next.options.energySaver ? 120 : 60
             self.startUITimer(); self.reloadBridges(); self.rebuildItems()
             self.defaults.set(try? JSONEncoder().encode(next), forKey: "settings")

@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- **System readings (optional):** CPU %, GPU %, temperature (°C or °F, hottest die sensor on Apple silicon), RAM % and disk % on the card, each chosen in Settings; sampled every 5 s (15 s with energy saver) only while shown.
 - **App icon:** a quota gauge with a paper-plane needle, drawn by `scripts/make-icon.swift` (`assets/AppIcon.icns`).
 - The Settings window fits the screen, scrolls, resizes, and zooms (pinch, or − / 100% / + in its title bar).
 - **Choose what each agent line shows** (Settings): reset time, quota rate, tokens, output tok/s, model, effort and the all-agent total can each be turned off.

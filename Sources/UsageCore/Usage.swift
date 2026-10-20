@@ -182,6 +182,11 @@ public struct WidgetSettings: Codable, Equatable {
     public var cardStyle: CardStyle? = nil
     public var taskRules: [String: String]? = nil
     public var quotaSort: QuotaSort? = nil
+    /// System readings shown on the card (none by default) and the temperature unit ("c" or "f").
+    public var systemFields: [String]? = nil
+    public var temperatureUnit: String? = nil
+    public func showsSystem(_ field: SystemField) -> Bool { (systemFields ?? []).contains(field.rawValue) }
+    public var usesFahrenheit: Bool { temperatureUnit == "f" }
     /// Card fields the user turned off (all are shown by default).
     public var hiddenFields: [String]? = nil
     public func shows(_ field: CardField) -> Bool { !(hiddenFields ?? []).contains(field.rawValue) }

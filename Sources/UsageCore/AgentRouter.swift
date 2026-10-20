@@ -6,6 +6,24 @@ public enum CardStyle: String, Codable, CaseIterable { case detailed, compact, b
 /// Optional parts of each agent line on the card.
 public enum CardField: String, Codable, CaseIterable { case countdown, quotaRate, tokens, outputSpeed, model, effort, total }
 
+/// Optional system readings for the card.
+public enum SystemField: String, Codable, CaseIterable { case cpu, gpu, temperature, memory, disk }
+
+/// Formats a system line such as `CPU 54% · GPU 8% · 64°C · RAM 78% · Disk 96%`. Missing readings are skipped.
+public func systemLine(cpu: Double?, gpu: Double?, temperatureC: Double?, memory: Double?, disk: Double?,
+                       fields: Set<SystemField>, fahrenheit: Bool) -> String {
+    var parts: [String] = []
+    func pct(_ v: Double) -> String { String(format: "%.0f%%", v) }
+    if fields.contains(.cpu), let cpu { parts.append("CPU " + pct(cpu)) }
+    if fields.contains(.gpu), let gpu { parts.append("GPU " + pct(gpu)) }
+    if fields.contains(.temperature), let t = temperatureC {
+        parts.append(fahrenheit ? String(format: "%.0f°F", t * 9 / 5 + 32) : String(format: "%.0f°C", t))
+    }
+    if fields.contains(.memory), let memory { parts.append("RAM " + pct(memory)) }
+    if fields.contains(.disk), let disk { parts.append("Disk " + pct(disk)) }
+    return parts.joined(separator: " · ")
+}
+
 public enum RouterMode: String, Codable, CaseIterable { case auto, preferCodex, preferClaude }
 
 public struct AgentHeadroom: Equatable {

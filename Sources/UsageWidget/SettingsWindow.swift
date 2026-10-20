@@ -30,8 +30,11 @@ final class SettingsWindowController: NSWindowController {
 
     init(settings: WidgetSettings, windows: [(String, String)], onApply: @escaping (WidgetSettings) -> Void) {
         self.settings = settings; applySettings = onApply
-        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 440, height: 1006),
-                              styleMask: [.titled, .closable], backing: .buffered, defer: false)
+        // The form is taller than many screens: the window opens at a height that fits, scrolls, resizes,
+        // and zooms (pinch, or the − / + buttons in the title bar).
+        let visible = NSScreen.main?.visibleFrame.height ?? 900
+        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 456, height: min(1006, visible - 40)),
+                              styleMask: [.titled, .closable, .resizable, .miniaturizable], backing: .buffered, defer: false)
         super.init(window: window)
         let l = L10n(settings.language)
         window.title = "QuotaPilot · " + l.text("settings")
@@ -39,7 +42,23 @@ final class SettingsWindowController: NSWindowController {
         window.level = .floating
         window.center()
         let view = NSView(frame: NSRect(x: 0, y: 0, width: 440, height: 1006))
-        window.contentView = view
+        let formScroll = NSScrollView(frame: window.contentLayoutRect)
+        formScroll.hasVerticalScroller = true; formScroll.hasHorizontalScroller = true; formScroll.autohidesScrollers = true
+        formScroll.allowsMagnification = true; formScroll.minMagnification = 0.6; formScroll.maxMagnification = 2.0
+        formScroll.autoresizingMask = [.width, .height]
+        formScroll.documentView = view
+        window.contentView = formScroll
+        window.minSize = NSSize(width: 300, height: 260)
+        scrollView = formScroll
+        let zoom = NSStackView(views: [
+            NSButton(title: "−", target: self, action: #selector(zoomOut)),
+            NSButton(title: "100%", target: self, action: #selector(zoomReset)),
+            NSButton(title: "+", target: self, action: #selector(zoomIn))])
+        zoom.spacing = 2
+        for case let button as NSButton in zoom.arrangedSubviews { button.bezelStyle = .inline; button.controlSize = .small }
+        let accessory = NSTitlebarAccessoryViewController()
+        accessory.view = zoom; accessory.layoutAttribute = .trailing
+        window.addTitlebarAccessoryViewController(accessory)
         func label(_ key: String, y: CGFloat) {
             let label = NSTextField(labelWithString: l.text(key))
             label.frame = NSRect(x: 22, y: y + 340, width: 154, height: 22)
@@ -170,7 +189,17 @@ final class SettingsWindowController: NSWindowController {
         }
     }
     required init?(coder: NSCoder) { fatalError("Not used") }
-    func present() { showWindow(nil); NSApp.activate(ignoringOtherApps: true); window?.makeKeyAndOrderFront(nil) }
+    private var scrollView: NSScrollView?
+    func present() {
+        showWindow(nil); NSApp.activate(ignoringOtherApps: true); window?.makeKeyAndOrderFront(nil)
+        // Start at the top of the form (AppKit's origin is bottom-left).
+        if let scroll = scrollView, let document = scroll.documentView {
+            document.scroll(NSPoint(x: 0, y: document.bounds.height - scroll.contentView.bounds.height))
+        }
+    }
+    @objc private func zoomIn() { scrollView?.animator().magnification = min(2.0, (scrollView?.magnification ?? 1) + 0.1) }
+    @objc private func zoomOut() { scrollView?.animator().magnification = max(0.6, (scrollView?.magnification ?? 1) - 0.1) }
+    @objc private func zoomReset() { scrollView?.animator().magnification = 1 }
     @objc private func connectionGuide() {
         NSWorkspace.shared.open(URL(string: "https://github.com/dwagwd/codex-plugin/blob/main/docs/providers.md")!)
     }

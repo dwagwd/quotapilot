@@ -252,7 +252,7 @@ public final class UsageClient {
     }
     private func armTimeout() {
         timeout?.invalidate()
-        let timer = Timer(timeInterval: requestTimeout, repeats: false) { [weak self] _ in
+        let timer = Timer(fire: Date(timeIntervalSinceNow: requestTimeout), interval: 0, repeats: false) { [weak self] _ in
             guard let self else { return }
             if self.pendingTokenAccount != nil {
                 self.finishTokens(nil, errorCode: "tokenTimeout")
@@ -260,6 +260,7 @@ public final class UsageClient {
             } else { self.fail("timeout") }
         }
         // Common modes, so the timeout still fires while a menu is open or a window is being dragged.
+        // An explicit fire date: on Linux, Timer(timeInterval:) fires immediately instead of after the interval.
         RunLoop.main.add(timer, forMode: .common)
         timeout = timer
     }
@@ -273,7 +274,7 @@ public final class UsageClient {
         retryTimer?.invalidate()
         nextAttemptAt = Date().timeIntervalSince1970 + interval
         publishDiagnostics()
-        let timer = Timer(timeInterval: interval, repeats: false) { [weak self] _ in self?.refresh() }
+        let timer = Timer(fire: Date(timeIntervalSinceNow: interval), interval: 0, repeats: false) { [weak self] _ in self?.refresh() }
         RunLoop.main.add(timer, forMode: .common)
         retryTimer = timer
     }

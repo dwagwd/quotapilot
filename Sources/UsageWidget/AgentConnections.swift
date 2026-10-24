@@ -112,12 +112,19 @@ extension AgentDetection {
 }
 
 extension KeychainSecret {
-    /// Claude Code's own login item. macOS asks the user once before another app may read it.
+    /// Claude Code's own login item, read the way Claude Code itself reads it: with `/usr/bin/security`.
+    /// Reading through SecItemCopyMatching made macOS ask again every time Claude Code refreshed its token,
+    /// because each refresh rewrites the item and drops this app's "Always Allow".
     static func claudeCodeCredentials() -> Data? {
-        let query: [String: Any] = [kSecClass as String: kSecClassGenericPassword, kSecAttrService as String: "Claude Code-credentials",
-                                    kSecReturnData as String: true, kSecMatchLimit as String: kSecMatchLimitOne]
-        var item: CFTypeRef?
-        if SecItemCopyMatching(query as CFDictionary, &item) == errSecSuccess, let data = item as? Data { return data }
+        let process = Process(), pipe = Pipe()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/security")
+        process.arguments = ["find-generic-password", "-s", "Claude Code-credentials", "-w"]
+        process.standardOutput = pipe; process.standardError = FileHandle.nullDevice
+        if (try? process.run()) != nil {
+            let data = pipe.fileHandleForReading.readDataToEndOfFile()
+            process.waitUntilExit()
+            if process.terminationStatus == 0, !data.isEmpty { return data }
+        }
         return try? Data(contentsOf: AgentDetection.home.appendingPathComponent(".claude/.credentials.json"))
     }
 }

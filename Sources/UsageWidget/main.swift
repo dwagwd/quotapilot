@@ -97,6 +97,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
     private var statsWindow: StatsWindowController?
     private var claudePlanError: String?
     private var claudePlanFetching = false
+    private var claudeLogin: (token: String, plan: String?, expiresAt: Double?)?
     private let usageEventFileRotationBytes: UInt64 = 20 * 1_048_576
     private var usageEventLastAttemptAt: Double?
     private var usageEventLastSuccessAt: Double?
@@ -1039,10 +1040,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
     private func refreshClaudePlan() {
         guard settings.autoConnectEnabled, AgentDetection.claudeInstalled, !claudePlanFetching else { return }
         claudePlanFetching = true
-        // The first keychain read can wait on a macOS permission prompt, so keep it off the main thread.
+        // Reuse the token until it is about to expire instead of reading the keychain every two minutes.
+        if let cached = claudeLogin, (cached.expiresAt ?? .infinity) > Date().timeIntervalSince1970 + 60 {
+            fetchClaudePlan(login: cached); return
+        }
         DispatchQueue.global(qos: .utility).async { [weak self] in
             let login = KeychainSecret.claudeCodeCredentials().flatMap(ClaudePlanUsage.credentials)
-            DispatchQueue.main.async { self?.fetchClaudePlan(login: login) }
+            DispatchQueue.main.async { self?.claudeLogin = login; self?.fetchClaudePlan(login: login) }
         }
     }
 
@@ -1062,6 +1066,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
                 guard let self else { return }
                 self.claudePlanFetching = false
                 guard let snapshot, let encoded = try? JSONEncoder().encode(snapshot) else {
+                    if status == 401 { self.claudeLogin = nil }  // re-read the refreshed token next time
                     self.claudePlanError = status == 401 ? "claudeLoginExpired" : "claudePlanUnavailable"; self.writeStatus(); return
                 }
                 self.claudePlanError = nil

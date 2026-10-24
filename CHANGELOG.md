@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- **Fixes from a full review:** re-running the Claude/Antigravity status-line setup after the rename no longer makes the bridge call itself (it now wraps what the old bridge wrapped); turning "Import other agents" off stays off; Settings keeps quota windows of a provider that is temporarily offline; lengthening the observation window or re-enabling agent logs rescans instead of showing too few tokens; `quotapilot config` changes now reach the macOS app; `status.json`, `history.json` and `tokens.json` are user-only (0600) and the data folder 0700; reinstalling replaces the app instead of merging into it; Codex request timeouts and retries fire while a menu is open; installing a bridge no longer blocks the UI and times out; a hung original status-line command no longer crashes the bridge; reroute notifications are not repeated after a restart; Cursor spend over the cap shows 100% instead of nothing; Claude plan history is kept per account; `--hours` rejects invalid values; saving the DeepSeek key updates it in place instead of delete-then-add.
+- Fix repeated keychain prompts for "Claude Code-credentials": Claude Code rewrites that item on every token refresh, which reset the app's "Always Allow". The token is now read through `/usr/bin/security` and cached until it expires.
 - **System readings (optional):** CPU %, GPU %, temperature (°C or °F, hottest die sensor on Apple silicon), RAM % and disk % on the card, each chosen in Settings; sampled every 5 s (15 s with energy saver) only while shown.
 - **App icon:** a quota gauge with a paper-plane needle, drawn by `scripts/make-icon.swift` (`assets/AppIcon.icns`).
 - The Settings window fits the screen, scrolls, resizes, and zooms (pinch, or − / 100% / + in its title bar).

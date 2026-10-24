@@ -40,6 +40,10 @@ class ProviderTests(unittest.TestCase):
         data['subscriptionCycleStart'] = 200
         self.assertNotEqual(a['account'], b.normalize('cursor', data, identity='a@example.invalid')['account'])
         with self.assertRaises(ValueError): b.normalize('cursor', data, identity='missing@example.invalid')
+        data['teamMemberSpend'][0]['spendCents'] = 25000
+        over = b.normalize('cursor', data, identity='a@example.invalid')['limits']['rateLimitsByLimitId']['cursor:spend']
+        self.assertEqual(over['primary']['usedPercent'], 100)
+        self.assertIn('exceeded', over['limitName'])
     def test_installer_preserves_existing_command_and_is_idempotent(self):
         with tempfile.TemporaryDirectory() as folder:
             base = Path(folder) / '.claude'; base.mkdir()

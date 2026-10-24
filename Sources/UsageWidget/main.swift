@@ -11,6 +11,15 @@ if CommandLine.arguments.contains("--quit") {
 let support = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Application Support/QuotaPilot", isDirectory: true)
 migrateFromCodexUsageWidget()
 try FileManager.default.createDirectory(at: support, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
+// createDirectory leaves an existing folder's mode alone; older installs may have created it 0755.
+try? FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: support.path)
+
+/// Atomic write readable only by the user (status, history and token files describe account usage).
+func writePrivate(_ data: Data, to url: URL) {
+    if (try? data.write(to: url, options: .atomic)) != nil {
+        try? FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: url.path)
+    }
+}
 let lockFD = open(support.appendingPathComponent("instance.lock").path, O_CREAT | O_RDWR, 0o600)
 guard lockFD >= 0, flock(lockFD, LOCK_EX | LOCK_NB) == 0 else {
     DistributedNotificationCenter.default().postNotificationName(Notification.Name(appID+".show"), object: nil, userInfo: nil, deliverImmediately: true)
@@ -81,6 +90,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
     private let agentScanQueue = DispatchQueue(label: "io.github.dwagwd.quotapilot.agent-logs", qos: .utility)
     private var agentScanner = AgentLogScanner(sources: AgentLogScanner.defaultSources(home: FileManager.default.homeDirectoryForCurrentUser))
     private var agentLedger = AgentTokenLedger()
+    /// Earliest time the current scanner and ledger have read back to; a longer window needs a fresh scan.
+    private var agentScanCoverage: Double?
+    private let launchedAt = Date().timeIntervalSince1970
     private var agentScanning = false
     private var modelTracker = AgentModelTracker()
     private var agentLastScanAt: Double?
@@ -383,7 +395,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
             self.tokenAvailable = total.map { $0.isFinite && $0 >= 0 } ?? false
             let now = Date().timeIntervalSince1970
             self.tokenHistory.record(account: account, total: total, now: now)
-            if let data = try? JSONEncoder().encode(self.tokenHistory) { try? data.write(to: support.appendingPathComponent("tokens.json"), options: .atomic) }
+            if let data = try? JSONEncoder().encode(self.tokenHistory) { writePrivate(data, to: support.appendingPathComponent("tokens.json")) }
             self.recordUsageObservation(account: account, tokenTotal: total, now: now)
             self.ratesDirty = true; self.render(); self.writeStatus()
         }
@@ -669,7 +681,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
         if tokenHistory.account != account { tokenAvailable = false }
         history.record(account: account, items: codexItems, now: Date().timeIntervalSince1970)
         checkAutoContinue(now: Date().timeIntervalSince1970)
-        if let data = try? JSONEncoder().encode(history) { try? data.write(to: support.appendingPathComponent("history.json"), options: .atomic) }
+        if let data = try? JSONEncoder().encode(history) { writePrivate(data, to: support.appendingPathComponent("history.json")) }
         ratesDirty = true; resize(); render(); writeStatus()
     }
     private func title(for item: WindowItem) -> String {
@@ -804,13 +816,27 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
 
     private func scanAgentLogs() {
         guard settings.agentLogsEnabled else {
-            agentLedger = AgentTokenLedger(); agentLastScanAt = nil; render(); return
+            agentLedger = AgentTokenLedger(); agentLastScanAt = nil
+            // Re-enabling must read the logs again, not continue from the old file offsets.
+            if agentScanCoverage != nil && !agentScanning {
+                agentScanner = AgentLogScanner(sources: AgentLogScanner.defaultSources(home: FileManager.default.homeDirectoryForCurrentUser))
+                agentScanCoverage = nil
+            }
+            render(); return
         }
         guard !agentScanning else { return }
         agentScanning = true
         let now = Date().timeIntervalSince1970
         // Read at least five hours so switching to a short window still has data; at most the 31-day retention.
         let windowStart = now - min(max(settings.lookback, 5 * 3600), agentLedger.retention)
+        if let coverage = agentScanCoverage, windowStart < coverage - 60 {
+            // The observation window grew past what was read; earlier events are behind the saved offsets.
+            agentScanner = AgentLogScanner(sources: AgentLogScanner.defaultSources(home: FileManager.default.homeDirectoryForCurrentUser))
+            agentLedger = AgentTokenLedger()
+            agentScanCoverage = windowStart
+        } else {
+            agentScanCoverage = min(agentScanCoverage ?? windowStart, windowStart)
+        }
         let scanner = agentScanner
         agentScanQueue.async { [weak self] in
             let events = scanner.scan(windowStart: windowStart, now: now)
@@ -820,8 +846,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
                 guard let self else { return }
                 self.agentScanning = false
                 for sample in speeds { self.statsStore.addSpeed(sample) }
-                for model in models where self.modelTracker.observe(model) && model.timestamp > now - 7200 {
+                // Notify each reroute once, across restarts: only events newer than the last one notified (or launch).
+                let notifiedUntil = self.defaults.object(forKey: "rerouteNotifiedUntil") as? Double ?? self.launchedAt
+                var latest = notifiedUntil
+                for model in models where self.modelTracker.observe(model) && model.timestamp > max(now - 7200, notifiedUntil) {
                     self.notifyReroute(model)
+                    latest = max(latest, model.timestamp)
+                }
+                if latest > notifiedUntil || self.defaults.object(forKey: "rerouteNotifiedUntil") == nil {
+                    self.defaults.set(latest, forKey: "rerouteNotifiedUntil")
                 }
                 guard self.settings.agentLogsEnabled else { return }
                 for event in events where self.agentLedger.add(event) { self.statsStore.add(event) }
@@ -1024,11 +1057,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
                 let snapshots = ["claude", "antigravity", "cursor"].contains {
                     FileManager.default.fileExists(atPath: support.appendingPathComponent("providers/\($0).json").path)
                 }
-                if !self.settings.options.bridges && (snapshots || results.contains { $0.1.ok } || AgentDetection.bridgeInstalled("claude") || AgentDetection.bridgeInstalled("antigravity")) {
+                // Only once: after that, turning "Import other agents" off must stay off.
+                if !self.settings.options.bridges && !self.defaults.bool(forKey: "autoEnabledBridges") && (snapshots || results.contains { $0.1.ok } || AgentDetection.bridgeInstalled("claude") || AgentDetection.bridgeInstalled("antigravity")) {
                     var next = self.settings
                     var options = next.options; options.bridges = true; next.options = options
                     self.settings = next
                     self.defaults.set(try? JSONEncoder().encode(next), forKey: "settings")
+                    self.defaults.set(true, forKey: "autoEnabledBridges")
                 }
                 self.reloadBridges(); self.rebuildItems(); self.refreshDeepSeek(); self.writeStatus()
             }
@@ -1061,7 +1096,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         URLSession.shared.dataTask(with: request) { [weak self] body, response, _ in
             let status = (response as? HTTPURLResponse)?.statusCode ?? 0
-            let snapshot = (200..<300).contains(status) ? body.flatMap { ClaudePlanUsage.snapshot(from: $0, plan: login.plan, now: Date().timeIntervalSince1970) } : nil
+            let snapshot = (200..<300).contains(status) ? body.flatMap { ClaudePlanUsage.snapshot(from: $0, plan: login.plan, account: ClaudePlanUsage.localAccountID(home: FileManager.default.homeDirectoryForCurrentUser), now: Date().timeIntervalSince1970) } : nil
             DispatchQueue.main.async {
                 guard let self else { return }
                 self.claudePlanFetching = false
@@ -1154,15 +1189,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
     }
 
     private func installBridge(_ provider: String) {
-        let result = AgentDetection.installBridge(provider)
-        if result.ok {
-            var next = settings
-            var options = next.options; options.bridges = true; next.options = options
-            settings = next
-            defaults.set(try? JSONEncoder().encode(next), forKey: "settings")
-            reloadBridges(); rebuildItems()
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            let result = AgentDetection.installBridge(provider)
+            DispatchQueue.main.async {
+                guard let self else { return }
+                if result.ok {
+                    var next = self.settings
+                    var options = next.options; options.bridges = true; next.options = options
+                    self.settings = next
+                    self.defaults.set(try? JSONEncoder().encode(next), forKey: "settings")
+                    self.reloadBridges(); self.rebuildItems()
+                }
+                self.showMessage(title: result.ok ? self.l.text("bridgeInstalledRestart") : self.l.text("sourceError"), details: result.output)
+            }
         }
-        showMessage(title: result.ok ? l.text("bridgeInstalledRestart") : l.text("sourceError"), details: result.output)
     }
 
     private func editDeepSeekKey() {
@@ -2102,7 +2142,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
             return entry
         } ?? NSNull()
         if let bytes = try? JSONSerialization.data(withJSONObject: data, options: [.prettyPrinted, .sortedKeys]) {
-            try? bytes.write(to: support.appendingPathComponent("status.json"), options: .atomic)
+            writePrivate(bytes, to: support.appendingPathComponent("status.json"))
         }
     }
     @objc private func selectWindow() {

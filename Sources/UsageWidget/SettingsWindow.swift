@@ -242,7 +242,9 @@ final class SettingsWindowController: NSWindowController {
         options.multiple = multiple.state == .on
         let selected = quotaChecks.filter { $0.1.state == .on }.map { $0.0 }
         guard selected.count <= 8 else { errorLabel.stringValue = L10n(settings.language).text("selectionHint"); return }
-        options.windowIDs = selected
+        // Keep windows that are not listed right now (a provider that is temporarily offline), so they come back.
+        let listed = Set(quotaChecks.map { $0.0 })
+        options.windowIDs = Array((selected + settings.options.windowIDs.filter { !listed.contains($0) && !selected.contains($0) }).prefix(8))
         options.customColors = colors.state == .on
         options.foreground = RGBColor(components[0], components[1], components[2])
         options.background = RGBColor(components[3], components[4], components[5])

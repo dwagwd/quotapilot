@@ -35,8 +35,14 @@ enum KeychainSecret {
     static func write(_ account: String, value: String?) -> Bool {
         let base: [String: Any] = [kSecClass as String: kSecClassGenericPassword, kSecAttrService as String: service,
                                    kSecAttrAccount as String: account]
-        SecItemDelete(base as CFDictionary)
-        guard let value, !value.isEmpty else { return true }
+        guard let value, !value.isEmpty else {
+            let status = SecItemDelete(base as CFDictionary)
+            return status == errSecSuccess || status == errSecItemNotFound
+        }
+        // Update in place, so a failed write never leaves the key deleted.
+        let update = SecItemUpdate(base as CFDictionary, [kSecValueData as String: Data(value.utf8)] as CFDictionary)
+        if update == errSecSuccess { return true }
+        guard update == errSecItemNotFound else { return false }
         var add = base
         add[kSecValueData as String] = Data(value.utf8)
         add[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
@@ -70,8 +76,12 @@ enum AgentDetection {
         process.arguments = [script.path, provider]
         process.standardOutput = pipe; process.standardError = pipe
         do { try process.run() } catch { return (false, error.localizedDescription) }
-        process.waitUntilExit()
+        // Kill a hung installer; reading to EOF before waiting keeps a full pipe from deadlocking it.
+        let watchdog = DispatchWorkItem { if process.isRunning { process.terminate() } }
+        DispatchQueue.global().asyncAfter(deadline: .now() + 30, execute: watchdog)
         let output = String(data: pipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
+        process.waitUntilExit()
+        watchdog.cancel()
         return (process.terminationStatus == 0, output.trimmingCharacters(in: .whitespacesAndNewlines))
     }
 }

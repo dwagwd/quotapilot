@@ -252,13 +252,16 @@ public final class UsageClient {
     }
     private func armTimeout() {
         timeout?.invalidate()
-        timeout = Timer.scheduledTimer(withTimeInterval: requestTimeout, repeats: false) { [weak self] _ in
+        let timer = Timer(timeInterval: requestTimeout, repeats: false) { [weak self] _ in
             guard let self else { return }
             if self.pendingTokenAccount != nil {
                 self.finishTokens(nil, errorCode: "tokenTimeout")
                 self.disconnect() // Tokens are optional; a token timeout must not invalidate fresh quota.
             } else { self.fail("timeout") }
         }
+        // Common modes, so the timeout still fires while a menu is open or a window is being dragged.
+        RunLoop.main.add(timer, forMode: .common)
+        timeout = timer
     }
     private func fail(_ message: String) {
         guard !stopping, !suspended else { return }
@@ -270,7 +273,9 @@ public final class UsageClient {
         retryTimer?.invalidate()
         nextAttemptAt = Date().timeIntervalSince1970 + interval
         publishDiagnostics()
-        retryTimer = Timer.scheduledTimer(withTimeInterval: interval, repeats: false) { [weak self] _ in self?.refresh() }
+        let timer = Timer(timeInterval: interval, repeats: false) { [weak self] _ in self?.refresh() }
+        RunLoop.main.add(timer, forMode: .common)
+        retryTimer = timer
     }
     private func disconnect() {
         generation = UUID(); timeout?.invalidate()

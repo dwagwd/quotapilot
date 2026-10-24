@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
 """Install a status-line bridge while retaining the user's current status line command."""
 import argparse
+import ast
 import json
 import os
+import re
 import tempfile
 from pathlib import Path
 import shlex
@@ -28,10 +30,29 @@ def main():
     command = shlex.quote(python) + " " + shlex.quote(str(script))
     if old.get("command") == command:
         print("Bridge already installed."); return
+    original = old.get("command")
+    try:
+        words = shlex.split(original or "")
+    except ValueError:
+        words = []
+    previous = next((w for w in words if re.search(r"/bridges/[a-z0-9_-]+-statusline\.py$", w)), None)
+    if previous:
+        # An older bridge (also from before the rename): wrap what it wrapped, never the bridge itself.
+        old_script = Path(previous)
+        text = old_script.read_text() if old_script.exists() else ""
+        # Current bridges store it as ORIGINAL = ...; earlier ones inlined it as `if <literal>:`.
+        match = re.search(r"^ORIGINAL = (.*)$", text, re.M) or re.search(r"^if (.+):\s*$", text, re.M)
+        try:
+            original = ast.literal_eval(match.group(1)) if match else None
+        except (ValueError, SyntaxError):
+            original = None
+        if not isinstance(original, str) or "/bridges/" in original:
+            original = None
     if old and (old.get("type") != "command" or not isinstance(old.get("command"), str)):
         raise SystemExit("Existing status line is not a shell command; configure manually using docs/providers.md.")
     shutil.copyfile(Path(__file__).with_name("provider_bridge.py"), bridge / "provider_bridge.py")
     script.write_text('''import json, subprocess, sys
+ORIGINAL = ORIGINAL_VALUE
 from provider_bridge import normalize, write_snapshot
 raw = sys.stdin.buffer.read(262145)
 try:
@@ -40,11 +61,14 @@ try:
 except Exception:
     pass
 if ORIGINAL:
-    result = subprocess.run(ORIGINAL, shell=True, input=raw, timeout=10)
+    try:
+        result = subprocess.run(ORIGINAL, shell=True, input=raw, timeout=10)
+    except subprocess.TimeoutExpired:
+        sys.exit(1)
     sys.exit(result.returncode)
 else:
     print(PROVIDER.capitalize() + " usage → desktop widget")
-'''.replace("PROVIDER", repr(args.provider)).replace("ORIGINAL", repr(old.get("command"))))
+'''.replace("PROVIDER", repr(args.provider)).replace("ORIGINAL_VALUE", repr(original)))
     if config.exists():
         backup = base / ("settings.json.usage-widget-backup-" + str(time.time_ns()))
         backup_fd = os.open(backup, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)

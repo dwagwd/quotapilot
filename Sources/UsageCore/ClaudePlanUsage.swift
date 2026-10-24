@@ -21,7 +21,7 @@ public enum ClaudePlanUsage {
         return (token, oauth["subscriptionType"] as? String, expires)
     }
 
-    public static func snapshot(from data: Data, plan: String?, now: Double) -> ProviderSnapshot? {
+    public static func snapshot(from data: Data, plan: String?, account: String? = nil, now: Double) -> ProviderSnapshot? {
         guard let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return nil }
         var buckets: [String: Bucket] = [:]
         for window in windows {
@@ -33,8 +33,17 @@ public enum ClaudePlanUsage {
                                                     secondary: nil)
         }
         guard !buckets.isEmpty else { return nil }
-        let identity = Portable.sha256Hex("claude-plan:" + (plan ?? ""))
+        // Include the account, so switching Claude logins on the same plan starts a separate rate history.
+        let identity = Portable.sha256Hex("claude-plan:" + (plan ?? "") + (account.map { ":" + $0 } ?? ""))
         return ProviderSnapshot(provider: "claude", account: identity, updatedAt: now,
                                 limits: LimitsResponse(rateLimits: nil, rateLimitsByLimitId: buckets, accountId: nil))
+    }
+
+    /// Claude Code's signed-in account id from `~/.claude.json` (`oauthAccount.accountUuid`), when present.
+    public static func localAccountID(home: URL) -> String? {
+        guard let data = try? Data(contentsOf: home.appendingPathComponent(".claude.json")),
+              let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let account = object["oauthAccount"] as? [String: Any] else { return nil }
+        return account["accountUuid"] as? String
     }
 }

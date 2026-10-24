@@ -69,7 +69,8 @@ def normalize(provider, data, now=None, identity=None):
         spent = number(member.get("spendCents"))
         used = spent / limit if limit and limit > 0 and spent is not None else None
         name = "Cursor · on-demand spend cap" + (" (exceeded)" if used is not None and used > 100 else "")
-        add("spend", name, used)
+        # Spend can pass the cap; show it as full instead of dropping the reading.
+        add("spend", name, min(used, 100) if used is not None and used >= 0 else used)
         # Billing cycle and cap changes invalidate rate history, without inventing a reset date.
         identity = f"{identity}:{data.get('subscriptionCycleStart')}:{limit}"
     else:

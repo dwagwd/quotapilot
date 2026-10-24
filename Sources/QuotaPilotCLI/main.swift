@@ -37,6 +37,13 @@ func loadSettings() -> WidgetSettings {
 func saveCLISettings(_ settings: WidgetSettings) {
     try? FileManager.default.createDirectory(at: stateDirectory, withIntermediateDirectories: true)
     guard let data = try? JSONEncoder().encode(settings) else { fail("Could not encode settings") }
+    #if os(macOS)
+    // loadSettings prefers the app's settings, so changes must land there too or they would be ignored.
+    if let defaults = UserDefaults(suiteName: "io.github.dwagwd.quotapilot"), defaults.data(forKey: "settings") != nil {
+        defaults.set(data, forKey: "settings")
+        defaults.synchronize()
+    }
+    #endif
     do { try data.write(to: configURL, options: .atomic) } catch { fail("Could not write \(configURL.path): \(error.localizedDescription)") }
 }
 
@@ -93,7 +100,7 @@ func fetchClaudeWindows() -> (windows: [WindowItem], error: String?) {
     }.resume()
     _ = done.wait(timeout: .now() + 25)
     guard (200..<300).contains(status), let body,
-          let snapshot = ClaudePlanUsage.snapshot(from: body, plan: login.plan, now: Date().timeIntervalSince1970) else {
+          let snapshot = ClaudePlanUsage.snapshot(from: body, plan: login.plan, account: ClaudePlanUsage.localAccountID(home: FileManager.default.homeDirectoryForCurrentUser), now: Date().timeIntervalSince1970) else {
         return ([], status == 401 ? "claudeLoginExpired" : "claudePlanUnavailable")
     }
     return (snapshot.limits.windows(), nil)
@@ -277,7 +284,11 @@ elsewhere they are stored in \(configURL.path).
 """
 
 let command = arguments.first(where: { !$0.hasPrefix("--") && Double($0) == nil }) ?? "status"
-let hours = Double(option("--hours") ?? "") ?? 24
+let hours: Double = {
+    guard let text = option("--hours") else { return 24 }
+    guard let value = Double(text), value.isFinite, value > 0, value <= 744 else { fail("--hours must be a number between 0 and 744") }
+    return value
+}()
 
 switch command {
 case "help", "-h":

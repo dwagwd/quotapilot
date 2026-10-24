@@ -52,6 +52,7 @@ public struct UsageStatsStore: Codable {
         recentKeys[key] = sample.timestamp
         var hours = speedHours ?? [:]
         var pair = hours[sample.provider]?[Self.hourKey(sample.timestamp)] ?? [0, 0]
+        if pair.count != 2 { pair = [0, 0] }
         pair[0] += sample.outputTokens; pair[1] += sample.seconds
         hours[sample.provider, default: [:]][Self.hourKey(sample.timestamp)] = pair
         speedHours = hours

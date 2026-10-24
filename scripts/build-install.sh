@@ -23,5 +23,11 @@ if pgrep -x CodexUsageWidget >/dev/null && [ -x "$LEGACY/Contents/MacOS/CodexUsa
     for attempt in {1..30}; do pgrep -x CodexUsageWidget >/dev/null || break; sleep 0.1; done
 fi
 if [ -d "$LEGACY" ] && ! pgrep -x CodexUsageWidget >/dev/null; then rm -rf "$LEGACY"; fi
-ditto "$APP" "$HOME/Applications/QuotaPilot.app"
+# Replace instead of merging, so files removed from the bundle (and stale signatures) do not linger.
+INSTALLED="$HOME/Applications/QuotaPilot.app"
+STAGING="$HOME/Applications/.QuotaPilot.app.installing"
+rm -rf "$STAGING"
+ditto "$APP" "$STAGING"
+rm -rf "$INSTALLED"
+mv "$STAGING" "$INSTALLED"
 echo "Installed: $HOME/Applications/QuotaPilot.app"

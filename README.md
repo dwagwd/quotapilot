@@ -52,12 +52,12 @@ Build it with Swift 6.2 or later: `swift build -c release --product quotapilot` 
 
 Requirements: macOS 13+, Swift 5.9+ / Xcode Command Line Tools, Python 3 for tests and packaging, and Codex desktop or CLI signed in with a ChatGPT account. The core Codex app is native and does not require Python; optional provider bridges use Python 3.
 
-**Quick install:** download `QuotaPilot-<version>-macos-universal.zip` from [Releases](https://github.com/dwagwd/codex-plugin/releases/latest), unzip it, and move **QuotaPilot.app** to Applications. It is signed and notarized, so it opens without a Gatekeeper warning.
+**Quick install:** download `QuotaPilot-<version>-macos-universal.zip` from [Releases](https://github.com/dwagwd/quotapilot/releases/latest), unzip it, and move **QuotaPilot.app** to Applications. It is signed and notarized, so it opens without a Gatekeeper warning.
 
-**From source:** download the source ZIP from [Releases](https://github.com/dwagwd/codex-plugin/releases/latest), extract it, and open a terminal in the extracted `quotapilot` folder. Or clone the repository:
+**From source:** download the source ZIP from [Releases](https://github.com/dwagwd/quotapilot/releases/latest), extract it, and open a terminal in the extracted `quotapilot` folder. Or clone the repository:
 
 ```sh
-git clone https://github.com/dwagwd/codex-plugin.git quotapilot
+git clone https://github.com/dwagwd/quotapilot.git quotapilot
 cd quotapilot
 ```
 
@@ -115,4 +115,4 @@ To remove: quit the widget, remove its app, optionally remove its local data and
 
 ## Status
 
-Version 0.4.0 adds a Developer ID signed, Apple-notarized universal (Apple silicon + Intel) app ZIP alongside the source ZIP and SHA-256 checksums. Codex is the live-tested provider. Optional Claude/Antigravity/Cursor bridges are experimental and fixture-tested; see their support boundaries before setup. CI tests and builds on macOS 14 and 15. See [validation scope](docs/validation.md) for local checks and limitations.
+Version 0.5.0 (QuotaPilot) adds the cross-platform `quotapilot` CLI for macOS, Linux and Windows. Since 0.4.0 releases include a Developer ID signed, Apple-notarized universal (Apple silicon + Intel) app ZIP alongside the source ZIP and SHA-256 checksums. Codex is the live-tested provider. Optional Claude/Antigravity/Cursor bridges are experimental and fixture-tested; see their support boundaries before setup. CI tests and builds on macOS 14 and 15. See [validation scope](docs/validation.md) for local checks and limitations.

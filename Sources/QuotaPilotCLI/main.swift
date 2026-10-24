@@ -9,7 +9,7 @@ import UsageTransport
 // Reads Codex quota (Codex app server), Claude plan usage (Claude Code login), local agent token logs,
 // and answers "which agent should take this task" for skills and scripts.
 
-let version = "0.5.0-dev"
+let version = "0.5.0"
 let arguments = Array(CommandLine.arguments.dropFirst())
 let wantsJSON = arguments.contains("--json")
 func option(_ name: String) -> String? {

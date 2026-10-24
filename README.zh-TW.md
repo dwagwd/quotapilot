@@ -36,9 +36,9 @@
 
 **Windows／Linux：`quotapilot` 命令列工具。**選單列 App 只支援 macOS；在 macOS、Linux、Windows 都可以用 `quotapilot status`（各 agent 額度、24 小時 Token、依工作分派）、`quotapilot watch`（終端機即時更新）、`quotapilot route review`（輸出 codex 或 claude）、`quotapilot stats --hours 168`、`quotapilot config rule web codex`，加上 `--json` 可供腳本與 skill 使用。以 Swift 6.2 以上執行 `swift build -c release --product quotapilot` 建置。
 
-**快速安裝：**從 [Releases](https://github.com/dwagwd/codex-plugin/releases/latest) 下載 `QuotaPilot-<版本>-macos-universal.zip`，解壓後把 **QuotaPilot.app** 移到「應用程式」。App 已簽章並經 Apple 公證，開啟時不會出現安全性警告。
+**快速安裝：**從 [Releases](https://github.com/dwagwd/quotapilot/releases/latest) 下載 `QuotaPilot-<版本>-macos-universal.zip`，解壓後把 **QuotaPilot.app** 移到「應用程式」。App 已簽章並經 Apple 公證，開啟時不會出現安全性警告。
 
-**從原始碼建置：**先從 [Releases](https://github.com/dwagwd/codex-plugin/releases/latest) 下載來源 ZIP 並解壓，於資料夾開啟終端機；或先執行 `git clone https://github.com/dwagwd/codex-plugin.git quotapilot`，再 `cd quotapilot`。
+**從原始碼建置：**先從 [Releases](https://github.com/dwagwd/quotapilot/releases/latest) 下載來源 ZIP 並解壓，於資料夾開啟終端機；或先執行 `git clone https://github.com/dwagwd/quotapilot.git quotapilot`，再 `cd quotapilot`。
 
 ```sh
 ./scripts/check.sh
@@ -60,7 +60,7 @@ Codex 額度來自 `account/rateLimits/read`，tokens 來自 `account/usage/read
 
 ## 開源準備
 
-採 MIT。包含貢獻、安全回報、隱私、變更記錄、CI、手動打包 workflow 與來源匯出檢查。v0.4.0 起提供以 Developer ID 簽章並經 Apple 公證的通用版 App ZIP（Apple 晶片與 Intel 皆可），另附來源 ZIP 與 SHA-256 校驗碼。Codex 已實測；其他 agent 橋接仍屬實驗性功能，通過資料格式測試但尚未完成真實帳號驗證。
+採 MIT。包含貢獻、安全回報、隱私、變更記錄、CI、手動打包 workflow 與來源匯出檢查。v0.5.0 更名為 QuotaPilot，並新增可在 macOS、Linux、Windows 使用的 `quotapilot` 命令列工具。v0.4.0 起提供以 Developer ID 簽章並經 Apple 公證的通用版 App ZIP（Apple 晶片與 Intel 皆可），另附來源 ZIP 與 SHA-256 校驗碼。Codex 已實測；其他 agent 橋接仍屬實驗性功能，通過資料格式測試但尚未完成真實帳號驗證。
 
 ```sh
 ./scripts/package.sh

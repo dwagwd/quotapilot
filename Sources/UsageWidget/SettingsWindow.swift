@@ -218,7 +218,7 @@ final class SettingsWindowController: NSWindowController {
     @objc private func zoomOut() { scrollView?.animator().magnification = max(0.6, (scrollView?.magnification ?? 1) - 0.1) }
     @objc private func zoomReset() { scrollView?.animator().magnification = 1 }
     @objc private func connectionGuide() {
-        NSWorkspace.shared.open(URL(string: "https://github.com/dwagwd/codex-plugin/blob/main/docs/providers.md")!)
+        NSWorkspace.shared.open(URL(string: "https://github.com/dwagwd/quotapilot/blob/main/docs/providers.md")!)
     }
     @objc private func cancel() { close() }
     @objc private func openToolButton(_ sender: NSButton) {

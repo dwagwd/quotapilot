@@ -2,7 +2,7 @@
 
 Security fixes target the latest source release. This project is a local companion and does not host a service.
 
-Report suspected vulnerabilities through [private vulnerability reporting](https://github.com/dwagwd/codex-plugin/security/advisories/new). If no private channel is available, open a minimal issue asking the maintainer for a private contact method; do not include exploitation details, credentials, or user data in the public issue.
+Report suspected vulnerabilities through [private vulnerability reporting](https://github.com/dwagwd/quotapilot/security/advisories/new). If no private channel is available, open a minimal issue asking the maintainer for a private contact method; do not include exploitation details, credentials, or user data in the public issue.
 
 Useful private reports include affected version, macOS/Codex versions, impact, and a reproducible case using synthetic data.
 

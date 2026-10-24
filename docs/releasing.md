@@ -11,7 +11,7 @@
 
 ## Before first public launch
 
-- The public source repository is `dwagwd/codex-plugin`. Publishing a release requires maintainer authorization, a tested commit, and reviewed release assets.
+- The public source repository is `dwagwd/quotapilot`. Publishing a release requires maintainer authorization, a tested commit, and reviewed release assets.
 - Enable GitHub private vulnerability reporting and configure branch protection after CI is available.
 - Verify GitHub Actions on the chosen repository; local validation does not mean hosted CI has passed.
 - Review the license, project description, screenshots, and source archive for personal data.

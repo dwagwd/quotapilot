@@ -26,6 +26,15 @@ final class SettingsAndTokensTests: XCTestCase {
         XCTAssertEqual(history.rate(for: "quota", now: 7200, lookback: 7200)!.perHour, 7.5, accuracy: 0.001)
         XCTAssertNil(history.rate(for: "quota", now: 7200, lookback: 0))
     }
+    func testRateSurvivesSubSecondResetJitter() {
+        var history = History()
+        for minute in 0...30 {
+            let reset = 999_999 + Double(minute % 7) / 10
+            let item = WindowItem(id: "claude:five_hour:primary", name: "Claude", window: QuotaWindow(usedPercent: 10 + Double(minute) / 6, windowDurationMins: 300, resetsAt: reset))
+            history.record(account: "A", items: [item], now: Double(minute * 60))
+        }
+        XCTAssertEqual(history.rate(for: "claude:five_hour:primary", now: 1800, lookback: 3600)!.perHour, 10, accuracy: 0.001)
+    }
     func testOneMinuteWarmupAndTokenRateAreIndependentOfQuota() {
         var tokens = TokenHistory()
         tokens.record(account: "A", total: 10000, now: 0)

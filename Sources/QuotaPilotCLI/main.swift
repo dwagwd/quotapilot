@@ -16,6 +16,12 @@ func option(_ name: String) -> String? {
     guard let index = arguments.firstIndex(of: name), arguments.indices.contains(index + 1) else { return nil }
     return arguments[index + 1]
 }
+/// Hours as a short label: `24h`, `7d`, `30m`, `1.5h`.
+func hoursLabel(_ hours: Double) -> String {
+    if hours >= 24, hours.truncatingRemainder(dividingBy: 24) == 0 { return "\(Int(hours / 24))d" }
+    if hours < 1 { return "\(Int((hours * 60).rounded()))m" }
+    return hours == hours.rounded() ? "\(Int(hours))h" : l.number(hours, decimals: 1) + "h"
+}
 func fail(_ message: String, code: Int32 = 1) -> Never {
     FileHandle.standardError.write(Data((message + "\n").utf8)); exit(code)
 }
@@ -239,8 +245,7 @@ func renderText(_ snapshot: Snapshot) -> String {
     for (agent, error) in snapshot.errors.sorted(by: { $0.key < $1.key }) { lines.append(providerName(agent) + ": " + error) }
     if !snapshot.tokens.isEmpty {
         let total = snapshot.tokens.values.reduce(into: TokenBreakdown()) { $0.add($1) }
-        let window = snapshot.tokenHours.truncatingRemainder(dividingBy: 24) == 0 ? "\(Int(snapshot.tokenHours / 24))d" : "\(Int(snapshot.tokenHours))h"
-        lines.append("Tokens (\(window)): " + l.compact(total.total) + " · ≈" + l.compact(total.total / snapshot.tokenHours) + "/h · "
+        lines.append("Tokens (\(hoursLabel(snapshot.tokenHours))): " + l.compact(total.total) + " · ≈" + l.compact(total.total / snapshot.tokenHours) + "/h · "
                      + snapshot.tokens.sorted { $0.value.total > $1.value.total }.map { providerName($0.key) + " " + l.compact($0.value.total) }.joined(separator: " · "))
         lines.append("  " + breakdownText(total))
     }
@@ -283,7 +288,14 @@ On macOS the router mode and rules come from the QuotaPilot app when it is insta
 elsewhere they are stored in \(configURL.path).
 """
 
-let command = arguments.first(where: { !$0.hasPrefix("--") && Double($0) == nil }) ?? "status"
+let command: String = {
+    if arguments.contains("--help") { return "help" }
+    if arguments.contains("--version") { return "version" }
+    // Skip option values such as `--hours 6` or `--interval 30`.
+    let valueIndices = Set(["--hours", "--interval"].compactMap { arguments.firstIndex(of: $0).map { $0 + 1 } })
+    return arguments.indices.first { !valueIndices.contains($0) && (!arguments[$0].hasPrefix("-") || arguments[$0] == "-h") }
+        .map { arguments[$0] } ?? "status"
+}()
 let hours: Double = {
     guard let text = option("--hours") else { return 24 }
     guard let value = Double(text), value.isFinite, value > 0, value <= 744 else { fail("--hours must be a number between 0 and 744") }
@@ -327,7 +339,7 @@ case "stats":
         }
         printJSON(["hours": hours, "total": breakdownJSON(total), "providers": summary.mapValues(breakdownJSON), "outputSpeed": speed])
     } else {
-        print("Tokens in the last \(Int(hours)) h: \(l.compact(total.total)) · ≈\(l.compact(total.total / hours))/h · ≈\(l.compact(total.total / hours / 3600))/s")
+        print("Tokens in the last \(hoursLabel(hours)): \(l.compact(total.total)) · ≈\(l.compact(total.total / hours))/h · ≈\(l.compact(total.total / hours / 3600))/s")
         print("  " + breakdownText(total))
         for (provider, usage) in summary.sorted(by: { $0.value.total > $1.value.total }) {
             print(providerName(provider).padding(toLength: 9, withPad: " ", startingAt: 0) + l.compact(usage.total) + "  " + breakdownText(usage))

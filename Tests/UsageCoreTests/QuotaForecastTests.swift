@@ -73,6 +73,17 @@ final class QuotaForecastTests: XCTestCase {
         XCTAssertEqual(tracker.alerts(windowID: "codex:primary", used: nil, resetsAt: 20_000, forecast: nil), [])
     }
 
+    func testClaudeResetJitterKeepsTheAlertCycle() {
+        // Claude reports e.g. 1793300400.606, then .677, then .253 for the same reset.
+        var tracker = QuotaAlertTracker()
+        XCTAssertEqual(tracker.alerts(windowID: "claude:seven_day:primary", used: 95, resetsAt: 1_793_300_400.606, forecast: nil), [.highUsage])
+        XCTAssertEqual(tracker.alerts(windowID: "claude:seven_day:primary", used: 95, resetsAt: 1_793_300_400.677, forecast: nil), [])
+        XCTAssertEqual(tracker.alerts(windowID: "claude:seven_day:primary", used: 96, resetsAt: 1_793_300_400.253, forecast: nil), [])
+        XCTAssertTrue(sameReset(nil, nil))
+        XCTAssertFalse(sameReset(nil, 1))
+        XCTAssertFalse(sameReset(1_000, 1_000 + 3600))
+    }
+
     func testAlertSettingDecodesFromOlderPreferences() throws {
         let old = try JSONDecoder().decode(WidgetSettings.self, from: JSONEncoder().encode(WidgetSettings()))
         XCTAssertFalse(old.quotaAlertsEnabled)

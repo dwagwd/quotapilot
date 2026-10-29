@@ -96,7 +96,7 @@ public struct History: Codable {
             var samples = series[item.id] ?? []
             if let last = samples.last {
                 let gap = now - last.timestamp
-                if gap < 0 || gap > 300 || used < last.used || last.reset != item.window.resetsAt || last.duration != item.window.windowDurationMins || last.planType != item.planType {
+                if gap < 0 || gap > 300 || used < last.used || !sameReset(last.reset, item.window.resetsAt) || last.duration != item.window.windowDurationMins || last.planType != item.planType {
                     samples = []
                 } else if gap == 0 { samples.removeLast() }
             }
@@ -124,6 +124,16 @@ public func visibleOrigin(for frame: CGRect, screens: [CGRect]) -> CGPoint {
 }
 
 public let historyRetentionSeconds: Double = 31 * 86400
+
+/// Whether two reported reset times are the same reset. Claude's usage endpoint returns a slightly different
+/// sub-second reset time on almost every request, so exact equality would treat each reading as a new cycle.
+public func sameReset(_ first: Double?, _ second: Double?, tolerance: Double = 60) -> Bool {
+    switch (first, second) {
+    case (nil, nil): return true
+    case let (a?, b?): return abs(a - b) <= tolerance
+    default: return false
+    }
+}
 
 public enum TimeUnit: String, Codable, CaseIterable {
     case minute, hour, day, second

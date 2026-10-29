@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- Fix Claude quota rate, pace forecast and quota alerts: Claude's usage endpoint returns a slightly different sub-second reset time on almost every request, which restarted the rate history on each refresh (so Claude never showed a rate or forecast) and could re-send the 90% alert. Reset times within 60 seconds now count as the same reset.
+- `quotapilot --help` and `--version` work as flags; fractional `--hours` are shown as `30m` or `1.5h` instead of `0h`/`1h`.
+
 ## 0.5.0
 
 Renamed to **QuotaPilot** (repository `dwagwd/quotapilot`; old links redirect). Adds the cross-platform `quotapilot` CLI with Linux builds.

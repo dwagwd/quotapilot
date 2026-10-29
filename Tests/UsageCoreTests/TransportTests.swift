@@ -108,7 +108,8 @@ final class TransportTests: XCTestCase {
     func testMissingTokenEndpointAndTimeoutPreserveFreshQuota() throws {
         for mode in ["tokens-error", "tokens-hang"] {
             let (executable, _) = try fixture(mode: mode)
-            let client = UsageClient(executable: executable.path, requestTimeout: 1)
+            // 2 s, not 1: a cold Python start on a slow disk can take over a second and time out the handshake.
+            let client = UsageClient(executable: executable.path, requestTimeout: 2)
             let quota = expectation(description: "quota preserved")
             let tokens = expectation(description: "tokens unavailable")
             client.onResult = { response, _ in
@@ -116,7 +117,7 @@ final class TransportTests: XCTestCase {
             }
             client.onTokens = { value, _ in XCTAssertNil(value); tokens.fulfill() }
             client.onFailure = { XCTFail("Optional tokens must not invalidate quota: " + $0) }
-            client.refresh(); wait(for: [quota, tokens], timeout: 4)
+            client.refresh(); wait(for: [quota, tokens], timeout: 8)
             XCTAssertNotNil(client.diagnostics.lastQuotaSuccessAt)
             XCTAssertNil(client.diagnostics.lastTokenSuccessAt)
             XCTAssertNotNil(client.diagnostics.lastTokenErrorCode)

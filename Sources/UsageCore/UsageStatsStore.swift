@@ -113,7 +113,7 @@ public struct UsageStatsStore: Codable {
         var samples = quotaSamples[windowID] ?? []
         if let last = samples.last {
             guard now > last.t else { return }
-            if now - last.t < Self.quotaSampleInterval && last.used == used && last.reset == resetsAt { return }
+            if now - last.t < Self.quotaSampleInterval && last.used == used && sameReset(last.reset, resetsAt) { return }
         }
         samples.append(QuotaSample(t: now, used: used, reset: resetsAt))
         quotaSamples[windowID] = samples

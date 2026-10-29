@@ -38,7 +38,7 @@ public struct QuotaAlertTracker {
     public mutating func alerts(windowID: String, used: Double?, resetsAt: Double?, forecast: QuotaForecast?) -> [QuotaAlertKind] {
         guard let used, used.isFinite, (0...100).contains(used) else { return [] }
         var cycle = cycles[windowID] ?? Cycle(reset: resetsAt, lastUsed: used, sent: [])
-        if cycle.reset != resetsAt || used < cycle.lastUsed { cycle = Cycle(reset: resetsAt, lastUsed: used, sent: []) }
+        if !sameReset(cycle.reset, resetsAt) || used < cycle.lastUsed { cycle = Cycle(reset: resetsAt, lastUsed: used, sent: []) }
         cycle.lastUsed = used
         var due: [QuotaAlertKind] = []
         if used >= quotaAlertHighUsageThreshold { due.append(.highUsage) }

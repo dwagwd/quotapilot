@@ -69,7 +69,7 @@ public func observedQuotaChange(from start: AccountUsageSnapshot?, to end: Accou
     guard startAccount == endAccount else { return .accountChanged }
     guard let first = start.quotaWindows.first(where: { $0.id == windowID }),
           let last = end.quotaWindows.first(where: { $0.id == windowID }) else { return .unavailable }
-    guard first.windowDurationMins == last.windowDurationMins, first.resetsAt == last.resetsAt,
+    guard first.windowDurationMins == last.windowDurationMins, sameReset(first.resetsAt, last.resetsAt),
           last.usedPercent >= first.usedPercent else { return .reset }
     return .change(last.usedPercent - first.usedPercent)
 }

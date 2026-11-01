@@ -4,6 +4,8 @@
 
 **Know how much Codex and Claude Code quota you have left before you hit the limit.** QuotaPilot is a small, native macOS desktop widget for **plan quota**, **account token consumption**, and **reset countdowns** across Codex, Claude Code, Antigravity, Cursor and DeepSeek. Built with AppKit and Swift, without a browser runtime or model-turn polling.
 
+<img src="assets/screenshot-card.png" width="380" alt="QuotaPilot card showing Claude and Codex quota, token rates and reset countdowns">
+
 ```sh
 brew install --cask dwagwd/tap/quotapilot
 ```

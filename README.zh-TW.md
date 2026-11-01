@@ -4,6 +4,8 @@
 
 **在撞到上限之前，就知道 Codex 和 Claude Code 還剩多少額度。** 原生 macOS 桌面用量小卡，顯示 Codex、Claude Code、Antigravity、Cursor、DeepSeek 的方案額度、帳號 token 速度與重置倒數。使用 AppKit／Swift，不需要瀏覽器執行環境，不透過模型對話輪詢。
 
+<img src="assets/screenshot-card.png" width="380" alt="QuotaPilot 卡片：Claude 與 Codex 額度、token 速度與重置倒數">
+
 ```sh
 brew install --cask dwagwd/tap/quotapilot
 ```

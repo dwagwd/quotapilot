@@ -1,6 +1,14 @@
 # QuotaPilot
 
-A small, native macOS desktop widget for **plan quota**, **account token consumption**, and **reset countdowns**. Built with AppKit and Swift, without a browser runtime or model-turn polling.
+[![Latest release](https://img.shields.io/github/v/release/dwagwd/quotapilot)](https://github.com/dwagwd/quotapilot/releases/latest) [![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE) ![macOS 13+](https://img.shields.io/badge/macOS-13%2B-lightgrey) ![CLI: macOS · Linux · Windows](https://img.shields.io/badge/CLI-macOS%20%C2%B7%20Linux%20%C2%B7%20Windows-lightgrey)
+
+**Know how much Codex and Claude Code quota you have left before you hit the limit.** QuotaPilot is a small, native macOS desktop widget for **plan quota**, **account token consumption**, and **reset countdowns** across Codex, Claude Code, Antigravity, Cursor and DeepSeek. Built with AppKit and Swift, without a browser runtime or model-turn polling.
+
+```sh
+brew install --cask dwagwd/tap/quotapilot
+```
+
+Signed and notarized. Or download the ZIP from [Releases](https://github.com/dwagwd/quotapilot/releases/latest).
 
 [繁體中文](README.zh-TW.md) · [Privacy](PRIVACY.md) · [Contributing](CONTRIBUTING.md) · [MIT license](LICENSE)
 

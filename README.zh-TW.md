@@ -1,6 +1,14 @@
 # QuotaPilot
 
-原生 macOS 桌面用量小卡，顯示方案額度、Codex 帳號 token 速度與重置倒數。使用 AppKit／Swift，不需要瀏覽器執行環境，不透過模型對話輪詢。
+[![最新版本](https://img.shields.io/github/v/release/dwagwd/quotapilot)](https://github.com/dwagwd/quotapilot/releases/latest) [![授權：MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE) ![macOS 13+](https://img.shields.io/badge/macOS-13%2B-lightgrey)
+
+**在撞到上限之前，就知道 Codex 和 Claude Code 還剩多少額度。** 原生 macOS 桌面用量小卡，顯示 Codex、Claude Code、Antigravity、Cursor、DeepSeek 的方案額度、帳號 token 速度與重置倒數。使用 AppKit／Swift，不需要瀏覽器執行環境，不透過模型對話輪詢。
+
+```sh
+brew install --cask dwagwd/tap/quotapilot
+```
+
+已簽章並經 Apple 公證；也可以從 [Releases](https://github.com/dwagwd/quotapilot/releases/latest) 下載 ZIP。
 
 [English](README.md) · [MIT 授權](LICENSE) · [隱私](PRIVACY.md) · [其他 agent 連接指南](docs/providers.md)
 

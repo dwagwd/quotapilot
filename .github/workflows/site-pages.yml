@@ -39,15 +39,24 @@ jobs:
         run: npm test
       - name: Build the search pages and sitemap
         working-directory: site
-        run: node scripts/build-pages.mjs --base "https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/"
+        # Canonical URLs point at the Cloudflare site; the GitHub Pages copy is a backup.
+        run: node scripts/build-pages.mjs --base "https://aiquotawatch.pages.dev/"
       - name: Package the static files only
         run: |
           mkdir -p _site
-          cp -R site/index.html site/assets site/data site/plans site/effort site/resets site/zh site/sitemap.xml site/robots.txt _site/
+          cp -R site/index.html site/assets site/data site/plans site/effort site/resets site/zh site/sitemap.xml site/robots.txt site/_headers _site/
           rm -rf _site/data/submissions
       - name: Use the latest community stats
         run: |
           git fetch --depth 1 origin community-data 2>/dev/null && git show FETCH_HEAD:community.json > _site/data/community.json || echo "No community data yet"
+      - name: Deploy to Cloudflare Pages (primary)
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          [ -n "$CLOUDFLARE_API_TOKEN" ] || { echo "No Cloudflare token yet; skipping"; exit 0; }
+          rm -rf site/_site && cp -R _site site/_site
+          cd site && npx -y wrangler@4.156.1 pages deploy _site --project-name aiquotawatch --branch main --commit-dirty=true
       - uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa # v3
         with:
           path: _site

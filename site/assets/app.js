@@ -678,7 +678,7 @@
     const repo = community.repo;
     const out = $("#repOut");
     out.hidden = false;
-    if (community.collector && !community.collector.includes("SUBDOMAIN")) {
+    if (community.collector) {
       let install = null;
       try { install = localStorage.getItem("aqw-install"); } catch (e) { /* storage blocked */ }
       if (!install) {

@@ -9,3 +9,7 @@ node_modules/
 /zh/
 /sitemap.xml
 /robots.txt
+
+# Cloudflare Pages build output
+/_site/
+.wrangler/

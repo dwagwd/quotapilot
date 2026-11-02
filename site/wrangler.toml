@@ -1,0 +1,11 @@
+# Cloudflare Pages project for AI Quota Watch.
+# The site is built into _site by .github/workflows/site-pages.yml; functions/ serves the collector at /api.
+name = "aiquotawatch"
+compatibility_date = "2026-10-01"
+pages_build_output_dir = "_site"
+
+[[kv_namespaces]]
+binding = "REPORTS"
+id = "REPLACE_WITH_KV_ID"
+
+# Secrets (set with `wrangler pages secret put`): SALT, EXPORT_TOKEN.

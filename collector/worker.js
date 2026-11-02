@@ -12,7 +12,7 @@ const FIELDS = {
 };
 const TYPES = ["speed", "rating", "quota", "event"];
 export const LIMITS = { bodyBytes: 20000, reports: 30, perInstallPerDay: 3, perIpPerDay: 20, keepDays: 35 };
-const ALLOWED_ORIGINS = ["https://dwagwd.github.io", "http://127.0.0.1:8765", "http://localhost:8765"];
+const ALLOWED_ORIGINS = ["https://aiquotawatch.pages.dev", "https://dwagwd.github.io", "http://127.0.0.1:8765", "http://localhost:8765"];
 
 export function sanitize(report) {
   if (!report || typeof report !== "object" || Array.isArray(report)) return null;
@@ -94,10 +94,12 @@ async function exportAll(request, env) {
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
+    // Served both as a Worker (/v1/...) and as a Pages Function under the site (/api/v1/...).
+    url.pathname = url.pathname.replace(/^\/api(?=\/)/, "");
     if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: cors(request) });
     if (url.pathname === "/v1/report" && request.method === "POST") return report(request, env);
     if (url.pathname === "/v1/export" && request.method === "GET") return exportAll(request, env);
-    if (url.pathname === "/") return json(request, 200, { service: "AI Quota Watch collector", docs: "https://github.com/dwagwd/quotapilot/tree/main/collector" });
+    if (url.pathname === "/" || url.pathname === "/api") return json(request, 200, { service: "AI Quota Watch collector", docs: "https://github.com/dwagwd/quotapilot/tree/main/collector" });
     return json(request, 404, { error: "not found" });
   }
 };

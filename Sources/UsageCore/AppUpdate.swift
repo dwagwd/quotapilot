@@ -56,7 +56,7 @@ public enum ShareSubmitter {
     public static let defaultRepo = "dwagwd/quotapilot"
     /// Anonymous collector (Cloudflare Worker in `collector/`). Override with QUOTAPILOT_COLLECTOR_URL.
     public static var collectorURL: URL {
-        URL(string: ProcessInfo.processInfo.environment["QUOTAPILOT_COLLECTOR_URL"] ?? "https://quota-watch-collector.SUBDOMAIN.workers.dev")!
+        URL(string: ProcessInfo.processInfo.environment["QUOTAPILOT_COLLECTOR_URL"] ?? "https://aiquotawatch.pages.dev/api")!
     }
 
     /// A random id for this computer, created on first use and stored locally. The collector only keeps a

@@ -69,3 +69,9 @@ test("CORS only for the site", async () => {
   assert.equal(other.headers.get("Access-Control-Allow-Origin"), null);
   assert.equal(sanitize({ type: "speed", seconds: Infinity }).seconds, undefined);
 });
+
+test("works under /api when served as a Pages Function", async () => {
+  const e = env();
+  const req = new Request("https://aiquotawatch.pages.dev/api/v1/report", { method: "POST", body: JSON.stringify({ install, reports: [good] }), headers: { "CF-Connecting-IP": "7.7.7.7" } });
+  assert.equal((await worker.fetch(req, e)).status, 200);
+});

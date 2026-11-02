@@ -11,6 +11,8 @@ cask "quotapilot" do
   homepage "https://github.com/dwagwd/quotapilot"
 
   depends_on macos: ">= :ventura"
+  # The app can update itself from the menu bar (after the user confirms).
+  auto_updates true
 
   app "QuotaPilot.app"
 

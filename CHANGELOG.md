@@ -1,6 +1,13 @@
 # Changelog
 
-## Unreleased
+## 0.6.0
+
+- **Updates inside the app:** QuotaPilot checks GitHub once a day (turn off with **Check for updates automatically** in the menu bar), notifies once per new version, and **Install update…** downloads it, verifies the SHA-256 digest, code signature, Developer ID team and notarization, then restarts. Nothing installs without your click.
+- **AI Quota Watch:** the project website now lives in `site/` (plan quotas for GPT, Claude, Grok and Gemini, Codex reset history, reasoning-effort comparisons, community stats).
+- **`quotapilot share` (opt-in):** previews anonymous speed per model and reasoning effort, quota percentage against tokens used per 5-hour or weekly window, and limit hits, then shares them only if you confirm. `--submit` files the report with the GitHub CLI; **Share anonymous stats daily** in the menu bar (off by default) does it once a day. No prompts, paths, project names or account ids.
+- **Gemini CLI and Grok CLI token logs** are read for the All agents totals (Gemini also gives output speed per model).
+- Speed samples record the model and reasoning effort; Claude Code thinking tokens are counted as reasoning.
+- On Windows, links open without passing through `cmd`.
 
 - Fix Claude quota rate, pace forecast and quota alerts: Claude's usage endpoint returns a slightly different sub-second reset time on almost every request, which restarted the rate history on each refresh (so Claude never showed a rate or forecast) and could re-send the 90% alert. Reset times within 60 seconds now count as the same reset.
 - `quotapilot --help` and `--version` work as flags; fractional `--hours` are shown as `30m` or `1.5h` instead of `0h`/`1h`.

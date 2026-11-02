@@ -458,6 +458,7 @@
       item(t("live.resets30"), st.in30.length) +
       (fastest ? item(t("live.fastest"), `${esc(modelName(fastest.model))} ${fastest.median}`, "tok/s" + (state.community.sample ? " · " + t("live.example") : "")) : item(t("live.fastest"), "—", t("live.noReports"))) +
       (upcoming ? item(t("live.next"), `<span data-until="${esc(upcoming.date)}T00:00:00Z">${fmtSince(new Date(upcoming.date + "T00:00:00Z") - now, false)}</span>`, esc(loc(upcoming.text).slice(0, 26)) + "…") : "") +
+      (state.visits ? item(t("live.visits"), state.visits.visitors.toLocaleString("en-US"), t("live.views").replace("{n}", state.visits.views.toLocaleString("en-US"))) : "") +
       item(t("live.updated"), `<span data-ago="${state.loadedAt.toISOString()}">${t("live.justNow")}</span>`);
   }
   function tick() {
@@ -774,6 +775,20 @@
     }, 60000);
   }
 
+  // 7-day visitors from the collector (cookieless counter). The page works without it.
+  function loadVisits() {
+    const base = (window.SITE_CONFIG.community || {}).collector;
+    if (!base || window.__AQW_DATA) return;
+    fetch(base + "/v1/visits").then((r) => (r.ok ? r.json() : null)).then((v) => {
+      if (!v) return;
+      state.visits = v;
+      const el = $("#visits");
+      const plus = v.capped ? "+" : "";
+      if (el) el.textContent = t("foot.visits").replace("{v}", v.visitors.toLocaleString("en-US") + plus).replace("{n}", v.views.toLocaleString("en-US") + plus);
+      renderLive();
+    }).catch(() => {});
+  }
+
   async function load() {
     initLang();
     applyStatic();
@@ -785,6 +800,7 @@
       document.querySelector("main").insertAdjacentHTML("afterbegin", `<p class="error">Could not load data (${esc(e.message)}). Serve the folder over HTTP, e.g. <code>python3 -m http.server</code>.</p>`);
       return;
     }
+    loadVisits();
     initCalc();
     initRadar();
     initCommunity();

@@ -75,6 +75,35 @@ async function report(request, env) {
   return json(request, 200, { ok: true, accepted: stored.length });
 }
 
+// Visitor counting without cookies: one record per day with total views, unique visitors and short
+// hashes of HMAC(SALT, ip + user agent + day) to tell repeat visits apart. Nothing that identifies a visitor
+// is stored. One KV write per visit, capped per day so counting can never use up the free-plan write
+// budget that anonymous reports need (Cloudflare free KV: 1,000 writes a day per account).
+export const VISIT_WRITE_CAP = 500;
+async function hit(request, env) {
+  const day = new Date().toISOString().slice(0, 10);
+  const key = "visits:" + day;
+  const counts = JSON.parse((await env.REPORTS.get(key)) || '{"views":0,"visitors":0,"seen":[]}');
+  if (counts.views >= VISIT_WRITE_CAP) { counts.capped = true; return json(request, 200, { ok: true, capped: true }); }
+  const ip = request.headers.get("CF-Connecting-IP") || "unknown";
+  const visitor = (await hmac(env.SALT, "visit:" + ip + ":" + (request.headers.get("User-Agent") || "") + ":" + day)).slice(0, 12);
+  counts.views += 1;
+  if (!counts.seen.includes(visitor)) { counts.visitors += 1; counts.seen.push(visitor); }
+  if (counts.views >= VISIT_WRITE_CAP) counts.capped = true;
+  await env.REPORTS.put(key, JSON.stringify(counts), { expirationTtl: 400 * 86400 });
+  return json(request, 200, { ok: true });
+}
+
+export async function visitStats(env, now = new Date()) {
+  const days = [];
+  for (let i = 6; i >= 0; i--) days.push(new Date(now.getTime() - i * 86400000).toISOString().slice(0, 10));
+  const rows = await Promise.all(days.map(async (day) => {
+    const c = JSON.parse((await env.REPORTS.get("visits:" + day)) || '{"views":0,"visitors":0}');
+    return { day, views: c.views, visitors: c.visitors, capped: !!c.capped };
+  }));
+  return { days: rows, views: rows.reduce((a, r) => a + r.views, 0), visitors: rows.reduce((a, r) => a + r.visitors, 0), capped: rows.some((r) => r.capped) };
+}
+
 async function exportAll(request, env) {
   const auth = request.headers.get("Authorization") || "";
   if (!env.EXPORT_TOKEN || auth !== "Bearer " + env.EXPORT_TOKEN) return json(request, 401, { error: "unauthorized" });
@@ -99,6 +128,12 @@ export default {
     if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: cors(request) });
     if (url.pathname === "/v1/report" && request.method === "POST") return report(request, env);
     if (url.pathname === "/v1/export" && request.method === "GET") return exportAll(request, env);
+    if (url.pathname === "/v1/hit" && request.method === "POST") return hit(request, env);
+    if (url.pathname === "/v1/visits" && request.method === "GET") {
+      const res = json(request, 200, await visitStats(env));
+      res.headers.set("Cache-Control", "public, max-age=300");
+      return res;
+    }
     if (url.pathname === "/" || url.pathname === "/api") return json(request, 200, { service: "AI Quota Watch collector", docs: "https://github.com/dwagwd/quotapilot/tree/main/collector" });
     return json(request, 404, { error: "not found" });
   }

@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import worker, { sanitize, LIMITS } from "../worker.js";
+import worker, { sanitize, LIMITS, visitStats, VISIT_WRITE_CAP } from "../worker.js";
 
 function kv() {
   const m = new Map();
@@ -74,4 +74,28 @@ test("works under /api when served as a Pages Function", async () => {
   const e = env();
   const req = new Request("https://aiquotawatch.pages.dev/api/v1/report", { method: "POST", body: JSON.stringify({ install, reports: [good] }), headers: { "CF-Connecting-IP": "7.7.7.7" } });
   assert.equal((await worker.fetch(req, e)).status, 200);
+});
+
+test("counts views and unique visitors for 7 days without storing who visited", async () => {
+  const e = env();
+  const hitFrom = (ip, ua) => worker.fetch(new Request("https://aiquotawatch.pages.dev/api/v1/hit", { method: "POST", headers: { "CF-Connecting-IP": ip, "User-Agent": ua } }), e);
+  await hitFrom("1.1.1.1", "A"); await hitFrom("1.1.1.1", "A"); await hitFrom("2.2.2.2", "B");
+  const stats = await visitStats(e);
+  assert.equal(stats.views, 3);
+  assert.equal(stats.visitors, 2);
+  assert.equal(stats.days.length, 7);
+  const stored = [...e.REPORTS.m.keys()].join(" ") + [...e.REPORTS.m.values()].join(" ");
+  assert.ok(!stored.includes("1.1.1.1") && !stored.includes("2.2.2.2"));
+  const res = await worker.fetch(new Request("https://aiquotawatch.pages.dev/api/v1/visits"), e);
+  assert.equal((await res.json()).views, 3);
+});
+
+test("visit counting stops writing at the daily cap", async () => {
+  const e = env();
+  let writes = 0; const put = e.REPORTS.put.bind(e.REPORTS); e.REPORTS.put = async (k, v, o) => { writes++; return put(k, v, o); };
+  for (let i = 0; i < VISIT_WRITE_CAP + 20; i++) await worker.fetch(new Request("https://x/api/v1/hit", { method: "POST", headers: { "CF-Connecting-IP": "10.0.0." + (i % 250) } }), e);
+  assert.equal(writes, VISIT_WRITE_CAP);
+  const stats = await visitStats(e);
+  assert.equal(stats.capped, true);
+  assert.equal(stats.views, VISIT_WRITE_CAP);
 });

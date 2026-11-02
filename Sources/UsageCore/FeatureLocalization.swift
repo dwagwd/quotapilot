@@ -2,10 +2,15 @@ import Foundation
 
 let featureTranslations: [String: [String: String]] = [
         "checkUpdates": ["en": "Check for updates…", "zh-Hant": "檢查更新…", "zh-Hans": "检查更新…"],
+        "downloadingUpdate": ["en": "Downloading update %@… %d%%", "zh-Hant": "正在下載更新 %@… %d%%", "zh-Hans": "正在下载更新 %@… %d%%"],
+        "restartToUpdate": ["en": "Restart to update to %@", "zh-Hant": "重新啟動以更新到 %@", "zh-Hans": "重新启动以更新到 %@"],
+        "retryUpdate": ["en": "Update %@ failed. Try again…", "zh-Hant": "更新 %@ 失敗，再試一次…", "zh-Hans": "更新 %@ 失败，再试一次…"],
+        "updatedTo": ["en": "Updated to QuotaPilot %@", "zh-Hant": "已更新到 QuotaPilot %@", "zh-Hans": "已更新到 QuotaPilot %@"],
+        "updatedBody": ["en": "Your settings and history were kept.", "zh-Hant": "你的設定和紀錄都保留著。", "zh-Hans": "你的设置和记录都保留着。"],
         "installUpdate": ["en": "Install update %@…", "zh-Hant": "安裝更新 %@…", "zh-Hans": "安装更新 %@…"],
         "autoUpdateChecks": ["en": "Check for updates automatically", "zh-Hant": "自動檢查更新", "zh-Hans": "自动检查更新"],
         "updateAvailable": ["en": "QuotaPilot %@ is available", "zh-Hant": "QuotaPilot %@ 已推出", "zh-Hans": "QuotaPilot %@ 已推出"],
-        "updateHowTo": ["en": "Install it from the menu bar icon. Nothing changes until you choose to.", "zh-Hant": "從選單列圖示安裝。你選擇安裝前不會有任何變動。", "zh-Hans": "从菜单栏图标安装。你选择安装前不会有任何变动。"],
+        "updateHowTo": ["en": "It is downloading in the background. Choose Restart to update in the menu bar icon when you are ready; nothing changes until then.", "zh-Hant": "已在背景下載。準備好時，在選單列圖示選「重新啟動以更新」；在那之前不會有任何變動。", "zh-Hans": "已在后台下载。准备好时，在菜单栏图标选择“重新启动以更新”；在那之前不会有任何变动。"],
         "updateConfirm": ["en": "Update from %@ to %@? QuotaPilot downloads the release from GitHub, checks its signature and notarization, then restarts.", "zh-Hant": "要從 %@ 更新到 %@ 嗎？QuotaPilot 會從 GitHub 下載、檢查簽章與公證，然後重新啟動。", "zh-Hans": "要从 %@ 更新到 %@ 吗？QuotaPilot 会从 GitHub 下载、检查签名与公证，然后重新启动。"],
         "installNow": ["en": "Install and restart", "zh-Hant": "安裝並重新啟動", "zh-Hans": "安装并重新启动"],
         "upToDate": ["en": "QuotaPilot is up to date", "zh-Hant": "QuotaPilot 已是最新版本", "zh-Hans": "QuotaPilot 已是最新版本"],

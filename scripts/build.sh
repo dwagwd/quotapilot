@@ -6,7 +6,7 @@ cd "$PLUGIN_ROOT"
 export GIT_CEILING_DIRECTORIES="$(dirname "$PLUGIN_ROOT")"
 BUILD_CACHE="${QUOTAPILOT_BUILD_CACHE:-$HOME/Library/Caches/QuotaPilot/build}"
 DIST_DIR="${QUOTAPILOT_DIST_DIR:-$HOME/Library/Caches/QuotaPilot/dist}"
-APP_VERSION="$(cat "$PLUGIN_ROOT/VERSION")"
+APP_VERSION="${QUOTAPILOT_APP_VERSION:-$(cat "$PLUGIN_ROOT/VERSION")}"  # override only to test updates
 # QUOTAPILOT_UNIVERSAL=1 builds one arm64 + x86_64 binary (needs Xcode, not only the CLT).
 ARCH_FLAGS=()
 if [ "${QUOTAPILOT_UNIVERSAL:-0}" = "1" ]; then ARCH_FLAGS=(--arch arm64 --arch x86_64); fi

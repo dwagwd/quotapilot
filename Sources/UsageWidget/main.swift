@@ -386,6 +386,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
         if let saved = loadPrivateLedger(UsageStatsStore.self, named: "usage-stats.json") { statsStore = saved }
         client.pollInterval = settings.options.energySaver ? 120 : 60
         setupPanel(); setupStatus()
+        updater.onChange = { [weak self] in self?.updaterChanged() }
+        // Release testing: download, verify and install the latest release without prompts.
+        if ProcessInfo.processInfo.environment["QUOTAPILOT_UPDATE_SELFTEST"] == "1" {
+            updater.check(prefetch: false) { [weak self] release in if release != nil { self?.updater.download(install: true) } }
+        }
+        if let updated = defaults.string(forKey: "updatedTo") {
+            defaults.removeObject(forKey: "updatedTo")
+            if updated == updater.currentVersion { notifyUpdate(String(format: l.text("updatedTo"), updated), l.text("updatedBody")) }
+        }
         // Update checks and the opt-in daily share run at most once a day; the hourly tick only decides whether it is time.
         let daily = Timer(fire: Date().addingTimeInterval(90), interval: 3600, repeats: true) { [weak self] _ in
             self?.checkForUpdates(manual: false); self?.autoShareIfDue()
@@ -627,10 +636,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
         menu.items.last?.state = pinned ? .on : .off
         add(l.text("settings") + "…", #selector(openSettings))
         menu.addItem(.separator())
-        if let release = updater.available {
-            add(String(format: l.text("installUpdate"), release.version), #selector(installUpdate))
-        } else {
+        switch updater.state {
+        case .idle:
             add(l.text("checkUpdates"), #selector(checkUpdatesNow))
+        case .available(let release):
+            add(String(format: l.text("installUpdate"), release.version), #selector(installUpdate))
+        case .downloading(let release, let progress):
+            add(String(format: l.text("downloadingUpdate"), release.version, Int(progress * 100)), #selector(installUpdate))
+            menu.items.last?.isEnabled = false
+        case .ready(let release):
+            add(String(format: l.text("restartToUpdate"), release.version), #selector(installUpdate))
+        case .failed(let release, let reason):
+            add(String(format: l.text("retryUpdate"), release.version), #selector(installUpdate))
+            menu.items.last?.toolTip = reason
         }
         add(l.text("autoUpdateChecks"), #selector(toggleUpdateChecks))
         menu.items.last?.state = settings.updateChecksEnabled ? .on : .off
@@ -2203,22 +2221,36 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
         if !manual {
             guard settings.updateChecksEnabled, now - defaults.double(forKey: "lastUpdateCheck") >= AppUpdate.checkInterval else { return }
         }
-        updater.check { [weak self] release in
+        // Automatic checks also download the update in the background, so installing later is instant.
+        updater.check(prefetch: settings.updateChecksEnabled) { [weak self] release in
             guard let self else { return }
             self.defaults.set(now, forKey: "lastUpdateCheck")
-            self.setupStatus()
             if manual {
                 if release != nil { self.installUpdate() } else { self.inform(self.l.text("upToDate"), self.updater.currentVersion) }
-            } else if let release, self.notificationsAvailable, self.defaults.string(forKey: "updateNotified") != release.version {
+            } else if let release, self.defaults.string(forKey: "updateNotified") != release.version {
                 self.defaults.set(release.version, forKey: "updateNotified")
-                UNUserNotificationCenter.current().requestAuthorization(options: [.alert]) { _, _ in }
-                let content = UNMutableNotificationContent()
-                content.title = String(format: self.l.text("updateAvailable"), release.version)
-                content.body = self.l.text("updateHowTo")
-                UNUserNotificationCenter.current().add(UNNotificationRequest(identifier: "update.\(release.version)", content: content, trigger: nil))
+                self.notifyUpdate(String(format: self.l.text("updateAvailable"), release.version), self.l.text("updateHowTo"))
             }
         }
     }
+
+    private func notifyUpdate(_ title: String, _ body: String) {
+        guard notificationsAvailable else { return }
+        UNUserNotificationCenter.current().requestAuthorization(options: [.alert]) { _, _ in }
+        let content = UNMutableNotificationContent()
+        content.title = title; content.body = body
+        UNUserNotificationCenter.current().add(UNNotificationRequest(identifier: "update.\(title)", content: content, trigger: nil))
+    }
+
+    private func updaterChanged() {
+        setupStatus()
+        if case .failed(_, let reason) = updater.state, updaterInstallRequested {
+            updaterInstallRequested = false
+            inform(l.text("updateFailed"), reason)
+        }
+    }
+
+    private var updaterInstallRequested = false
 
     private func inform(_ title: String, _ text: String) {
         let alert = NSAlert(); alert.messageText = title; alert.informativeText = text
@@ -2226,17 +2258,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
     }
 
     @objc private func installUpdate() {
-        guard let release = updater.available else { return }
+        guard let release = updater.release else { return }
+        if case .ready = updater.state { updater.swapAndRelaunch(); return }  // already downloaded and verified
         let alert = NSAlert()
         alert.messageText = String(format: l.text("updateAvailable"), release.version)
         alert.informativeText = String(format: l.text("updateConfirm"), updater.currentVersion, release.version)
         alert.addButton(withTitle: l.text("installNow")); alert.addButton(withTitle: l.text("cancel"))
         NSApp.activate(ignoringOtherApps: true)
         guard alert.runModal() == .alertFirstButtonReturn else { return }
-        updater.install(release) { [weak self] result in
-            guard let self, case .failure(let error) = result else { return }
-            self.inform(self.l.text("updateFailed"), String(describing: error) + "\n" + release.pageURL.absoluteString)
-        }
+        updaterInstallRequested = true
+        updater.download(install: true)
     }
 
     @objc private func toggleUpdateChecks() {

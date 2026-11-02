@@ -2,7 +2,7 @@
 
 ## 0.6.0
 
-- **Updates inside the app:** QuotaPilot checks GitHub once a day (turn off with **Check for updates automatically** in the menu bar), notifies once per new version, and **Install update…** downloads it, verifies the SHA-256 digest, code signature, Developer ID team and notarization, then restarts. Nothing installs without your click.
+- **Updates inside the app:** QuotaPilot checks GitHub once a day (turn off with **Check for updates automatically** in the menu bar), downloads a new version in the background with progress in the menu, verifies the SHA-256 digest, code signature, Developer ID team and notarization, and notifies once. **Restart to update** then swaps it in within seconds and keeps your settings. A failed download retries once; nothing installs without your click.
 - **AI Quota Watch:** the project website now lives in `site/` (plan quotas for GPT, Claude, Grok and Gemini, Codex reset history, reasoning-effort comparisons, community stats).
 - **`quotapilot share` (opt-in):** previews anonymous speed per model and reasoning effort, quota percentage against tokens used per 5-hour or weekly window, and limit hits, then shares them only if you confirm. `--submit` files the report with the GitHub CLI; **Share anonymous stats daily** in the menu bar (off by default) does it once a day. No prompts, paths, project names or account ids.
 - **Gemini CLI and Grok CLI token logs** are read for the All agents totals (Gemini also gives output speed per model).

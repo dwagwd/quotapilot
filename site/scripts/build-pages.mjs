@@ -68,6 +68,8 @@ const T = {
 };
 
 const pages = [];
+// Cloudflare Pages (and GitHub Pages) serve "plans/claude.html" at "plans/claude"; link to that form.
+const pretty = (path) => path.replace(/index\.html$/, "").replace(/\.html$/, "");
 function page({ lang, path, title, description, body, alt, jsonLd }) {
   const t = T[lang];
   const depth = path.split("/").length - 1;
@@ -82,13 +84,13 @@ function page({ lang, path, title, description, body, alt, jsonLd }) {
 <meta name="referrer" content="strict-origin-when-cross-origin">
 <title>${esc(title)}</title>
 <meta name="description" content="${esc(description)}">
-<link rel="canonical" href="${BASE}${path}">
-<link rel="alternate" hreflang="${lang === "zh" ? "zh-Hant" : "en"}" href="${BASE}${path}">
-<link rel="alternate" hreflang="${lang === "zh" ? "en" : "zh-Hant"}" href="${BASE}${altPath}">
+<link rel="canonical" href="${BASE}${pretty(path)}">
+<link rel="alternate" hreflang="${lang === "zh" ? "zh-Hant" : "en"}" href="${BASE}${pretty(path)}">
+<link rel="alternate" hreflang="${lang === "zh" ? "en" : "zh-Hant"}" href="${BASE}${pretty(altPath)}">
 <meta property="og:type" content="article">
 <meta property="og:title" content="${esc(title)}">
 <meta property="og:description" content="${esc(description)}">
-<meta property="og:url" content="${BASE}${path}">
+<meta property="og:url" content="${BASE}${pretty(path)}">
 <link rel="stylesheet" href="${up}assets/style.css">
 ${jsonLd ? `<script type="application/ld+json">${JSON.stringify(jsonLd)}</script>` : ""}
 </head>
@@ -184,7 +186,7 @@ ${m && m.input != null ? `<p>API: $${m.input} / $${m.output} ${lang === "zh" ? "
     body: `<h1>${t.effortIndex}</h1><ul class="plain">${effortLinks.join("")}</ul>` });
 }
 
-const urls = ["", ...pages].map((p) => `  <url><loc>${BASE}${p}</loc><lastmod>${plans.lastReviewed}</lastmod></url>`).join("\n");
+const urls = ["", ...pages].map((p) => `  <url><loc>${BASE}${pretty(p)}</loc><lastmod>${plans.lastReviewed}</lastmod></url>`).join("\n");
 writeFileSync(join(OUT, "sitemap.xml"), `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls}\n</urlset>\n`);
 writeFileSync(join(OUT, "robots.txt"), `User-agent: *\nAllow: /\nSitemap: ${BASE}sitemap.xml\n`);
 console.log(`wrote ${pages.length} pages + sitemap.xml + robots.txt to ${OUT} (base ${BASE})`);

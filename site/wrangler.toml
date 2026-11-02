@@ -6,6 +6,6 @@ pages_build_output_dir = "_site"
 
 [[kv_namespaces]]
 binding = "REPORTS"
-id = "REPLACE_WITH_KV_ID"
+id = "0d993ea0b3804b338b857bffcaa935a4"
 
 # Secrets (set with `wrangler pages secret put`): SALT, EXPORT_TOKEN.

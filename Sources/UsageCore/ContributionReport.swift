@@ -51,6 +51,37 @@ public enum ContributionReport {
 
     public static let minimumCallsPerModel = 3
 
+    /// Marks issues filed by QuotaPilot, so the collector accepts them even when GitHub drops the label.
+    public static let issueMarker = "<!-- quotapilot-share -->"
+
+    /// The agent behind a plan-wide quota window (`codex:primary`, `claude:five_hour:primary`), or nil for
+    /// per-model buckets, which would double count.
+    public static func sharedProvider(windowID: String) -> String? {
+        let bucket = windowID.split(separator: ":").dropLast().joined(separator: ":")
+        switch bucket {
+        case "codex": return "codex"
+        case "claude:five_hour", "claude:seven_day": return "claude"
+        default: return nil
+        }
+    }
+
+    /// Current plan windows with the tokens logged since each window opened.
+    public static func windowUses(items: [WindowItem], tokensSince: (String, Double) -> TokenBreakdown, model: (String) -> String?) -> [WindowUse] {
+        items.compactMap { item in
+            guard let provider = sharedProvider(windowID: item.id), let used = item.window.validUsedPercent,
+                  let mins = item.window.windowDurationMins, let reset = item.window.resetsAt else { return nil }
+            let start = reset - Double(mins) * 60
+            return WindowUse(provider: provider, plan: item.planType, windowMinutes: mins, usedPercent: used,
+                             limitReached: item.limitReached, tokensSinceStart: tokensSince(provider, start), model: model(provider))
+        }
+    }
+
+    public static func issueText(reports: [[String: Any]], version: String) -> (title: String, body: String) {
+        let data = (try? JSONSerialization.data(withJSONObject: reports, options: [.prettyPrinted, .sortedKeys])) ?? Data()
+        return ("QuotaPilot report: \(reports.count) data points",
+                "\(issueMarker)\nShared with QuotaPilot \(version).\n\n```json\n\(String(decoding: data, as: UTF8.self))\n```")
+    }
+
     /// The tool that wrote the log, from the sample key (`codex|…`, `claude|…`, `gemini|…`). Claude Code
     /// pointed at another model family still counts as Claude Code.
     static func clientName(_ sample: OutputSpeedSample) -> String {

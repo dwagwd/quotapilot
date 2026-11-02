@@ -20,7 +20,8 @@ concurrency:
 jobs:
   ingest:
     runs-on: ubuntu-latest
-    if: github.event_name != 'issues' || contains(github.event.issue.labels.*.name, 'data-report')
+    # Issues from the site form carry the label; issues filed by `quotapilot share --submit` or the app carry the marker.
+    if: github.event_name != 'issues' || contains(github.event.issue.labels.*.name, 'data-report') || contains(github.event.issue.body, '<!-- quotapilot-share -->')
     defaults:
       run:
         working-directory: site
@@ -47,4 +48,5 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh issue comment ${{ github.event.issue.number }} --repo ${{ github.repository }} --body "Thanks, your report is saved. It shows on AI Quota Watch once at least 3 reports exist for the same model or plan."
+          gh issue edit ${{ github.event.issue.number }} --repo ${{ github.repository }} --add-label data-report || true
           gh issue close ${{ github.event.issue.number }} --repo ${{ github.repository }}

@@ -185,6 +185,10 @@ public struct WidgetSettings: Codable, Equatable {
     public var rateUnit: TimeUnit = .hour
     public var customization: Customization? = nil
     public var quotaAlerts: Bool? = nil
+    /// Daily check for a newer release (on unless turned off). Installing always asks first.
+    public var updateChecks: Bool? = nil
+    /// Share anonymous speed and quota numbers once a day through the GitHub CLI (off unless turned on).
+    public var autoShare: Bool? = nil
     public var autoContinue: Bool? = nil
     public var agentLogs: Bool? = nil
     public var autoConnect: Bool? = nil
@@ -225,6 +229,14 @@ public struct WidgetSettings: Codable, Equatable {
     public var agentLogsEnabled: Bool {
         get { agentLogs ?? true }
         set { agentLogs = newValue }
+    }
+    public var updateChecksEnabled: Bool {
+        get { updateChecks ?? true }
+        set { updateChecks = newValue }
+    }
+    public var autoShareEnabled: Bool {
+        get { autoShare ?? false }
+        set { autoShare = newValue }
     }
     public var quotaAlertsEnabled: Bool {
         get { quotaAlerts ?? false }

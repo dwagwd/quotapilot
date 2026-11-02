@@ -1,6 +1,19 @@
 import Foundation
 
 let featureTranslations: [String: [String: String]] = [
+        "checkUpdates": ["en": "Check for updates…", "zh-Hant": "檢查更新…", "zh-Hans": "检查更新…"],
+        "installUpdate": ["en": "Install update %@…", "zh-Hant": "安裝更新 %@…", "zh-Hans": "安装更新 %@…"],
+        "autoUpdateChecks": ["en": "Check for updates automatically", "zh-Hant": "自動檢查更新", "zh-Hans": "自动检查更新"],
+        "updateAvailable": ["en": "QuotaPilot %@ is available", "zh-Hant": "QuotaPilot %@ 已推出", "zh-Hans": "QuotaPilot %@ 已推出"],
+        "updateHowTo": ["en": "Install it from the menu bar icon. Nothing changes until you choose to.", "zh-Hant": "從選單列圖示安裝。你選擇安裝前不會有任何變動。", "zh-Hans": "从菜单栏图标安装。你选择安装前不会有任何变动。"],
+        "updateConfirm": ["en": "Update from %@ to %@? QuotaPilot downloads the release from GitHub, checks its signature and notarization, then restarts.", "zh-Hant": "要從 %@ 更新到 %@ 嗎？QuotaPilot 會從 GitHub 下載、檢查簽章與公證，然後重新啟動。", "zh-Hans": "要从 %@ 更新到 %@ 吗？QuotaPilot 会从 GitHub 下载、检查签名与公证，然后重新启动。"],
+        "installNow": ["en": "Install and restart", "zh-Hant": "安裝並重新啟動", "zh-Hans": "安装并重新启动"],
+        "upToDate": ["en": "QuotaPilot is up to date", "zh-Hant": "QuotaPilot 已是最新版本", "zh-Hans": "QuotaPilot 已是最新版本"],
+        "updateFailed": ["en": "The update was not installed", "zh-Hant": "更新沒有安裝", "zh-Hans": "更新没有安装"],
+        "autoShare": ["en": "Share anonymous stats daily", "zh-Hant": "每天分享匿名統計", "zh-Hans": "每天分享匿名统计"],
+        "autoShareExplain": ["en": "Once a day QuotaPilot files a public GitHub issue for AI Quota Watch with your speed per model and effort, quota percentage and tokens per window. No prompts, paths, project names or account ids. It uses your GitHub CLI (gh) login. Run `quotapilot share --json` to see exactly what is sent. Turn it off here any time.", "zh-Hant": "QuotaPilot 每天會用你的 GitHub CLI（gh）登入，替 AI Quota Watch 建立一個公開的 GitHub issue，內容是各模型與推理強度的速度、各週期的額度百分比與 tokens，不含對話內容、路徑、專案名稱或帳號 ID。執行 `quotapilot share --json` 可以看到實際送出的內容。隨時可以在這裡關閉。", "zh-Hans": "QuotaPilot 每天会用你的 GitHub CLI（gh）登录，为 AI Quota Watch 创建一个公开的 GitHub issue，内容是各模型与推理强度的速度、各周期的额度百分比与 tokens，不含对话内容、路径、项目名称或账号 ID。运行 `quotapilot share --json` 可以看到实际发送的内容。随时可以在这里关闭。"],
+        "autoShareOn": ["en": "Turn on", "zh-Hant": "開啟", "zh-Hans": "开启"],
+        "ghMissing": ["en": "Install the GitHub CLI and run `gh auth login` first.", "zh-Hant": "請先安裝 GitHub CLI 並執行 `gh auth login`。", "zh-Hans": "请先安装 GitHub CLI 并运行 `gh auth login`。"],
         "sourceDiagnostics": ["en": "Source diagnostics…", "zh-Hant": "資料來源診斷…", "zh-Hans": "数据来源诊断…"],
         "sourceDiagnosticIntro": ["en": "Freshness is based on each source's last successful sample. A recent sample may coexist with a failed refresh; both are shown. No credentials or transcript content is included.", "zh-Hant": "新鮮度依各來源最近一次成功取樣計算。即使資料仍新，最近更新失敗也會另外列出。診斷不含憑證或對話內容。", "zh-Hans": "新鲜度按各来源最近一次成功采样计算。即使数据仍新，最近更新失败也会另行显示。诊断不包含凭证或对话内容。"],
         "sourceFresh": ["en": "Fresh", "zh-Hant": "新鮮", "zh-Hans": "新鲜"],

@@ -105,6 +105,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
     private var autoConnectResults: [String: String] = [:]
     private var claudePlanTick: Timer?
     private var statsStore = UsageStatsStore()
+    private let updater = AppUpdater()
+    /// Speed samples from the last 24 hours, with model and effort, for the daily anonymous share.
+    private var recentSpeed: [OutputSpeedSample] = []
+    private var dailyTick: Timer?
     private let statsModel = StatsModel()
     private var statsWindow: StatsWindowController?
     private var claudePlanError: String?
@@ -382,6 +386,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
         if let saved = loadPrivateLedger(UsageStatsStore.self, named: "usage-stats.json") { statsStore = saved }
         client.pollInterval = settings.options.energySaver ? 120 : 60
         setupPanel(); setupStatus()
+        // Update checks and the opt-in daily share run at most once a day; the hourly tick only decides whether it is time.
+        let daily = Timer(fire: Date().addingTimeInterval(90), interval: 3600, repeats: true) { [weak self] _ in
+            self?.checkForUpdates(manual: false); self?.autoShareIfDue()
+        }
+        RunLoop.main.add(daily, forMode: .common); dailyTick = daily
         requestAlertAuthorizationIfNeeded()
         client.onResult = { [weak self] response, account in self?.received(response, account: account) }
         client.onReroute = { [weak self] from, to, reason in
@@ -618,6 +627,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
         menu.items.last?.state = pinned ? .on : .off
         add(l.text("settings") + "…", #selector(openSettings))
         menu.addItem(.separator())
+        if let release = updater.available {
+            add(String(format: l.text("installUpdate"), release.version), #selector(installUpdate))
+        } else {
+            add(l.text("checkUpdates"), #selector(checkUpdatesNow))
+        }
+        add(l.text("autoUpdateChecks"), #selector(toggleUpdateChecks))
+        menu.items.last?.state = settings.updateChecksEnabled ? .on : .off
+        add(l.text("autoShare"), #selector(toggleAutoShare))
+        menu.items.last?.state = settings.autoShareEnabled ? .on : .off
+        menu.addItem(.separator())
         add(l.text("quit"), #selector(quit))
         status.menu = menu
     }
@@ -846,6 +865,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
                 guard let self else { return }
                 self.agentScanning = false
                 for sample in speeds { self.statsStore.addSpeed(sample) }
+                self.recentSpeed = (self.recentSpeed + speeds).filter { $0.timestamp >= now - 86400 }.suffix(20_000).map { $0 }
                 // Notify each reroute once, across restarts: only events newer than the last one notified (or launch).
                 let notifiedUntil = self.defaults.object(forKey: "rerouteNotifiedUntil") as? Double ?? self.launchedAt
                 var latest = notifiedUntil
@@ -2171,6 +2191,97 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
     @objc private func showPanel() { screensChanged(); panel.orderFrontRegardless(); startUITimer(); render(); writeStatus() }
     @objc private func refresh() { client.refresh() }
     @objc private func quit() { NSApp.terminate(nil) }
+
+    // MARK: Updates and sharing
+
+    private func saveSettings() { defaults.set(try? JSONEncoder().encode(settings), forKey: "settings"); setupStatus() }
+
+    @objc private func checkUpdatesNow() { checkForUpdates(manual: true) }
+
+    private func checkForUpdates(manual: Bool) {
+        let now = Date().timeIntervalSince1970
+        if !manual {
+            guard settings.updateChecksEnabled, now - defaults.double(forKey: "lastUpdateCheck") >= AppUpdate.checkInterval else { return }
+        }
+        updater.check { [weak self] release in
+            guard let self else { return }
+            self.defaults.set(now, forKey: "lastUpdateCheck")
+            self.setupStatus()
+            if manual {
+                if release != nil { self.installUpdate() } else { self.inform(self.l.text("upToDate"), self.updater.currentVersion) }
+            } else if let release, self.notificationsAvailable, self.defaults.string(forKey: "updateNotified") != release.version {
+                self.defaults.set(release.version, forKey: "updateNotified")
+                UNUserNotificationCenter.current().requestAuthorization(options: [.alert]) { _, _ in }
+                let content = UNMutableNotificationContent()
+                content.title = String(format: self.l.text("updateAvailable"), release.version)
+                content.body = self.l.text("updateHowTo")
+                UNUserNotificationCenter.current().add(UNNotificationRequest(identifier: "update.\(release.version)", content: content, trigger: nil))
+            }
+        }
+    }
+
+    private func inform(_ title: String, _ text: String) {
+        let alert = NSAlert(); alert.messageText = title; alert.informativeText = text
+        NSApp.activate(ignoringOtherApps: true); alert.runModal()
+    }
+
+    @objc private func installUpdate() {
+        guard let release = updater.available else { return }
+        let alert = NSAlert()
+        alert.messageText = String(format: l.text("updateAvailable"), release.version)
+        alert.informativeText = String(format: l.text("updateConfirm"), updater.currentVersion, release.version)
+        alert.addButton(withTitle: l.text("installNow")); alert.addButton(withTitle: l.text("cancel"))
+        NSApp.activate(ignoringOtherApps: true)
+        guard alert.runModal() == .alertFirstButtonReturn else { return }
+        updater.install(release) { [weak self] result in
+            guard let self, case .failure(let error) = result else { return }
+            self.inform(self.l.text("updateFailed"), String(describing: error) + "\n" + release.pageURL.absoluteString)
+        }
+    }
+
+    @objc private func toggleUpdateChecks() {
+        settings.updateChecksEnabled.toggle(); saveSettings()
+        if settings.updateChecksEnabled { checkForUpdates(manual: false) }
+    }
+
+    @objc private func toggleAutoShare() {
+        if settings.autoShareEnabled { settings.autoShareEnabled = false; saveSettings(); return }
+        guard ShareSubmitter.ghPath(home: FileManager.default.homeDirectoryForCurrentUser) != nil else {
+            inform(l.text("autoShare"), l.text("autoShareExplain") + "\n\n" + l.text("ghMissing")); return
+        }
+        let alert = NSAlert()
+        alert.messageText = l.text("autoShare")
+        alert.informativeText = l.text("autoShareExplain")
+        alert.addButton(withTitle: l.text("autoShareOn")); alert.addButton(withTitle: l.text("cancel"))
+        NSApp.activate(ignoringOtherApps: true)
+        guard alert.runModal() == .alertFirstButtonReturn else { return }
+        settings.autoShareEnabled = true; saveSettings(); autoShareIfDue()
+    }
+
+    /// Once a day, when the user turned it on: the same anonymous numbers `quotapilot share` previews,
+    /// filed as a GitHub issue with the user's own GitHub CLI login.
+    private func autoShareIfDue() {
+        let now = Date().timeIntervalSince1970
+        guard settings.autoShareEnabled, now - defaults.double(forKey: "lastAutoShare") >= 86400 - 600,
+              let gh = ShareSubmitter.ghPath(home: FileManager.default.homeDirectoryForCurrentUser) else { return }
+        let ledger = agentLedger, tracker = modelTracker
+        let uses = ContributionReport.windowUses(items: items, tokensSince: { provider, start in
+            ledger.summary(since: start, now: now)[provider] ?? TokenBreakdown()
+        }, model: { tracker.current[$0]?.model })
+        let reports = ContributionReport.build(speed: recentSpeed, windows: uses, now: now)
+        guard !reports.isEmpty else { return }
+        let text = ContributionReport.issueText(reports: reports, version: updater.currentVersion)
+        defaults.set(now, forKey: "lastAutoShare")  // one attempt a day, even if it fails
+        DispatchQueue.global(qos: .utility).async { [weak self] in
+            let result = ShareSubmitter.submit(title: text.title, body: text.body, gh: gh)
+            DispatchQueue.main.async {
+                switch result {
+                case .success(let link): self?.defaults.set(link, forKey: "lastAutoShareURL"); self?.defaults.removeObject(forKey: "lastAutoShareError")
+                case .failure(let error): self?.defaults.set(error.localizedDescription, forKey: "lastAutoShareError")
+                }
+            }
+        }
+    }
     @objc private func willSleep() { sleeping = true; tick?.invalidate(); client.suspend(); errorMessage = "asleep"; writeStatus() }
     @objc private func didWake() { sleeping = false; client.resume(); startUITimer(); reloadBridges(); render() }
     @objc private func screensChanged() {

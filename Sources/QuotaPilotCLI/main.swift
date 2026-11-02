@@ -282,17 +282,9 @@ func shareReports(hours: Double) -> (reports: [[String: Any]], errors: [String: 
     if let error = codex.error { errors["codex"] = error }
     let claude: (windows: [WindowItem], error: String?) = AgentDetectionCLI.claudeInstalled ? fetchClaudeWindows() : ([], nil)
     if let error = claude.error { errors["claude"] = error }
-    // Only the plan-wide buckets: per-model buckets would double count.
-    let shared: [(provider: String, item: WindowItem)] = (codex.windows + claude.windows).compactMap { item in
-        let bucket = item.id.split(separator: ":").dropLast().joined(separator: ":")
-        switch bucket {
-        case "codex": return ("codex", item)
-        case "claude:five_hour", "claude:seven_day": return ("claude", item)
-        default: return nil
-        }
-    }
-    let starts = shared.compactMap { pair -> Double? in
-        guard let reset = pair.item.window.resetsAt, let mins = pair.item.window.windowDurationMins else { return nil }
+    let windows = (codex.windows + claude.windows).filter { ContributionReport.sharedProvider(windowID: $0.id) != nil }
+    let starts = windows.compactMap { item -> Double? in
+        guard let reset = item.window.resetsAt, let mins = item.window.windowDurationMins else { return nil }
         return reset - Double(mins) * 60
     }
     let earliest = min(now - hours * 3600, starts.min() ?? now)
@@ -300,13 +292,9 @@ func shareReports(hours: Double) -> (reports: [[String: Any]], errors: [String: 
     let events = scanner.scan(windowStart: max(earliest, now - 8 * 86400), now: now)
     for model in scanner.lastModelEvents { modelTracker.observe(model) }
     let speed = scanner.lastSpeedSamples.filter { $0.timestamp >= now - hours * 3600 }
-    let uses = shared.compactMap { pair -> ContributionReport.WindowUse? in
-        guard let used = pair.item.window.validUsedPercent, let mins = pair.item.window.windowDurationMins, let reset = pair.item.window.resetsAt else { return nil }
-        let start = reset - Double(mins) * 60
-        let tokens = events.filter { $0.provider == pair.provider && $0.timestamp >= start }.reduce(into: TokenBreakdown()) { $0.add($1.usage) }
-        return ContributionReport.WindowUse(provider: pair.provider, plan: pair.item.planType, windowMinutes: mins, usedPercent: used,
-                                            limitReached: pair.item.limitReached, tokensSinceStart: tokens, model: modelTracker.current[pair.provider]?.model)
-    }
+    let uses = ContributionReport.windowUses(items: windows, tokensSince: { provider, start in
+        events.filter { $0.provider == provider && $0.timestamp >= start }.reduce(into: TokenBreakdown()) { $0.add($1.usage) }
+    }, model: { modelTracker.current[$0]?.model })
     return (ContributionReport.build(speed: speed, windows: uses, now: now), errors)
 }
 
@@ -356,9 +344,11 @@ USAGE
   quotapilot config [show]                   Show router mode and task rules
   quotapilot config mode <auto|preferCodex|preferClaude>
   quotapilot config rule <web|review|plan|implement> <auto|codex|claude>
-  quotapilot share [--hours N] [--json] [--yes]
+  quotapilot share [--hours N] [--json] [--submit] [--yes]
                                              Preview anonymous speed and quota numbers and, only if
-                                             you confirm, open a prefilled report for AI Quota Watch
+                                             you confirm, open a prefilled report for AI Quota Watch.
+                                             --submit files it with the GitHub CLI instead of a browser;
+                                             `share --submit --yes` in cron/launchd shares every day
   quotapilot version
 
 On macOS the router mode and rules come from the QuotaPilot app when it is installed;
@@ -438,17 +428,28 @@ case "share":
     for report in reports { print("  " + describeReport(report)) }
     print("\nExactly what would be sent:\n\(json)\n")
     print("No paths, project names, prompts or account ids are included. Times are rounded to the hour.")
-    print("Sharing opens a GitHub issue in your browser with this filled in; it is public under your GitHub name and is sent only when you press Submit there.")
+    let submit = arguments.contains("--submit")
+    print(submit ? "This files a public GitHub issue under your GitHub name with the GitHub CLI (gh)."
+                 : "Sharing opens a GitHub issue in your browser with this filled in; it is public under your GitHub name and is sent only when you press Submit there.")
     if !arguments.contains("--yes") {
         print("\nOpen the report? [y/N] ", terminator: "")
         guard let answer = readLine()?.trimmingCharacters(in: .whitespaces).lowercased(), answer == "y" || answer == "yes" else {
             print("Nothing was shared."); exit(0)
         }
     }
-    let body = "Shared with `quotapilot share` \(version).\n\n```json\n\(json)\n```"
+    let (issueTitle, body) = ContributionReport.issueText(reports: reports, version: version)
+    if submit {
+        guard let gh = ShareSubmitter.ghPath(home: FileManager.default.homeDirectoryForCurrentUser) else {
+            fail("--submit needs the GitHub CLI (gh), signed in with `gh auth login`.")
+        }
+        switch ShareSubmitter.submit(title: issueTitle, body: body, repo: shareRepo, gh: gh) {
+        case .success(let link): print("Shared: " + link); exit(0)
+        case .failure(let error): fail("Could not file the report: " + error.localizedDescription)
+        }
+    }
     var components = URLComponents(string: "https://github.com/\(shareRepo)/issues/new")!
     components.queryItems = [URLQueryItem(name: "template", value: "data-report.md"), URLQueryItem(name: "labels", value: "data-report"),
-                             URLQueryItem(name: "title", value: "QuotaPilot report: \(reports.count) data points"), URLQueryItem(name: "body", value: body)]
+                             URLQueryItem(name: "title", value: issueTitle), URLQueryItem(name: "body", value: body)]
     let url = components.url!.absoluteString
     if url.utf8.count > 7_500 {
         print("The report is too long for a link. Open https://github.com/\(shareRepo)/issues/new?template=data-report.md and paste the JSON above into the body.")

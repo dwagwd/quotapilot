@@ -8,6 +8,14 @@ The widget does not read conversation contents, session logs, prompts, or authen
 
 Nothing is shared unless you run `quotapilot share` and confirm. The command prints every number it would send and asks before doing anything; `quotapilot share --json` only prints them. If you confirm, it opens a prefilled GitHub issue for AI Quota Watch (the `site/` folder of this repository) in your browser, and the report is sent only when you press Submit on GitHub, where it is public under your GitHub name. Reports can cover Codex, Claude Code, Gemini CLI and Grok CLI. A report contains model ids, reasoning effort labels, plan names, output and reasoning tokens and call time per model and effort, quota percentage and tokens used per 5-hour or weekly window, and whether a limit was reached, with the time rounded to the hour. It contains no prompts, file paths, project names, account ids or credentials. Set `QUOTAPILOT_SHARE_REPO` to send to a different repository.
 
+## Update checks
+
+With **Check for updates automatically** on (the default), the app asks `api.github.com` for the latest QuotaPilot release once a day. The request carries no account data. Updates are downloaded and installed only after you choose **Install update…**, and only if the digest, code signature, signing team and notarization check out.
+
+## Daily sharing (opt-in)
+
+**Share anonymous stats daily** is off until you turn it on. When on, once a day the app files the same report `quotapilot share` shows, as a public GitHub issue on dwagwd/quotapilot, through your own GitHub CLI (`gh`) login. Turn it off from the menu bar at any time.
+
 ## Stored locally
 
 In `~/Library/Application Support/QuotaPilot/`:

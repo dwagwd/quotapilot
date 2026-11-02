@@ -344,3 +344,7 @@ i.banked, .lg.banked { background: var(--banked); }
 .cta-row { margin: 28px 0; }
 .footer-links { margin-top: 8px; display: flex; flex-wrap: wrap; gap: 4px 6px; }
 a.lang-toggle { text-decoration: none; }
+
+.support { margin: -4px 0 12px; font-size: 12px; font-weight: 600; display: inline-block; padding: 2px 8px; border-radius: 999px; }
+.support.full { background: var(--official-bg); color: var(--official-fg); }
+.support.tokens, .support.limits { background: var(--surface-2); color: var(--muted); }

@@ -3,7 +3,7 @@
 The website half of QuotaPilot. Lives in `site/` of the QuotaPilot repo; `quotapilot share` sends data to it.
 
 Static site that tracks usage limits, plan changes, API prices, intelligence scores and output speed
-for ChatGPT, Claude, Gemini, Grok, Cursor and Antigravity. English first, Traditional Chinese via the language toggle
+for ChatGPT, Claude, Google AI (Gemini, Antigravity), SuperGrok and Cursor: 5 subscriptions from 4 model makers. English first, Traditional Chinese via the language toggle
 (or `?lang=zh`). Every number carries its source URL and the date it was checked.
 
 ## Run locally

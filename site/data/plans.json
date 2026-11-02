@@ -73,7 +73,8 @@
           "source": "https://overchat.ai/ai-hub/chatgpt-price-plans",
           "checked": "2026-11-02"
         }
-      ]
+      ],
+      "support": "full"
     },
     {
       "id": "claude",
@@ -134,7 +135,8 @@
           "source": "https://claude.com/pricing",
           "checked": "2026-11-02"
         }
-      ]
+      ],
+      "support": "full"
     },
     {
       "id": "gemini",
@@ -207,7 +209,8 @@
           "source": "https://support.google.com/gemini/answer/16275805?hl=en",
           "checked": "2026-11-02"
         }
-      ]
+      ],
+      "support": "tokens"
     },
     {
       "id": "grok",
@@ -268,7 +271,8 @@
           "source": "https://www.tooljunction.io/blog/grok-pricing-usage-limits-2026",
           "checked": "2026-11-02"
         }
-      ]
+      ],
+      "support": "tokens"
     },
     {
       "id": "cursor",
@@ -341,12 +345,13 @@
           "source": "https://cursor.com/pricing",
           "checked": "2026-11-02"
         }
-      ]
+      ],
+      "support": "limits"
     },
     {
       "id": "antigravity",
       "name": "Antigravity",
-      "vendor": "Google",
+      "vendor": "Google (in Google AI plans)",
       "color": "#d4a017",
       "window": {
         "en": "Paid: refreshes every 5 hours until the weekly limit. Free: refreshes weekly",
@@ -402,7 +407,8 @@
           "source": "https://www.codeagentswarm.com/en/guides/antigravity-plans-and-pricing",
           "checked": "2026-11-02"
         }
-      ]
+      ],
+      "support": "limits"
     }
   ]
 }

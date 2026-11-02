@@ -83,6 +83,7 @@
             <span class="vendor">${esc(p.vendor)}</span>
           </header>
           <p class="window"><strong>${t("plan.window")}:</strong> ${esc(loc(p.window))}</p>
+          ${p.support ? `<p class="support ${p.support}">${t("sup." + p.support)}</p>` : ""}
           <ul class="plans">${rows}</ul>
         </article>`;
     }).join("");

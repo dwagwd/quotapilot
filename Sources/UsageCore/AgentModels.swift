@@ -49,6 +49,15 @@ extension AgentLogParser {
     }
 
     /// Claude Code lines: the model that actually produced each assistant message.
+    public static func geminiModelEvent(_ line: String) -> AgentModelEvent? {
+        guard line.contains("\"gemini\""), line.contains("\"model\""),
+              let object = object(line), object["type"] as? String == "gemini",
+              let model = object["model"] as? String, !model.isEmpty,
+              let time = timestamp(object["timestamp"]) else { return nil }
+        return AgentModelEvent(provider: "gemini", timestamp: time, kind: .served, model: model,
+                               fromModel: nil, effort: nil, reason: nil)
+    }
+
     public static func claudeModelEvent(_ line: String) -> AgentModelEvent? {
         guard line.contains("\"assistant\""), line.contains("\"model\""),
               let object = object(line), object["type"] as? String == "assistant",

@@ -33,10 +33,10 @@ public enum ContributionReport {
     }
 
     public static func siteProvider(_ provider: String) -> String? {
-        ["codex": "chatgpt", "claude": "claude"][provider]
+        ["codex": "chatgpt", "claude": "claude", "gemini": "gemini", "grok": "grok", "antigravity": "antigravity", "cursor": "cursor"][provider]
     }
 
-    static func hourISO(_ time: Double) -> String {
+    public static func hourISO(_ time: Double) -> String {
         let rounded = (time / 3600).rounded(.down) * 3600
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withInternetDateTime]
@@ -44,12 +44,16 @@ public enum ContributionReport {
     }
 
     /// Plan names as people know them: `pro` → `Pro`, `max_5x` → `Max 5x`.
-    static func planName(_ raw: String?) -> String? {
+    public static func planName(_ raw: String?) -> String? {
         guard let raw, !raw.isEmpty else { return nil }
         return raw.replacingOccurrences(of: "_", with: " ").split(separator: " ").map { $0.prefix(1).uppercased() + $0.dropFirst() }.joined(separator: " ")
     }
 
     public static let minimumCallsPerModel = 3
+
+    static func clientName(_ provider: String) -> String {
+        ["codex": "Codex", "claude": "Claude Code", "gemini": "Gemini CLI", "grok": "Grok CLI"][provider] ?? "Claude Code"
+    }
 
     /// Effort labels shared by Codex and Claude Code; anything else is dropped rather than sent.
     static func effortName(_ raw: String?) -> String? {
@@ -72,7 +76,7 @@ public enum ContributionReport {
             let samples = pairs.map(\.1)
             guard samples.count >= minimumCallsPerModel, let summary = OutputSpeedSummary(samples), summary.seconds > 0 else { continue }
             let parts = key.split(separator: "|", omittingEmptySubsequences: false)
-            var report: [String: Any] = ["type": "speed", "model": String(parts[0]), "client": samples[0].provider == "codex" ? "Codex" : "Claude Code",
+            var report: [String: Any] = ["type": "speed", "model": String(parts[0]), "client": clientName(samples[0].provider),
                                          "outputTokens": summary.outputTokens.rounded(), "seconds": max(1, summary.seconds.rounded()),
                                          "reasoningTokens": samples.reduce(0) { $0 + $1.reasoningTokens }.rounded(),
                                          "calls": summary.calls, "date": date, "via": "quotapilot"]

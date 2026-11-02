@@ -35,7 +35,12 @@ public struct CallTimer {
     private static func number(_ value: Any?) -> Double { (value as? NSNumber)?.doubleValue ?? 0 }
 
     public mutating func feed(_ line: String) -> [OutputSpeedSample] {
-        provider == "codex" ? feedCodex(line) : feedClaude(line)
+        switch provider {
+        case "codex": return feedCodex(line)
+        case "gemini": return feedGemini(line)
+        case "grok": return []  // the Grok log has no request start time
+        default: return feedClaude(line)
+        }
     }
 
     /// Codex: a request starts at a tool output, a user message or a new turn; `token_usage_record`
@@ -59,6 +64,24 @@ public struct CallTimer {
                                   reasoningTokens: min(output, Self.number(usage["reasoning_output_tokens"])),
                                   seconds: seconds, key: "codex|" + ((payload["response_id"] as? String) ?? "\(time)"),
                                   model: (payload["model"] as? String) ?? codexModel, effort: codexEffort)]
+    }
+
+    /// Gemini CLI: a `user` message (prompt or tool result) starts a request; the `gemini` message with
+    /// `tokens` ends it. Re-written messages keep their id and are counted once.
+    private var geminiSeen = Set<String>()
+    private mutating func feedGemini(_ line: String) -> [OutputSpeedSample] {
+        let isUser = line.contains("\"type\":\"user\""), isModel = line.contains("\"type\":\"gemini\"")
+        guard isUser || isModel, let object = Self.json(line), let time = AgentLogParser.timestamp(object["timestamp"]) else { return [] }
+        if object["type"] as? String == "user" { start = time; return [] }
+        guard object["type"] as? String == "gemini", let tokens = object["tokens"] as? [String: Any], let begin = start else { return [] }
+        let id = (object["id"] as? String) ?? "\(time)"
+        guard geminiSeen.insert(id).inserted else { return [] }
+        start = nil
+        let thoughts = Self.number(tokens["thoughts"]), output = Self.number(tokens["output"]) + thoughts
+        let seconds = time - begin
+        guard Self.plausibleSeconds.contains(seconds), output > 0 else { return [] }
+        return [OutputSpeedSample(provider: "gemini", timestamp: time, outputTokens: output, reasoningTokens: thoughts,
+                                  seconds: seconds, key: "gemini|" + id, model: object["model"] as? String, effort: nil)]
     }
 
     /// Claude Code: a `user` line (prompt or tool result) starts a request; the assistant message is written

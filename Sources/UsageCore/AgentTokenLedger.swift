@@ -83,6 +83,38 @@ public enum AgentLogParser {
 }
 
 extension AgentLogParser {
+    /// Gemini CLI chat recordings (`~/.gemini/tmp/<project>/chats/*.jsonl`): `gemini` messages carry
+    /// `tokens` {input (includes cached), cached, output, thoughts, tool}. Messages can be written more
+    /// than once with the same id, so the id identifies one call.
+    public static func geminiEvent(_ line: String) -> AgentTokenEvent? {
+        guard line.contains("\"tokens\""),
+              let object = try? JSONSerialization.jsonObject(with: Data(line.utf8)) as? [String: Any],
+              object["type"] as? String == "gemini", let tokens = object["tokens"] as? [String: Any],
+              let time = timestamp(object["timestamp"]) else { return nil }
+        let cached = number(tokens["cached"]), thoughts = number(tokens["thoughts"])
+        let usage = TokenBreakdown(input: max(0, number(tokens["input"]) - cached) + number(tokens["tool"]), cacheRead: cached,
+                                   cacheWrite: 0, output: number(tokens["output"]) + thoughts, reasoning: thoughts)
+        guard !usage.isEmpty else { return nil }
+        return AgentTokenEvent(provider: "gemini", timestamp: time, usage: usage,
+                               dedupeKey: "gemini|\(object["id"] as? String ?? "\(time)")")
+    }
+
+    /// Grok CLI unified log (`~/.grok/logs/unified.jsonl`): `shell.turn.inference_done` lines with
+    /// `ctx` {prompt_tokens (includes cached), cached_prompt_tokens, completion_tokens, reasoning_tokens}.
+    public static func grokEvent(_ line: String) -> AgentTokenEvent? {
+        guard line.contains("inference_done"),
+              let object = try? JSONSerialization.jsonObject(with: Data(line.utf8)) as? [String: Any],
+              object["msg"] as? String == "shell.turn.inference_done", let ctx = object["ctx"] as? [String: Any],
+              let time = timestamp(object["ts"]) else { return nil }
+        let cached = number(ctx["cached_prompt_tokens"]), output = number(ctx["completion_tokens"])
+        let usage = TokenBreakdown(input: max(0, number(ctx["prompt_tokens"]) - cached), cacheRead: cached, cacheWrite: 0,
+                                   output: output, reasoning: min(output, number(ctx["reasoning_tokens"])))
+        guard !usage.isEmpty else { return nil }
+        let loop = (ctx["loop_index"] as? NSNumber)?.intValue ?? -1
+        return AgentTokenEvent(provider: "grok", timestamp: time, usage: usage,
+                               dedupeKey: "grok|\(object["sid"] as? String ?? "")|\(loop)|\(object["ts"] as? String ?? "")")
+    }
+
     /// Claude Code can be pointed at other Anthropic-compatible APIs (DeepSeek, Kimi, GLM, Qwen…).
     /// Attribute usage by the model family that actually answered.
     public static func providerForModel(_ model: String?) -> String {
@@ -161,7 +193,10 @@ public final class AgentLogScanner {
         [Source(provider: "codex", root: home.appendingPathComponent(".codex/sessions", isDirectory: true), parse: AgentLogParser.codexEvent,
                 parseModel: AgentLogParser.codexModelEvent),
          Source(provider: "claude", root: home.appendingPathComponent(".claude/projects", isDirectory: true), parse: AgentLogParser.claudeEvent,
-                parseModel: AgentLogParser.claudeModelEvent)]
+                parseModel: AgentLogParser.claudeModelEvent),
+         Source(provider: "gemini", root: home.appendingPathComponent(".gemini/tmp", isDirectory: true), parse: AgentLogParser.geminiEvent,
+                parseModel: AgentLogParser.geminiModelEvent),
+         Source(provider: "grok", root: home.appendingPathComponent(".grok/logs", isDirectory: true), parse: AgentLogParser.grokEvent)]
     }
 
     private var knownFiles: [String: Int] = [:]  // path -> source index

@@ -137,7 +137,8 @@ func tokenSummary(hours: Double) -> [String: TokenBreakdown] {
 
 let l = L10n(.english)
 func providerName(_ id: String) -> String {
-    ["codex": "Codex", "claude": "Claude", "deepseek": "DeepSeek", "kimi": "Kimi", "glm": "GLM", "qwen": "Qwen"][id] ?? id
+    ["codex": "Codex", "claude": "Claude", "gemini": "Gemini", "grok": "Grok", "antigravity": "Antigravity", "cursor": "Cursor",
+     "deepseek": "DeepSeek", "kimi": "Kimi", "glm": "GLM", "qwen": "Qwen"][id] ?? id
 }
 func shortWindow(_ minutes: Int?) -> String {
     guard let m = minutes, m > 0 else { return "?" }
@@ -306,7 +307,30 @@ func shareReports(hours: Double) -> (reports: [[String: Any]], errors: [String: 
         return ContributionReport.WindowUse(provider: pair.provider, plan: pair.item.planType, windowMinutes: mins, usedPercent: used,
                                             limitReached: pair.item.limitReached, tokensSinceStart: tokens, model: modelTracker.current[pair.provider]?.model)
     }
-    return (ContributionReport.build(speed: speed, windows: uses, now: now), errors)
+    var reports = ContributionReport.build(speed: speed, windows: uses, now: now)
+    // Antigravity and Cursor quotas come from the app's bridge snapshots (macOS). They carry no token
+    // counts, so only "limit reached" is shared for them.
+    for provider in ["antigravity", "cursor"] {
+        guard let snapshot = bridgeSnapshot(provider, now: now), snapshot.limits.windows().contains(where: { $0.limitReached || ($0.window.validUsedPercent ?? 0) >= 100 }),
+              let site = ContributionReport.siteProvider(provider) else { continue }
+        reports.append(["type": "event", "provider": site, "plan": ContributionReport.planName(snapshot.limits.windows().first?.planType) ?? "",
+                        "kind": "hit_limit", "date": ContributionReport.hourISO(now), "via": "quotapilot"])
+    }
+    return (reports, errors)
+}
+
+/// The macOS app's sanitized snapshot for a bridged provider, when fresh (under 10 minutes old).
+func bridgeSnapshot(_ provider: String, now: Double) -> ProviderSnapshot? {
+    #if os(macOS)
+    let url = FileManager.default.homeDirectoryForCurrentUser
+        .appendingPathComponent("Library/Application Support/QuotaPilot/providers/\(provider).json")
+    guard let data = try? Data(contentsOf: url), data.count <= 256 * 1024,
+          let snapshot = try? JSONDecoder().decode(ProviderSnapshot.self, from: data),
+          snapshot.isValid(now: now, expectedProvider: provider), now - snapshot.updatedAt < 600 else { return nil }
+    return snapshot
+    #else
+    return nil
+    #endif
 }
 
 func describeReport(_ r: [String: Any]) -> String {

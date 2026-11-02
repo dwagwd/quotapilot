@@ -868,7 +868,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
 
     private func providerName(_ id: String) -> String {
         ["codex": "Codex", "claude": "Claude", "deepseek": "DeepSeek", "kimi": "Kimi", "glm": "GLM", "qwen": "Qwen",
-         "minimax": "MiniMax", "gemini": "Gemini", "gpt": "GPT"][id] ?? id
+         "minimax": "MiniMax", "gemini": "Gemini", "grok": "Grok", "gpt": "GPT"][id] ?? id
     }
 
     private func breakdownText(_ b: TokenBreakdown) -> String {

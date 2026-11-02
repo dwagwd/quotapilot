@@ -1,6 +1,6 @@
 # Connecting other coding agents
 
-**Fastest path:** open the menu bar icon → **Connect agents…**. It shows what is detected and connects Claude Code or Antigravity quota with one click (the bridge scripts ship inside the app), or stores a DeepSeek API key for the balance. Token usage for Codex and Claude Code needs no setup: it is read from local session logs (see the All agents row). When Claude Code is pointed at DeepSeek, Kimi, GLM or Qwen through an Anthropic-compatible endpoint, its tokens are attributed to that model family.
+**Fastest path:** open the menu bar icon → **Connect agents…**. It shows what is detected and connects Claude Code or Antigravity quota with one click (the bridge scripts ship inside the app), or stores a DeepSeek API key for the balance. Token usage for Codex, Claude Code, Gemini CLI and Grok CLI needs no setup: it is read from local session logs (see the All agents row). When Claude Code is pointed at DeepSeek, Kimi, GLM or Qwen through an Anthropic-compatible endpoint, its tokens are attributed to that model family.
 
 All integrations are optional. Enable **Import other agents** in the gear menu after setup. A provider appears when its first valid snapshot arrives. Select it from the card title or add it to the multiple-quota list. No quotas are combined across providers.
 
@@ -9,6 +9,8 @@ All integrations are optional. Enable **Import other agents** in the gear menu a
 | Codex | Managed local app-server | Actual plan quota; account-reported token counter | Existing Codex ChatGPT login |
 | Claude Code | Official status-line JSON bridge | Five-hour and seven-day quota | A Claude Code version/account that emits `rate_limits`; active CLI session |
 | Antigravity CLI | Official status-line JSON bridge | Model/bucket quotas from `quota` | CLI status-line support; active CLI session. IDE-only installation is not enough |
+| Gemini CLI | Local chat recordings (`~/.gemini/tmp/*/chats/*.jsonl`) | Tokens (input, cache, output, thoughts) and output speed per model | Token usage only; Gemini app plan quota is not exposed to local tools |
+| Grok CLI | Local unified log (`~/.grok/logs/unified.jsonl`) | Tokens (prompt, cache, completion, reasoning) | Token usage only. The log has no model name or request start, so no per-model speed |
 | Cursor Teams | Official Team Admin API collector | On-demand spend as a percentage of the enforced per-user spending cap | Team Admin API key and exact member email. **Not personal plan quota or included usage** |
 
 Claude and Antigravity integrations are event-driven: when their CLI stops reporting, the card retains the last value, marks it stale after five minutes, and hides its rate. A sleeping or idle CLI may therefore show stale data. The widget checks changed snapshot files every 15 seconds. No prompts or model turns are created.

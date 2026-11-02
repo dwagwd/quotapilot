@@ -1,4 +1,7 @@
 import Foundation
+#if canImport(FoundationNetworking)
+import FoundationNetworking
+#endif
 
 /// Finds a newer QuotaPilot release on GitHub. Pure parsing and comparison; the app does the network call,
 /// the download and the signature checks.

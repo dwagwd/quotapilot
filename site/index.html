@@ -3,6 +3,9 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <!-- Ad networks need their hosts added here when they are connected. -->
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; font-src 'self'; object-src 'none'; base-uri 'self'; form-action 'none'">
+  <meta name="referrer" content="strict-origin-when-cross-origin">
   <title>AI Quota Watch</title>
   <meta name="description" content="Track usage limits, plan changes, API prices, intelligence scores and speed for ChatGPT, Claude, Grok and Gemini. Every number cites its source and date.">
   <meta property="og:type" content="website">

@@ -79,7 +79,17 @@ export function dedupe(reports) {
 
 const groupBy = (arr, keyFn) => arr.reduce((m, x) => { const k = keyFn(x); (m[k] ||= []).push(x); return m; }, {});
 
-export function aggregate(raw, models, now = new Date()) {
+export const MAX_PER_REPORTER_PER_DAY = 60;
+
+export function aggregate(raw, models, now = new Date(), blocked = []) {
+  const blockedSet = new Set(blocked.map((b) => String(b).toLowerCase()));
+  const perDay = new Map();
+  raw = raw.filter((r) => {
+    if (!r || blockedSet.has(String(r.reporter || "").toLowerCase())) return false;
+    const key = (r.reporter || "anon") + "|" + String(r.date || "").slice(0, 10);
+    perDay.set(key, (perDay.get(key) || 0) + 1);
+    return r.reporter === undefined || r.reporter === "anon" || perDay.get(key) <= MAX_PER_REPORTER_PER_DAY;
+  });
   const since = new Date(now.getTime() - WINDOW_DAYS * 864e5);
   const all = dedupe(raw.map((r) => clean(r, models)).filter(Boolean));
   const recent = all.filter((r) => new Date(r.date) >= since && new Date(r.date) <= now);
@@ -144,7 +154,9 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
   const raw = existsSync(dir) ? readdirSync(dir).filter((f) => f.endsWith(".json")).flatMap((f) => {
     const v = JSON.parse(readFileSync(join(dir, f), "utf8")); return Array.isArray(v) ? v : [v];
   }) : [];
-  const result = aggregate(raw, models, now);
+  const blockFile = join(root, "data/blocklist.json");
+  const blocked = existsSync(blockFile) ? JSON.parse(readFileSync(blockFile, "utf8")).reporters || [] : [];
+  const result = aggregate(raw, models, now, blocked);
   // Keep the old timestamp when nothing else changed, so the scheduled run does not commit every 6 hours.
   if (existsSync(out)) {
     const previous = JSON.parse(readFileSync(out, "utf8"));

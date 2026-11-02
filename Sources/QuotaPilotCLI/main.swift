@@ -332,7 +332,8 @@ func openURL(_ url: String) -> Bool {
     #if os(macOS)
     process.executableURL = URL(fileURLWithPath: "/usr/bin/open"); process.arguments = [url]
     #elseif os(Windows)
-    process.executableURL = URL(fileURLWithPath: "C:\\Windows\\System32\\cmd.exe"); process.arguments = ["/c", "start", "", url]
+    // Not cmd.exe: it would treat the "&" between query parameters as a command separator.
+    process.executableURL = URL(fileURLWithPath: "C:\\Windows\\System32\\rundll32.exe"); process.arguments = ["url.dll,FileProtocolHandler", url]
     #else
     process.executableURL = URL(fileURLWithPath: "/usr/bin/env"); process.arguments = ["xdg-open", url]
     #endif

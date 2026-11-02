@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { aggregate, clean, trimOutliers, stats } from "../scripts/aggregate.mjs";
-import { parseIssue } from "../scripts/ingest-issue.mjs";
+import { parseIssue, sanitize } from "../scripts/ingest-issue.mjs";
 
 const models = JSON.parse(readFileSync(new URL("../data/models.json", import.meta.url))).models;
 const now = new Date("2026-11-02T12:00:00Z");
@@ -79,4 +79,23 @@ test("effort usage groups by model and effort", () => {
   assert.equal(out.effortUsage[0].perCall, 600);
   assert.equal(out.effortUsage[1].reasoningShare, 0.8);
   assert.equal(out.effortUsage[0].tps, 60);
+});
+
+test("issue reports are reduced to known plain fields", () => {
+  const evil = { type: "quota", plan: "<img src=x onerror=alert(1)>Max", window: "5h", percentUsed: 10, tokensUsed: 1e6, provider: "claude", extra: "x".repeat(1e5), __proto__: { polluted: true } };
+  const clean = sanitize(evil);
+  assert.equal(clean.plan, "img src=x onerror=alert(1)Max");
+  assert.equal(clean.extra, undefined);
+  assert.equal(sanitize("nope"), null);
+  assert.ok(parseIssue({ body: "x".repeat(20001) }).error);
+  const res = parseIssue({ body: "```json\n[{\"type\":\"rating\",\"model\":\"grok-4-7\",\"score\":7,\"secret\":\"/Users/me\"}]\n```", user: { login: "bad user; rm -rf" }, created_at: "2026-11-01T00:00:00Z" });
+  assert.equal(res.reports[0].reporter, "anon");
+  assert.equal(res.reports[0].secret, undefined);
+});
+
+test("blocked reporters and floods are ignored", () => {
+  const raw = Array.from({ length: 100 }, (_, i) => ({ type: "rating", model: "grok-4-7", score: 1, date: day(1), reporter: "flood" }));
+  raw.push(...[1, 2, 3].map((i) => ({ type: "rating", model: "grok-4-7", score: 9, date: day(1), reporter: "u" + i })));
+  const out = aggregate(raw, models, now, ["u1"]);
+  assert.equal(out.ratings[0].n, 3); // flood counts once per day, u1 is blocked
 });

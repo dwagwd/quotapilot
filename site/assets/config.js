@@ -1,5 +1,6 @@
 // Monetization config. Nothing is connected yet.
-// To turn on ads later: set ads.enabled = true and add the network's script in index.html.
+// To turn on ads later: set ads.enabled = true, add the network's script in index.html,
+// and add its hosts to the Content-Security-Policy meta tag there (scripts are limited to this site).
 // To use affiliate links: put the tracking URL in affiliates.<provider>; empty = official pricing page.
 window.SITE_CONFIG = {
   ads: {

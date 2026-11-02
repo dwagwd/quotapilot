@@ -6,7 +6,7 @@ The widget does not read conversation contents, session logs, prompts, or authen
 
 ## Sharing (opt-in, CLI only)
 
-Nothing is shared unless you run `quotapilot share` and confirm. The command prints every number it would send and asks before doing anything; `quotapilot share --json` only prints them. If you confirm, it opens a prefilled GitHub issue for [AI Quota Watch](https://github.com/dwagwd/ai-quota-watch) in your browser, and the report is sent only when you press Submit on GitHub, where it is public under your GitHub name. A report contains model ids, plan names, output tokens and call time per model, quota percentage and tokens used per 5-hour or weekly window, and whether a limit was reached, with the time rounded to the hour. It contains no prompts, file paths, project names, account ids or credentials. Set `QUOTAPILOT_SHARE_REPO` to send to a different repository.
+Nothing is shared unless you run `quotapilot share` and confirm. The command prints every number it would send and asks before doing anything; `quotapilot share --json` only prints them. If you confirm, it opens a prefilled GitHub issue for [AI Quota Watch](https://github.com/dwagwd/ai-quota-watch) in your browser, and the report is sent only when you press Submit on GitHub, where it is public under your GitHub name. A report contains model ids, reasoning effort labels, plan names, output and reasoning tokens and call time per model and effort, quota percentage and tokens used per 5-hour or weekly window, and whether a limit was reached, with the time rounded to the hour. It contains no prompts, file paths, project names, account ids or credentials. Set `QUOTAPILOT_SHARE_REPO` to send to a different repository.
 
 ## Stored locally
 

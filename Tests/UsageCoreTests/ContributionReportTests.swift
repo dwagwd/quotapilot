@@ -24,6 +24,17 @@ final class ContributionReportTests: XCTestCase {
         XCTAssertFalse(text.contains("msg_"))
     }
 
+    func testSpeedSplitsByEffortAndKeepsReasoning() {
+        func sample(_ i: Int, _ effort: String?) -> OutputSpeedSample {
+            OutputSpeedSample(provider: "codex", timestamp: Double(i), outputTokens: 1000, reasoningTokens: 600, seconds: 20, key: "\(i)", model: "gpt-6.1-sol", effort: effort)
+        }
+        let samples = (0..<3).map { sample($0, "high") } + (3..<6).map { sample($0, "xhigh") } + (6..<9).map { sample($0, "Some private label") }
+        let reports = ContributionReport.build(speed: samples, windows: [], now: 0)
+        XCTAssertEqual(reports.compactMap { $0["effort"] as? String }.sorted(), ["high", "xhigh"])
+        XCTAssertEqual(reports.count, 3) // the unknown label is reported without an effort
+        XCTAssertEqual(reports.first { $0["effort"] as? String == "high" }?["reasoningTokens"] as? Double, 1800)
+    }
+
     func testQuotaReportSkipsCacheReadsAndUnknownWindows() {
         let use = ContributionReport.WindowUse(provider: "codex", plan: "pro", windowMinutes: 300, usedPercent: 12.34, limitReached: false,
                                                tokensSinceStart: TokenBreakdown(input: 100_000, cacheRead: 9_000_000, cacheWrite: 0, output: 20_000), model: "gpt-6.1-sol")

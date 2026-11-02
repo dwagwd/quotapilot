@@ -51,18 +51,33 @@ public enum ContributionReport {
 
     public static let minimumCallsPerModel = 3
 
+    /// Effort labels shared by Codex and Claude Code; anything else is dropped rather than sent.
+    static func effortName(_ raw: String?) -> String? {
+        guard let raw = raw?.lowercased() else { return nil }
+        let known = ["minimal", "low", "medium", "high", "xhigh", "max", "ultra"]
+        return known.contains(raw) ? raw : nil
+    }
+
     public static func build(speed: [OutputSpeedSample], windows: [WindowUse], now: Double) -> [[String: Any]] {
         var reports: [[String: Any]] = []
         let date = hourISO(now)
 
-        // Speed: one report per model, total output tokens over total call time.
-        let byModel = Dictionary(grouping: speed.compactMap { s in siteModelID(s.model).map { ($0, s) } }, by: \.0)
-        for (model, pairs) in byModel.sorted(by: { $0.key < $1.key }) {
+        // Speed and real usage: one report per model and reasoning effort, with total output tokens,
+        // the reasoning part of them, and total call time.
+        let keyed = speed.compactMap { s -> (String, OutputSpeedSample)? in
+            guard let model = siteModelID(s.model) else { return nil }
+            return (model + "|" + (effortName(s.effort) ?? ""), s)
+        }
+        for (key, pairs) in Dictionary(grouping: keyed, by: \.0).sorted(by: { $0.key < $1.key }) {
             let samples = pairs.map(\.1)
             guard samples.count >= minimumCallsPerModel, let summary = OutputSpeedSummary(samples), summary.seconds > 0 else { continue }
-            reports.append(["type": "speed", "model": model, "client": samples[0].provider == "codex" ? "Codex" : "Claude Code",
-                            "outputTokens": summary.outputTokens.rounded(), "seconds": max(1, summary.seconds.rounded()),
-                            "calls": summary.calls, "date": date, "via": "quotapilot"])
+            let parts = key.split(separator: "|", omittingEmptySubsequences: false)
+            var report: [String: Any] = ["type": "speed", "model": String(parts[0]), "client": samples[0].provider == "codex" ? "Codex" : "Claude Code",
+                                         "outputTokens": summary.outputTokens.rounded(), "seconds": max(1, summary.seconds.rounded()),
+                                         "reasoningTokens": samples.reduce(0) { $0 + $1.reasoningTokens }.rounded(),
+                                         "calls": summary.calls, "date": date, "via": "quotapilot"]
+            if parts.count > 1, !parts[1].isEmpty { report["effort"] = String(parts[1]) }
+            reports.append(report)
         }
 
         // Quota: tokens since the window opened ÷ share of the limit used. Cache reads are left out:

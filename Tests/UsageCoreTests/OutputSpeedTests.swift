@@ -35,6 +35,25 @@ final class OutputSpeedTests: XCTestCase {
         XCTAssertEqual(samples.first?.tokensPerSecond ?? 0, 50, accuracy: 0.01)
     }
 
+    func testModelAndEffortAreRecorded() {
+        var codex = CallTimer(provider: "codex")
+        let codexLines = [
+            #"{"timestamp":"2026-10-19T07:26:00.000Z","type":"turn_context","payload":{"model":"gpt-6.1-sol","effort":"xhigh"}}"#,
+            #"{"timestamp":"2026-10-19T07:26:10.000Z","type":"token_usage_record","payload":{"response_id":"r","usage":{"output_tokens":500,"reasoning_output_tokens":300}}}"#
+        ]
+        let c = codexLines.flatMap { codex.feed($0) }
+        XCTAssertEqual(c.first?.model, "gpt-6.1-sol")
+        XCTAssertEqual(c.first?.effort, "xhigh")
+
+        var claude = CallTimer(provider: "claude")
+        _ = claude.feed(#"{"type":"user","timestamp":"2026-10-19T08:05:00.000Z","message":{"role":"user"}}"#)
+        _ = claude.feed(#"{"type":"assistant","timestamp":"2026-10-19T08:05:04.000Z","effort":"high","message":{"id":"m1","model":"claude-opus-5-5","usage":{"output_tokens":400,"output_tokens_details":{"thinking_tokens":150}}}}"#)
+        let s = claude.flush()
+        XCTAssertEqual(s.first?.effort, "high")
+        XCTAssertEqual(s.first?.reasoningTokens, 150)
+        XCTAssertEqual(s.first?.model, "claude-opus-5-5")
+    }
+
     func testSummaryUsesTotalsAndMedian() throws {
         let samples = [10.0, 20, 60].enumerated().map { i, speed in
             OutputSpeedSample(provider: "codex", timestamp: Double(i), outputTokens: speed * 10, reasoningTokens: 0, seconds: 10, key: "\(i)")

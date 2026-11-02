@@ -12,6 +12,8 @@ public struct OutputSpeedSample: Equatable {
     public let key: String
     /// Model that produced the response, when the log names it.
     public var model: String? = nil
+    /// Reasoning effort the call ran at (`low` … `max`), when the log names it.
+    public var effort: String? = nil
     public var tokensPerSecond: Double { seconds > 0 ? outputTokens / seconds : 0 }
 }
 
@@ -20,7 +22,8 @@ public struct CallTimer {
     public let provider: String
     private var start: Double?
     private var codexModel: String?
-    private var pending: [String: (start: Double, end: Double, output: Double, order: Int, model: String?)] = [:]
+    private var codexEffort: String?
+    private var pending: [String: (start: Double, end: Double, output: Double, order: Int, model: String?, effort: String?, reasoning: Double)] = [:]
     private var order = 0
     public static let plausibleSeconds: ClosedRange<Double> = 0.5...900
 
@@ -43,6 +46,8 @@ public struct CallTimer {
               let object = Self.json(line), let time = AgentLogParser.timestamp(object["timestamp"]) else { return [] }
         if object["type"] as? String == "turn_context", let payload = object["payload"] as? [String: Any], let model = payload["model"] as? String {
             codexModel = model
+            let mode = (payload["collaboration_mode"] as? [String: Any])?["settings"] as? [String: Any]
+            codexEffort = (payload["effort"] as? String) ?? (mode?["reasoning_effort"] as? String)
         }
         guard isRecord, object["type"] as? String == "token_usage_record" else { start = time; return [] }
         defer { start = nil }
@@ -53,7 +58,7 @@ public struct CallTimer {
         return [OutputSpeedSample(provider: "codex", timestamp: time, outputTokens: output,
                                   reasoningTokens: min(output, Self.number(usage["reasoning_output_tokens"])),
                                   seconds: seconds, key: "codex|" + ((payload["response_id"] as? String) ?? "\(time)"),
-                                  model: (payload["model"] as? String) ?? codexModel)]
+                                  model: (payload["model"] as? String) ?? codexModel, effort: codexEffort)]
     }
 
     /// Claude Code: a `user` line (prompt or tool result) starts a request; the assistant message is written
@@ -69,11 +74,12 @@ public struct CallTimer {
         guard object["type"] as? String == "assistant", let message = object["message"] as? [String: Any],
               let id = message["id"] as? String, let usage = message["usage"] as? [String: Any] else { return [] }
         let output = Self.number(usage["output_tokens"])
+        let thinking = Self.number((usage["output_tokens_details"] as? [String: Any])?["thinking_tokens"])
         if var entry = pending[id] {
-            entry.end = max(entry.end, time); entry.output = max(entry.output, output); pending[id] = entry
+            entry.end = max(entry.end, time); entry.output = max(entry.output, output); entry.reasoning = max(entry.reasoning, thinking); pending[id] = entry
         } else if let begin = start {
             order += 1
-            pending[id] = (begin, time, output, order, message["model"] as? String)
+            pending[id] = (begin, time, output, order, message["model"] as? String, object["effort"] as? String, thinking)
         }
         return []
     }
@@ -84,7 +90,8 @@ public struct CallTimer {
             let seconds = entry.end - entry.start
             guard Self.plausibleSeconds.contains(seconds), entry.output > 0 else { return nil }
             return OutputSpeedSample(provider: AgentLogParser.providerForModel(entry.model), timestamp: entry.end, outputTokens: entry.output,
-                                     reasoningTokens: 0, seconds: seconds, key: "claude|" + id, model: entry.model)
+                                     reasoningTokens: min(entry.output, entry.reasoning), seconds: seconds, key: "claude|" + id,
+                                     model: entry.model, effort: entry.effort)
         }
         pending = [:]
         return done

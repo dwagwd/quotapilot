@@ -313,7 +313,10 @@ func describeReport(_ r: [String: Any]) -> String {
     func n(_ key: String) -> Double { (r[key] as? Double) ?? Double(r[key] as? Int ?? 0) }
     switch r["type"] as? String {
     case "speed":
-        return "speed   \(r["model"] ?? "?"): \(l.number(n("outputTokens") / max(n("seconds"), 0.1), decimals: 1)) tok/s over \(r["calls"] ?? 0) calls"
+        let calls = max(n("calls"), 1)
+        return "speed   \(r["model"] ?? "?")" + ((r["effort"] as? String).map { " (\($0))" } ?? "")
+            + ": \(l.number(n("outputTokens") / max(n("seconds"), 0.1), decimals: 1)) tok/s, \(l.compact(n("outputTokens") / calls)) output tokens/call"
+            + " (\(l.number(n("reasoningTokens") / max(n("outputTokens"), 1) * 100, decimals: 0))% reasoning), \(Int(calls)) calls"
     case "quota":
         return "quota   \(r["provider"] ?? "?") \(r["plan"] ?? "?") \(r["window"] ?? "?"): \(l.number(n("percentUsed"), decimals: 1))% used, \(l.compact(n("tokensUsed"))) tokens"
     case "event":
@@ -426,7 +429,7 @@ case "share":
     if wantsJSON { print(json); exit(0) }  // preview only, never sends
     for (agent, error) in errors.sorted(by: { $0.key < $1.key }) { print(providerName(agent) + ": " + error) }
     guard !reports.isEmpty else {
-        print("Nothing to share yet. Speed needs 3 calls per model in the last \(hoursLabel(hours)); quota needs at least 1% of a 5-hour or weekly window used.")
+        print("Nothing to share yet. Speed needs 3 calls per model and effort in the last \(hoursLabel(hours)); quota needs at least 1% of a 5-hour or weekly window used.")
         exit(0)
     }
     print("QuotaPilot can share these anonymous numbers with AI Quota Watch (\(shareRepo)):\n")

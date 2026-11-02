@@ -2277,9 +2277,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
 
     @objc private func toggleAutoShare() {
         if settings.autoShareEnabled { settings.autoShareEnabled = false; saveSettings(); return }
-        guard ShareSubmitter.ghPath(home: FileManager.default.homeDirectoryForCurrentUser) != nil else {
-            inform(l.text("autoShare"), l.text("autoShareExplain") + "\n\n" + l.text("ghMissing")); return
-        }
         let alert = NSAlert()
         alert.messageText = l.text("autoShare")
         alert.informativeText = l.text("autoShareExplain")
@@ -2290,24 +2287,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
     }
 
     /// Once a day, when the user turned it on: the same anonymous numbers `quotapilot share` previews,
-    /// filed as a GitHub issue with the user's own GitHub CLI login.
+    /// sent to the anonymous collector (no GitHub account involved).
     private func autoShareIfDue() {
         let now = Date().timeIntervalSince1970
-        guard settings.autoShareEnabled, now - defaults.double(forKey: "lastAutoShare") >= 86400 - 600,
-              let gh = ShareSubmitter.ghPath(home: FileManager.default.homeDirectoryForCurrentUser) else { return }
+        guard settings.autoShareEnabled, now - defaults.double(forKey: "lastAutoShare") >= 86400 - 600 else { return }
         let ledger = agentLedger, tracker = modelTracker
         let uses = ContributionReport.windowUses(items: items, tokensSince: { provider, start in
             ledger.summary(since: start, now: now)[provider] ?? TokenBreakdown()
         }, model: { tracker.current[$0]?.model })
         let reports = ContributionReport.build(speed: recentSpeed, windows: uses, now: now)
         guard !reports.isEmpty else { return }
-        let text = ContributionReport.issueText(reports: reports, version: updater.currentVersion)
         defaults.set(now, forKey: "lastAutoShare")  // one attempt a day, even if it fails
         DispatchQueue.global(qos: .utility).async { [weak self] in
-            let result = ShareSubmitter.submit(title: text.title, body: text.body, gh: gh)
+            let result = ShareSubmitter.postAnonymous(reports: reports)
             DispatchQueue.main.async {
                 switch result {
-                case .success(let link): self?.defaults.set(link, forKey: "lastAutoShareURL"); self?.defaults.removeObject(forKey: "lastAutoShareError")
+                case .success(let count): self?.defaults.set(count, forKey: "lastAutoShareCount"); self?.defaults.removeObject(forKey: "lastAutoShareError")
                 case .failure(let error): self?.defaults.set(error.localizedDescription, forKey: "lastAutoShareError")
                 }
             }

@@ -50,4 +50,15 @@ final class AppUpdateTests: XCTestCase {
         settings.autoShareEnabled = true
         XCTAssertTrue(settings.autoShareEnabled)
     }
+
+    func testInstallIDIsStableAndBodyCarriesNoAccount() throws {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("qp-install-\(UUID().uuidString)")
+        let a = ShareSubmitter.installID(directory: dir), b = ShareSubmitter.installID(directory: dir)
+        XCTAssertEqual(a, b)
+        XCTAssertGreaterThanOrEqual(a.count, 16)
+        let body = try XCTUnwrap(ShareSubmitter.anonymousBody(reports: [["type": "speed"]], install: a))
+        let object = try XCTUnwrap(JSONSerialization.jsonObject(with: body) as? [String: Any])
+        XCTAssertEqual(Set(object.keys), ["install", "reports"])
+        try? FileManager.default.removeItem(at: dir)
+    }
 }

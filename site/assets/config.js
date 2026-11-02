@@ -14,8 +14,9 @@ window.SITE_CONFIG = {
     grok: ""
   },
   community: {
-    // GitHub repo that receives reports as issues (the QuotaPilot repo hosts the site and its data).
-    // Set to "" to show the report JSON with a copy button instead.
+    // Anonymous collector (collector/ in the repo). Reports from the site form go here first.
+    collector: "https://quota-watch-collector.SUBDOMAIN.workers.dev",
+    // Fallback: GitHub repo that receives reports as issues when the collector cannot be reached.
     repo: "dwagwd/quotapilot"
   },
   officialPricing: {

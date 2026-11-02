@@ -27,6 +27,7 @@ jobs:
     env:
       GH_TOKEN: ${{ github.token }}
       REPO: ${{ github.repository }}
+      COLLECTOR_URL: https://quota-watch-collector.SUBDOMAIN.workers.dev
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
@@ -56,6 +57,15 @@ jobs:
               if node scripts/ingest-issue.mjs "$RUNNER_TEMP/event.json"; then echo "$n" >> "$RUNNER_TEMP/done"; fi
             done < "$RUNNER_TEMP/open.jsonl"
           fi
+      - name: Pull anonymous reports from the collector
+        env:
+          COLLECTOR_TOKEN: ${{ secrets.COLLECTOR_TOKEN }}
+        run: |
+          [ -n "$COLLECTOR_TOKEN" ] || { echo "No collector token yet"; exit 0; }
+          curl -fsS --max-time 60 -H "Authorization: Bearer $COLLECTOR_TOKEN" "$COLLECTOR_URL/v1/export" -o "$RUNNER_TEMP/collector.json" \
+            && jq -e 'type == "array"' "$RUNNER_TEMP/collector.json" >/dev/null \
+            && cp "$RUNNER_TEMP/collector.json" site/data/submissions/collector.json \
+            || echo "Collector export unavailable; continuing with stored data"
       - name: Aggregate
         working-directory: site
         run: |
@@ -63,7 +73,8 @@ jobs:
           node scripts/aggregate.mjs
       - name: Store data on the community-data branch
         run: |
-          cp site/data/submissions/*.json store/submissions/ 2>/dev/null || true
+          # The collector keeps its own copy, so only issue reports are stored here.
+          find site/data/submissions -name 'issue-*.json' -exec cp {} store/submissions/ \;
           cp site/data/community.json store/community.json
           cd store
           git init -q -b community-data

@@ -344,11 +344,11 @@ USAGE
   quotapilot config [show]                   Show router mode and task rules
   quotapilot config mode <auto|preferCodex|preferClaude>
   quotapilot config rule <web|review|plan|implement> <auto|codex|claude>
-  quotapilot share [--hours N] [--json] [--submit] [--yes]
+  quotapilot share [--hours N] [--json] [--yes] [--github | --submit]
                                              Preview anonymous speed and quota numbers and, only if
-                                             you confirm, open a prefilled report for AI Quota Watch.
-                                             --submit files it with the GitHub CLI instead of a browser;
-                                             `share --submit --yes` in cron/launchd shares every day
+                                             you confirm, send them anonymously to AI Quota Watch.
+                                             --github opens a prefilled GitHub issue instead; --submit
+                                             files it with the GitHub CLI. `share --yes` in cron shares daily
   quotapilot version
 
 On macOS the router mode and rules come from the QuotaPilot app when it is installed;
@@ -428,13 +428,20 @@ case "share":
     for report in reports { print("  " + describeReport(report)) }
     print("\nExactly what would be sent:\n\(json)\n")
     print("No paths, project names, prompts or account ids are included. Times are rounded to the hour.")
-    let submit = arguments.contains("--submit")
-    print(submit ? "This files a public GitHub issue under your GitHub name with the GitHub CLI (gh)."
-                 : "Sharing opens a GitHub issue in your browser with this filled in; it is public under your GitHub name and is sent only when you press Submit there.")
+    let viaGitHub = arguments.contains("--github"), submit = arguments.contains("--submit")
+    print(viaGitHub || submit
+          ? "This files a public GitHub issue under your GitHub name."
+          : "This sends the numbers anonymously to the AI Quota Watch collector: no GitHub account, and it keeps only a hashed id of this computer.")
     if !arguments.contains("--yes") {
-        print("\nOpen the report? [y/N] ", terminator: "")
+        print("\nShare these numbers? [y/N] ", terminator: "")
         guard let answer = readLine()?.trimmingCharacters(in: .whitespaces).lowercased(), answer == "y" || answer == "yes" else {
             print("Nothing was shared."); exit(0)
+        }
+    }
+    if !viaGitHub && !submit {
+        switch ShareSubmitter.postAnonymous(reports: reports) {
+        case .success(let n): print("Shared \(n) data points anonymously. Thank you."); exit(0)
+        case .failure(let error): fail("Could not share: " + error.localizedDescription + " (try --github to file it as a GitHub issue instead)")
         }
     }
     let (issueTitle, body) = ContributionReport.issueText(reports: reports, version: version)

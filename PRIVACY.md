@@ -4,6 +4,10 @@ The widget asks a local Codex App Server for account identity, quota windows, an
 
 The widget does not read conversation contents, session logs, prompts, or authentication files. It does not start model turns, redeem reset credits, send telemetry to a separate service, or upload local samples.
 
+## Anonymous sharing (opt-in)
+
+`quotapilot share` and **Share anonymous stats daily** send reports to the AI Quota Watch collector (`collector/`, a Cloudflare Worker). No GitHub account is used. The request carries a random id created on this computer (`install-id` in the data folder); the collector stores only a keyed hash of it, never the id itself or your IP address, and deletes reports after 35 days. `--github` or `--submit` file a public GitHub issue under your account instead.
+
 ## Sharing (opt-in, CLI only)
 
 Nothing is shared unless you run `quotapilot share` and confirm. The command prints every number it would send and asks before doing anything; `quotapilot share --json` only prints them. If you confirm, it opens a prefilled GitHub issue for AI Quota Watch (the `site/` folder of this repository) in your browser, and the report is sent only when you press Submit on GitHub, where it is public under your GitHub name. Reports can cover Codex, Claude Code, Gemini CLI and Grok CLI. A report contains model ids, reasoning effort labels, plan names, output and reasoning tokens and call time per model and effort, quota percentage and tokens used per 5-hour or weekly window, and whether a limit was reached, with the time rounded to the hour. It contains no prompts, file paths, project names, account ids or credentials. Set `QUOTAPILOT_SHARE_REPO` to send to a different repository.

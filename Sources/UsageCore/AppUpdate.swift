@@ -54,6 +54,50 @@ public enum AppUpdate {
 /// which the user has already signed in to. Nothing is sent unless the user turned sharing on.
 public enum ShareSubmitter {
     public static let defaultRepo = "dwagwd/quotapilot"
+    /// Anonymous collector (Cloudflare Worker in `collector/`). Override with QUOTAPILOT_COLLECTOR_URL.
+    public static var collectorURL: URL {
+        URL(string: ProcessInfo.processInfo.environment["QUOTAPILOT_COLLECTOR_URL"] ?? "https://quota-watch-collector.SUBDOMAIN.workers.dev")!
+    }
+
+    /// A random id for this computer, created on first use and stored locally. The collector only keeps a
+    /// keyed hash of it, so reports from one computer can be counted once a day without knowing who sent them.
+    public static func installID(directory: URL = Portable.stateDirectory()) -> String {
+        let file = directory.appendingPathComponent("install-id")
+        if let saved = try? String(contentsOf: file, encoding: .utf8).trimmingCharacters(in: .whitespacesAndNewlines),
+           saved.count >= 16, saved.count <= 64 { return saved }
+        let id = UUID().uuidString.lowercased()
+        try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        try? Data(id.utf8).write(to: file, options: .atomic)
+        return id
+    }
+
+    public static func anonymousBody(reports: [[String: Any]], install: String) -> Data? {
+        try? JSONSerialization.data(withJSONObject: ["install": install, "reports": reports])
+    }
+
+    /// Sends the reports to the anonymous collector. No GitHub account or login is involved.
+    public static func postAnonymous(reports: [[String: Any]], install: String = installID(), url: URL = collectorURL, timeout: Double = 30) -> Result<Int, Error> {
+        guard let body = anonymousBody(reports: reports, install: install) else {
+            return .failure(NSError(domain: "ShareSubmitter", code: -1, userInfo: [NSLocalizedDescriptionKey: "Could not encode the report."]))
+        }
+        var request = URLRequest(url: url.appendingPathComponent("v1/report"), timeoutInterval: timeout)
+        request.httpMethod = "POST"; request.httpBody = body
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        let done = DispatchSemaphore(value: 0)
+        var result: Result<Int, Error> = .failure(NSError(domain: "ShareSubmitter", code: -2, userInfo: [NSLocalizedDescriptionKey: "No response from the collector."]))
+        URLSession.shared.dataTask(with: request) { data, response, error in
+            let status = (response as? HTTPURLResponse)?.statusCode ?? 0
+            if status == 200, let data, let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+                result = .success((object["accepted"] as? Int) ?? 0)
+            } else {
+                let message = data.flatMap { try? JSONSerialization.jsonObject(with: $0) as? [String: Any] }?["error"] as? String
+                result = .failure(NSError(domain: "ShareSubmitter", code: status, userInfo: [NSLocalizedDescriptionKey: message ?? error?.localizedDescription ?? "HTTP \(status)"]))
+            }
+            done.signal()
+        }.resume()
+        _ = done.wait(timeout: .now() + timeout + 5)
+        return result
+    }
 
     public static func ghPath(home: URL, environmentPath: String? = ProcessInfo.processInfo.environment["PATH"]) -> String? {
         var candidates = (environmentPath ?? "").split(separator: ":").map { String($0) + "/gh" }

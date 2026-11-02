@@ -8,7 +8,7 @@ const isDate = (d) => /^\d{4}-\d{2}-\d{2}$/.test(d || "");
 const isUrl = (u) => /^https:\/\//.test(u || "");
 const providers = new Set(plans.providers.map((p) => p.id));
 
-for (const p of plans.providers) for (const pl of p.plans) {
+for (const p of plans.providers) for (const pl of [...p.plans, ...(p.subproducts || []).flatMap((s) => s.plans)]) {
   const id = `${p.id}/${pl.name}`;
   if (!isUrl(pl.source)) errors.push(`${id}: missing source URL`);
   if (!isDate(pl.checked)) errors.push(`${id}: missing checked date`);

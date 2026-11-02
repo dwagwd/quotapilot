@@ -130,6 +130,8 @@ for (const lang of ["en", "zh"]) {
     const faq = t.faq(withText, base, top);
     const rows = p.plans.map((pl) => `<tr><td><strong>${esc(pl.name)}</strong></td><td class="num">${pl.priceUsd == null ? t.varies : money(pl.priceUsd)}</td>
       <td class="num">${pl.multiple ? pl.multiple + "x" : t.notPublished}</td><td>${esc(loc(pl.summary))}<br><small>${badge(lang, pl.confidence)} <a href="${esc(pl.source)}" rel="noopener">${esc(host(pl.source))}</a> · ${t.checked} ${esc(pl.checked)}</small></td></tr>`).join("");
+    const subTables = (p.subproducts || []).map((s) => `<h2>${esc(s.name)}</h2>${s.note ? `<p>${esc(loc(s.note))}</p>` : ""}<p><strong>${t.window}:</strong> ${esc(loc(s.window))}</p>
+<div class="table-scroll"><table class="models"><thead><tr><th>${t.plan}</th><th class="num">${t.price}</th><th class="num">${t.usage}</th><th>${t.notes}</th></tr></thead><tbody>${s.plans.map((pl) => `<tr><td><strong>${esc(pl.name)}</strong></td><td class="num">${pl.priceUsd == null ? t.varies : money(pl.priceUsd)}</td><td class="num">${pl.multiple ? pl.multiple + "x" : t.notPublished}</td><td>${esc(loc(pl.summary))}<br><small>${badge(lang, pl.confidence)} <a href="${esc(pl.source)}" rel="noopener">${esc(host(pl.source))}</a> · ${t.checked} ${esc(pl.checked)}</small></td></tr>`).join("")}</tbody></table></div>`).join("");
     const ch = changes.changes.filter((c) => c.provider === p.id).sort((a, b) => b.date.localeCompare(a.date));
     const body = `
 <p class="crumbs"><a href="index.html">${t.plansIndex}</a> › ${esc(p.name)}</p>
@@ -137,6 +139,7 @@ for (const lang of ["en", "zh"]) {
 <p class="lede">${esc(t.plansIntro(p))}</p>
 <p><strong>${t.window}:</strong> ${esc(loc(p.window))}</p>
 <div class="table-scroll"><table class="models"><thead><tr><th>${t.plan}</th><th class="num">${t.price}</th><th class="num">${t.usage}</th><th>${t.notes}</th></tr></thead><tbody>${rows}</tbody></table></div>
+${subTables}
 <h2>${t.changesTitle}</h2>
 ${ch.length ? `<ul class="plain">${ch.map((c) => `<li><time>${esc(c.date)}</time> ${esc(loc(c.text))} ${badge(lang, c.confidence)} <a href="${esc(c.source)}" rel="noopener">${esc(host(c.source))}</a></li>`).join("")}</ul>` : `<p>${t.noChanges}</p>`}
 <h2>${t.faqTitle}</h2>

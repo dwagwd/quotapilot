@@ -49,22 +49,20 @@
   }
 
   // ---------- plans ----------
-  function renderPlans() {
-    const grid = $("#providerGrid");
-    grid.innerHTML = state.plans.providers.map((p) => {
-      const maxMult = Math.max(...p.plans.map((pl) => pl.multiple || 0), 1);
-      const rows = p.plans.map((pl) => {
-        const width = pl.multiple ? Math.max(6, (Math.log(pl.multiple + 1) / Math.log(maxMult + 1)) * 100) : 0;
-        const price = pl.priceUsd == null ? t("plan.varies") : pl.priceUsd === 0 ? "$0" : money(pl.priceUsd, pl.priceUsd % 1 ? 2 : 0) + t("plan.perMonth");
-        const perX = pl.multiple && pl.priceUsd ? money(pl.priceUsd / pl.multiple, 2) + " " + t("plan.perX") : "";
-        return `
+  function planRows(plans, color) {
+    const maxMult = Math.max(...plans.map((pl) => pl.multiple || 0), 1);
+    return plans.map((pl) => {
+      const width = pl.multiple ? Math.max(6, (Math.log(pl.multiple + 1) / Math.log(maxMult + 1)) * 100) : 0;
+      const price = pl.priceUsd == null ? t("plan.varies") : pl.priceUsd === 0 ? "$0" : money(pl.priceUsd, pl.priceUsd % 1 ? 2 : 0) + t("plan.perMonth");
+      const perX = pl.multiple && pl.priceUsd ? money(pl.priceUsd / pl.multiple, 2) + " " + t("plan.perX") : "";
+      return `
           <li class="plan">
             <div class="plan-top">
               <span class="plan-name">${esc(pl.name)}</span>
               <span class="plan-price">${price}${perX ? `<small>${perX}</small>` : ""}</span>
             </div>
             <div class="bar" title="${pl.multiple ? pl.multiple + "x" : t("plan.noMultiple")}">
-              <div class="bar-fill" style="width:${width}%;background:${p.color}"></div>
+              <div class="bar-fill" style="width:${width}%;background:${color}"></div>
               <span class="bar-label">${pl.multiple ? pl.multiple + "x" : t("plan.noMultiple")}</span>
             </div>
             <p class="plan-sum">${esc(loc(pl.summary))}</p>
@@ -74,7 +72,19 @@
               <span>${t("plan.checked")} ${esc(pl.checked)}</span>
             </div>
           </li>`;
-      }).join("");
+    }).join("");
+  }
+
+  function renderPlans() {
+    $("#providerGrid").innerHTML = state.plans.providers.map((p) => {
+      const subs = (p.subproducts || []).map((s) => `
+          <section class="subproduct">
+            <h4>${esc(s.name)} <span class="sub-tag">${t("plan.alsoFrom")} ${esc(p.vendor)}</span></h4>
+            ${s.note ? `<p class="sub-note">${esc(loc(s.note))}${s.noteSource ? ` <a href="${esc(s.noteSource)}" target="_blank" rel="noopener">${esc(host(s.noteSource))}</a>` : ""}</p>` : ""}
+            <p class="window"><strong>${t("plan.window")}:</strong> ${esc(loc(s.window))}</p>
+            ${s.support ? `<p class="support ${s.support}">${t("sup." + s.support)}</p>` : ""}
+            <ul class="plans">${planRows(s.plans, p.color)}</ul>
+          </section>`).join("");
       return `
         <article class="provider" style="--accent:${p.color}">
           <header class="provider-head">
@@ -84,7 +94,8 @@
           </header>
           <p class="window"><strong>${t("plan.window")}:</strong> ${esc(loc(p.window))}</p>
           ${p.support ? `<p class="support ${p.support}">${t("sup." + p.support)}</p>` : ""}
-          <ul class="plans">${rows}</ul>
+          <ul class="plans">${planRows(p.plans, p.color)}</ul>
+          ${subs}
         </article>`;
     }).join("");
   }

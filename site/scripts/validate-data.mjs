@@ -2,7 +2,7 @@
 // Run: node scripts/validate-data.mjs
 import { readFileSync } from "node:fs";
 const load = (f) => JSON.parse(readFileSync(new URL("../data/" + f, import.meta.url)));
-const plans = load("plans.json"), models = load("models.json"), changes = load("changes.json"), resets = load("resets.json");
+const plans = load("plans.json"), models = load("models.json"), changes = load("changes.json"), resets = load("resets.json"), efforts = load("efforts.json");
 const errors = [];
 const isDate = (d) => /^\d{4}-\d{2}-\d{2}$/.test(d || "");
 const isUrl = (u) => /^https:\/\//.test(u || "");
@@ -37,6 +37,11 @@ for (const r of resets.resets) {
   if (!["full", "banked"].includes(r.kind)) errors.push(`${id}: bad kind`);
   if (!["official", "tracker"].includes(r.confidence)) errors.push(`${id}: bad confidence`);
   if (!r.text?.en || !r.text?.zh) errors.push(`${id}: text needs en + zh`);
+}
+if (!isUrl(efforts.source?.url) || !isDate(efforts.source?.checked)) errors.push("efforts: needs source url + checked date");
+for (const f of efforts.models) {
+  if (!providers.has(f.provider)) errors.push(`efforts ${f.model}: unknown provider`);
+  for (const e of f.efforts) if (!efforts.effortOrder.includes(e.effort) || !Number.isFinite(e.intelligence)) errors.push(`efforts ${f.model}/${e.effort}: bad row`);
 }
 if (errors.length) { console.error(errors.join("\n")); process.exit(1); }
 console.log(`OK: ${plans.providers.reduce((n, p) => n + p.plans.length, 0)} plans, ${models.models.length} models, ${changes.changes.length} changes, ${resets.resets.length} resets, all sourced and dated.`);

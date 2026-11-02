@@ -10,7 +10,7 @@ export function parseIssue(issue) {
   if (!m) return { error: "No ```json block found in the issue body." };
   let data;
   try { data = JSON.parse(m[1]); } catch (e) { return { error: "The JSON block could not be parsed: " + e.message }; }
-  const list = (Array.isArray(data) ? data : [data]).slice(0, 20).map((r) => ({
+  const list = (Array.isArray(data) ? data : [data]).slice(0, 50).map((r) => ({
     ...r,
     reporter: issue.user && issue.user.login ? issue.user.login : "anon",
     date: r.date || issue.created_at

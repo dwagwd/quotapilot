@@ -89,6 +89,7 @@
   }
 
   // ---------- changes ----------
+  const isUpcoming = (c) => c.upcoming && new Date(c.date + "T00:00:00Z") > new Date();
   function renderChanges() {
     const filters = ["all", "upcoming", ...new Set(state.changes.changes.map((c) => c.provider))];
     $("#changeFilters").innerHTML = filters.map((f) => {
@@ -98,13 +99,13 @@
     $("#changeFilters").querySelectorAll("button").forEach((b) => b.addEventListener("click", () => { state.changeFilter = b.dataset.filter; renderChanges(); }));
 
     const items = state.changes.changes
-      .filter((c) => state.changeFilter === "all" || (state.changeFilter === "upcoming" ? c.upcoming : c.provider === state.changeFilter))
+      .filter((c) => state.changeFilter === "all" || (state.changeFilter === "upcoming" ? isUpcoming(c) : c.provider === state.changeFilter))
       .sort((a, b) => b.date.localeCompare(a.date));
     $("#timeline").innerHTML = items.map((c) => {
       const p = providerById(c.provider);
       return `
         <li class="change ${c.direction}">
-          <time>${esc(c.date)}${c.upcoming ? ` · <em>${t("changes.upcoming")}</em>` : ""}</time>
+          <time>${esc(c.date)}${isUpcoming(c) ? ` · <em>${t("changes.upcoming")}</em>` : ""}</time>
           <div class="change-body">
             <span class="pill" style="--accent:${p.color}">${esc(p.name)}</span>
             <span>${esc(loc(c.text))}</span>
@@ -368,8 +369,8 @@
     if (timeKnown === false) return date;
     return date + " " + d.toLocaleTimeString(state.lang === "zh" ? "zh-TW" : "en-US", { hour: "2-digit", minute: "2-digit", hour12: false });
   }
-  function resetStats(now) {
-    const rs = state.resets.resets.slice().sort((a, b) => b.at.localeCompare(a.at));
+  function resetStats(now, provider) {
+    const rs = state.resets.resets.filter((r) => !provider || r.provider === provider).slice().sort((a, b) => b.at.localeCompare(a.at));
     const last = rs[0];
     const in30 = rs.filter((r) => now - new Date(r.at) <= 30 * DAY);
     const month = rs.filter((r) => { const d = new Date(r.at); return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth(); });
@@ -435,7 +436,7 @@
   state.loadedAt = new Date();
   function renderLive() {
     const now = new Date();
-    const st = resetStats(now);
+    const st = resetStats(now, "chatgpt");
     const upcoming = state.changes.changes.filter((c) => c.upcoming && new Date(c.date) > now).sort((a, b) => a.date.localeCompare(b.date))[0];
     const fastest = state.community.speed[0];
     const item = (label, value, extra) => `<span class="live-item"><span class="live-label">${label}</span><strong>${value}</strong>${extra ? `<small>${extra}</small>` : ""}</span>`;
@@ -507,10 +508,11 @@
     $("#efFamily").innerHTML = E.models.filter((f) => f.efforts.length > 1).map((f) => `<button type="button" role="tab" aria-selected="${state.efFamily === f.model}" class="${state.efFamily === f.model ? "on" : ""}" data-f="${f.model}">${esc(f.name)}</button>`).join("");
     const fam = E.models.find((f) => f.model === state.efFamily);
     const usage = (state.community.effortUsage || []).filter((u) => u.model === fam.model);
+    const totalCalls = usage.reduce((a, u) => a + (u.calls || 0), 0);
     const minCost = Math.min(...fam.efforts.filter((e) => e.costPerTask).map((e) => e.costPerTask));
     const bestValue = fam.efforts.reduce((b, e) => (e.costPerTask && (!b || e.intelligence / e.costPerTask > b.intelligence / b.costPerTask) ? e : b), null);
     $("#efTable thead").innerHTML = `<tr><th>${t("ef.col.effort")}</th><th class="num">${t("col.iq")}</th><th class="num">${t("ef.col.cost")}</th><th class="num">${t("ef.col.aaSpeed")}</th>
-      <th class="num">${t("ef.col.realSpeed")}</th><th class="num">${t("ef.col.perCall")}</th><th class="num">${t("ef.col.reason")}</th></tr>`;
+      <th class="num">${t("ef.col.realSpeed")}</th><th class="num">${t("ef.col.perCall")}</th><th class="num">${t("ef.col.reason")}</th><th class="num">${t("ef.col.share")}</th></tr>`;
     $("#efTable tbody").innerHTML = fam.efforts.map((e, i) => {
       const prev = fam.efforts[i - 1];
       const d = prev ? e.intelligence - prev.intelligence : null;
@@ -524,6 +526,7 @@
         <td class="num">${u ? u.tps + `<small>n=${u.n}</small>` : na}</td>
         <td class="num">${u ? u.perCall.toLocaleString("en-US") : na}</td>
         <td class="num">${u && u.reasoningShare != null ? Math.round(u.reasoningShare * 100) + "%" : na}</td>
+        <td class="num">${u && totalCalls ? Math.round((u.calls / totalCalls) * 100) + "%" : na}</td>
       </tr>`;
     }).join("");
     $("#efNote").innerHTML = `${t("ef.note")} <a href="${esc(E.source.url)}" target="_blank" rel="noopener">${esc(E.source.name)}</a>, ${t("plan.checked")} ${esc(E.source.checked)}.${state.community.sample ? " " + t("ef.sampleNote") : ""}${!usage.length ? " " + t("ef.noUsage") : ""}`;
@@ -708,6 +711,8 @@
     const seen = new Map();
     Object.values(state.models.sources).forEach((s) => seen.set(s.url, { label: s.name + " — " + s.covers, checked: s.checked }));
     state.plans.providers.forEach((p) => p.plans.forEach((pl) => { if (!seen.has(pl.source)) seen.set(pl.source, { label: p.name + " plans", checked: pl.checked }); }));
+    if (state.efforts) seen.set(state.efforts.source.url, { label: state.efforts.source.name + " — " + state.efforts.source.covers, checked: state.efforts.source.checked });
+    state.resets.trackers.forEach((tr) => { if (!seen.has(tr.url)) seen.set(tr.url, { label: tr.name + " (reset ledger cross-check)", checked: state.resets.lastReviewed }); });
     state.changes.changes.forEach((c) => { if (!seen.has(c.source)) seen.set(c.source, { label: providerById(c.provider).name + " change log", checked: state.changes.lastReviewed }); });
     $("#sourceList").innerHTML = [...seen.entries()].map(([url, s]) =>
       `<li><a href="${esc(url)}" target="_blank" rel="noopener">${esc(host(url))}</a> <span>${esc(s.label)}</span> <span class="when">${t("plan.checked")} ${esc(s.checked)}</span></li>`).join("");

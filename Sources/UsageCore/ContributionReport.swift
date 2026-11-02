@@ -51,9 +51,15 @@ public enum ContributionReport {
 
     public static let minimumCallsPerModel = 3
 
-    static func clientName(_ provider: String) -> String {
-        ["codex": "Codex", "claude": "Claude Code", "gemini": "Gemini CLI", "grok": "Grok CLI"][provider] ?? "Claude Code"
+    /// The tool that wrote the log, from the sample key (`codex|…`, `claude|…`, `gemini|…`). Claude Code
+    /// pointed at another model family still counts as Claude Code.
+    static func clientName(_ sample: OutputSpeedSample) -> String {
+        let source = sample.key.split(separator: "|").first.map(String.init) ?? sample.provider
+        return ["codex": "Codex", "claude": "Claude Code", "gemini": "Gemini CLI", "grok": "Grok CLI"][source] ?? "Claude Code"
     }
+
+    /// GitHub issue links break past roughly 8 KB, so a share keeps the busiest rows.
+    public static let maximumReports = 30
 
     /// Effort labels shared by Codex and Claude Code; anything else is dropped rather than sent.
     static func effortName(_ raw: String?) -> String? {
@@ -76,7 +82,7 @@ public enum ContributionReport {
             let samples = pairs.map(\.1)
             guard samples.count >= minimumCallsPerModel, let summary = OutputSpeedSummary(samples), summary.seconds > 0 else { continue }
             let parts = key.split(separator: "|", omittingEmptySubsequences: false)
-            var report: [String: Any] = ["type": "speed", "model": String(parts[0]), "client": clientName(samples[0].provider),
+            var report: [String: Any] = ["type": "speed", "model": String(parts[0]), "client": clientName(samples[0]),
                                          "outputTokens": summary.outputTokens.rounded(), "seconds": max(1, summary.seconds.rounded()),
                                          "reasoningTokens": samples.reduce(0) { $0 + $1.reasoningTokens }.rounded(),
                                          "calls": summary.calls, "date": date, "via": "quotapilot"]
@@ -102,6 +108,10 @@ public enum ContributionReport {
             if use.limitReached, limitEvents.insert(provider).inserted {
                 reports.append(["type": "event", "provider": provider, "plan": planName(use.plan) ?? "", "kind": "hit_limit", "date": date, "via": "quotapilot"])
             }
+        }
+        if reports.count > maximumReports {
+            let calls = { (r: [String: Any]) -> Int in (r["calls"] as? Int) ?? Int.max }
+            reports = Array(reports.sorted { calls($0) > calls($1) }.prefix(maximumReports))
         }
         return reports
     }

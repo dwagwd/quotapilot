@@ -21,6 +21,8 @@ concurrency:
 
 jobs:
   deploy:
+    # After a community-data run, deploy only when it succeeded.
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
     environment:
       name: github-pages

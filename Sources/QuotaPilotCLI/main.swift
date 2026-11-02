@@ -472,6 +472,10 @@ case "share":
     components.queryItems = [URLQueryItem(name: "template", value: "data-report.md"), URLQueryItem(name: "labels", value: "data-report"),
                              URLQueryItem(name: "title", value: "QuotaPilot report: \(reports.count) data points"), URLQueryItem(name: "body", value: body)]
     let url = components.url!.absoluteString
+    if url.utf8.count > 7_500 {
+        print("The report is too long for a link. Open https://github.com/\(shareRepo)/issues/new?template=data-report.md and paste the JSON above into the body.")
+        exit(0)
+    }
     if openURL(url) { print("Opened the report in your browser. Press Submit there to share it.") }
     else { print("Open this link to share:\n" + url) }
 case "config":

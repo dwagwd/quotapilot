@@ -48,6 +48,13 @@ final class ContributionReportTests: XCTestCase {
         XCTAssertEqual(reports[0]["model"] as? String, "gpt-6-1-sol")
     }
 
+    func testClaudeCodeLogsStayClaudeCodeAndReportsAreCapped() {
+        let viaClaude = (0..<3).map { OutputSpeedSample(provider: "gemini", timestamp: Double($0), outputTokens: 100, reasoningTokens: 0, seconds: 2, key: "claude|m\($0)", model: "gemini-4-argon") }
+        XCTAssertEqual(ContributionReport.build(speed: viaClaude, windows: [], now: 0).first?["client"] as? String, "Claude Code")
+        let many = (0..<40).flatMap { m in (0..<3).map { OutputSpeedSample(provider: "codex", timestamp: Double($0), outputTokens: 100, reasoningTokens: 0, seconds: 2, key: "codex|\(m)-\($0)", model: "model-\(m)") } }
+        XCTAssertEqual(ContributionReport.build(speed: many, windows: [], now: 0).count, ContributionReport.maximumReports)
+    }
+
     func testLimitReachedBecomesAnEvent() {
         let use = ContributionReport.WindowUse(provider: "claude", plan: "max_5x", windowMinutes: 10080, usedPercent: 100, limitReached: true,
                                                tokensSinceStart: TokenBreakdown(), model: nil)

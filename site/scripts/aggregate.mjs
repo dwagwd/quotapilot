@@ -45,7 +45,7 @@ export function clean(r, models) {
     const calls = num(r.calls, 1, 1e7) || 1;
     const effort = EFFORTS.includes(r.effort) ? r.effort : null;
     const reasoning = num(r.reasoningTokens, 0, tokens);
-    return { ...base, client: String(r.client || "").slice(0, 40), tps: tokens / secs, effort, perCall: tokens / calls, reasoningShare: reasoning != null ? reasoning / tokens : null };
+    return { ...base, client: String(r.client || "").slice(0, 40), tps: tokens / secs, effort, calls, perCall: tokens / calls, reasoningShare: reasoning != null ? reasoning / tokens : null };
   }
   if (r.type === "rating") {
     const score = num(r.score, 1, 10);
@@ -94,7 +94,7 @@ export function aggregate(raw, models, now = new Date()) {
     .map(([k, rs]) => {
       const [model, effort] = k.split("|");
       const share = rs.map((r) => r.reasoningShare).filter((v) => v != null);
-      return { model, effort, n: rs.length, tps: stats(rs.map((r) => r.tps)).median, perCall: Math.round(stats(rs.map((r) => r.perCall)).median),
+      return { model, effort, n: rs.length, calls: rs.reduce((a, r) => a + (r.calls || 1), 0), tps: stats(rs.map((r) => r.tps)).median, perCall: Math.round(stats(rs.map((r) => r.perCall)).median),
         reasoningShare: share.length ? round(stats(share).median, 2) : null };
     })
     .filter((s) => s.n >= MIN_SAMPLES).sort((a, b) => a.model.localeCompare(b.model) || EFFORTS.indexOf(a.effort) - EFFORTS.indexOf(b.effort));
@@ -145,6 +145,11 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
     const v = JSON.parse(readFileSync(join(dir, f), "utf8")); return Array.isArray(v) ? v : [v];
   }) : [];
   const result = aggregate(raw, models, now);
+  // Keep the old timestamp when nothing else changed, so the scheduled run does not commit every 6 hours.
+  if (existsSync(out)) {
+    const previous = JSON.parse(readFileSync(out, "utf8"));
+    if (JSON.stringify({ ...previous, generated: null }) === JSON.stringify({ ...result, generated: null })) result.generated = previous.generated;
+  }
   writeFileSync(out, JSON.stringify(result, null, 2) + "\n");
   console.log(`community.json: ${result.totals.reports} reports in window, ${result.speed.length} speed rows, ${result.ratings.length} rating rows, ${result.quota.length} quota rows, ${result.totals.rejected} rejected`);
 }

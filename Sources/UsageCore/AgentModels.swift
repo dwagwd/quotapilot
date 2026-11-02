@@ -48,7 +48,7 @@ extension AgentLogParser {
         return nil
     }
 
-    /// Claude Code lines: the model that actually produced each assistant message.
+    /// Gemini CLI chat recordings: the model named on each `gemini` message.
     public static func geminiModelEvent(_ line: String) -> AgentModelEvent? {
         guard line.contains("\"gemini\""), line.contains("\"model\""),
               let object = object(line), object["type"] as? String == "gemini",
@@ -58,6 +58,7 @@ extension AgentLogParser {
                                fromModel: nil, effort: nil, reason: nil)
     }
 
+    /// Claude Code lines: the model that actually produced each assistant message.
     public static func claudeModelEvent(_ line: String) -> AgentModelEvent? {
         guard line.contains("\"assistant\""), line.contains("\"model\""),
               let object = object(line), object["type"] as? String == "assistant",

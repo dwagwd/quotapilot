@@ -3,7 +3,6 @@
 ## 0.6.1
 
 - **Anonymous sharing:** `quotapilot share` and **Share anonymous stats daily** now send reports to the AI Quota Watch collector instead of filing GitHub issues. No GitHub account is involved; the collector keeps only a keyed hash of a random id for this computer, never your IP address, and deletes reports after 35 days. `--github` or `--submit` still file an issue.
-- **Updates download in the background** with progress in the menu; **Restart to update** swaps in the verified download within seconds; a failed download retries once.
 - AI Quota Watch moved to https://aiquotawatch.pages.dev/ (Cloudflare Pages, with the collector at `/api`).
 - Claude Max plans show as Max 5x or Max 20x (from Claude Code's rate-limit tier) in the card, status and shared reports. Claude rate history restarts once after updating.
 

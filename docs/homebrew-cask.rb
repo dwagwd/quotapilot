@@ -2,8 +2,8 @@
 # Use only with a Developer ID signed and notarized universal ZIP (see releasing.md).
 # Users then install with: brew install --cask dwagwd/tap/quotapilot
 cask "quotapilot" do
-  version "0.6.0"
-  sha256 "eb6ffaf4be70a3446d0c9335cfae634dfd7d5b79d7780c4ca181b0e20291f6e2"
+  version "0.6.1"
+  sha256 "6332273142eb16d91f3044d50d88b7780f8e00f99f08b2bb951b7969326e02be"
 
   url "https://github.com/dwagwd/quotapilot/releases/download/v#{version}/QuotaPilot-#{version}-macos-universal.zip"
   name "QuotaPilot"

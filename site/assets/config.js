@@ -4,7 +4,7 @@
 window.SITE_CONFIG = {
   ads: {
     enabled: false,       // false = slots stay as dashed placeholders in dev, hidden in production
-    showPlaceholders: true // set false before deploying if no network is connected
+    showPlaceholders: false // true shows dashed boxes where ads will go (for layout previews)
   },
   affiliates: {
     chatgpt: "",

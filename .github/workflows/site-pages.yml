@@ -35,10 +35,13 @@ jobs:
       - name: Check data
         working-directory: site
         run: npm test
+      - name: Build the search pages and sitemap
+        working-directory: site
+        run: node scripts/build-pages.mjs --base "https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/"
       - name: Package the static files only
         run: |
           mkdir -p _site
-          cp -R site/index.html site/assets site/data _site/
+          cp -R site/index.html site/assets site/data site/plans site/effort site/resets site/zh site/sitemap.xml site/robots.txt _site/
           rm -rf _site/data/submissions
       - uses: actions/upload-pages-artifact@v3
         with:

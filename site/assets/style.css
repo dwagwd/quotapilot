@@ -329,3 +329,18 @@ i.banked, .lg.banked { background: var(--banked); }
 .ef-table small.down { color: var(--bad); }
 .ef-table tr.best td { background: color-mix(in srgb, var(--official-bg) 45%, transparent); }
 .ef-table .muted { color: var(--muted); }
+
+/* generated article pages */
+.article { max-width: 900px; padding-block: 28px 12px; }
+.article h1 { font-size: clamp(26px, 4vw, 36px); letter-spacing: -0.02em; line-height: 1.15; margin: 8px 0 12px; text-wrap: balance; }
+.article h2 { font-size: 21px; margin: 32px 0 10px; }
+.article h3 { font-size: 16px; margin: 18px 0 4px; }
+.article p { max-width: 68ch; }
+.article .table-scroll { margin: 16px 0; }
+.article td small { color: var(--muted); }
+.crumbs { font-size: 13px; color: var(--muted); margin: 0; }
+.plain { padding-left: 18px; display: grid; gap: 8px; }
+.plain time { color: var(--muted); font-variant-numeric: tabular-nums; margin-right: 6px; }
+.cta-row { margin: 28px 0; }
+.footer-links { margin-top: 8px; display: flex; flex-wrap: wrap; gap: 4px 6px; }
+a.lang-toggle { text-decoration: none; }

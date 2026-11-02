@@ -45,6 +45,9 @@ jobs:
           mkdir -p _site
           cp -R site/index.html site/assets site/data site/plans site/effort site/resets site/zh site/sitemap.xml site/robots.txt _site/
           rm -rf _site/data/submissions
+      - name: Use the latest community stats
+        run: |
+          git fetch --depth 1 origin community-data 2>/dev/null && git show FETCH_HEAD:community.json > _site/data/community.json || echo "No community data yet"
       - uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa # v3
         with:
           path: _site

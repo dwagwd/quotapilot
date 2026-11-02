@@ -1,24 +1,234 @@
 {
   "lastReviewed": "2026-11-02",
   "sources": {
-    "aa": { "name": "Artificial Analysis LLM Leaderboard", "url": "https://artificialanalysis.ai/leaderboards/models", "checked": "2026-11-02", "covers": "Intelligence Index, output speed (tokens/s), cost per task" },
-    "anthropic": { "name": "Claude pricing", "url": "https://claude.com/pricing", "checked": "2026-11-02", "covers": "Claude API prices" },
-    "google": { "name": "Gemini API pricing", "url": "https://ai.google.dev/gemini-api/docs/pricing", "checked": "2026-11-02", "covers": "Gemini API prices (≤200k prompt bracket)" },
-    "xai": { "name": "xAI models & pricing", "url": "https://docs.x.ai/docs/models", "checked": "2026-11-02", "covers": "Grok API prices (<200k prompt bracket)" },
-    "openai3p": { "name": "GPT-6.1 Sol pricing (third-party, cites OpenAI list price)", "url": "https://anotherwrapper.com/llm-pricing/gpt-6.1-sol", "checked": "2026-11-02", "covers": "GPT-6.1 Sol API price (OpenAI's own page blocked automated reading)" }
+    "aa": {
+      "name": "Artificial Analysis LLM Leaderboard",
+      "url": "https://artificialanalysis.ai/leaderboards/models",
+      "checked": "2026-11-02",
+      "covers": "Intelligence Index, output speed (tokens/s), cost per task"
+    },
+    "anthropic": {
+      "name": "Claude pricing",
+      "url": "https://claude.com/pricing",
+      "checked": "2026-11-02",
+      "covers": "Claude API prices"
+    },
+    "google": {
+      "name": "Gemini API pricing",
+      "url": "https://ai.google.dev/gemini-api/docs/pricing",
+      "checked": "2026-11-02",
+      "covers": "Gemini API prices (≤200k prompt bracket)"
+    },
+    "xai": {
+      "name": "xAI models & pricing",
+      "url": "https://docs.x.ai/docs/models",
+      "checked": "2026-11-02",
+      "covers": "Grok API prices (<200k prompt bracket)"
+    },
+    "openai3p": {
+      "name": "GPT-6.1 Sol pricing (third-party, cites OpenAI list price)",
+      "url": "https://anotherwrapper.com/llm-pricing/gpt-6.1-sol",
+      "checked": "2026-11-02",
+      "covers": "GPT-6.1 Sol API price (OpenAI's own page blocked automated reading)"
+    }
   },
   "models": [
-    { "id": "gemini-4-carbon", "name": "Gemini 4 Carbon (high)", "provider": "gemini", "intelligence": 59, "speed": 92, "costPerTask": 7.76, "input": null, "output": null, "context": "1M", "metricSrc": "aa", "priceSrc": null, "priceNote": { "en": "API price not listed on Google's pricing page", "zh": "Google 價格頁未列出 API 價格" } },
-    { "id": "claude-opus-5-5", "name": "Claude Opus 5.5 (max)", "provider": "claude", "intelligence": 58, "speed": 96, "costPerTask": 10.04, "input": 4, "output": 20, "context": "1M", "metricSrc": "aa", "priceSrc": "anthropic" },
-    { "id": "gpt-6-astra", "name": "GPT-6 Astra (max)", "provider": "chatgpt", "intelligence": 57, "speed": 75, "costPerTask": 6.24, "input": null, "output": null, "context": "1M", "metricSrc": "aa", "priceSrc": null, "priceNote": { "en": "API price not verified", "zh": "API 價格尚未查證" } },
-    { "id": "gpt-6-1-sol", "name": "GPT-6.1 Sol (max)", "provider": "chatgpt", "intelligence": 55, "speed": 98, "costPerTask": 1.27, "input": 2, "output": 10, "context": "1M", "metricSrc": "aa", "priceSrc": "openai3p" },
-    { "id": "claude-sonnet-5-5", "name": "Claude Sonnet 5.5 (max)", "provider": "claude", "intelligence": 54, "speed": 138, "costPerTask": 10.02, "input": 2, "output": 10, "context": "1M", "metricSrc": "aa", "priceSrc": "anthropic" },
-    { "id": "gpt-6-1-terra", "name": "GPT-6.1 Terra (max)", "provider": "chatgpt", "intelligence": 51, "speed": 110, "costPerTask": 0.96, "input": null, "output": null, "context": "1M", "metricSrc": "aa", "priceSrc": null, "priceNote": { "en": "API price not verified", "zh": "API 價格尚未查證" } },
-    { "id": "gemini-4-argon", "name": "Gemini 4 Argon (high)", "provider": "gemini", "intelligence": 50, "speed": 83, "costPerTask": 7.68, "input": 2, "output": 10, "context": "1M", "metricSrc": "aa", "priceSrc": "google", "priceNote": { "en": "Doubles to $4 / $20 on 1 Dec 2026", "zh": "2026/12/1 起調漲為 $4 / $20" } },
-    { "id": "claude-fable-5-1", "name": "Claude Fable 5.1 (xhigh)", "provider": "claude", "intelligence": 50, "speed": 63, "costPerTask": 10.85, "input": 10, "output": 50, "context": "1M", "metricSrc": "aa", "priceSrc": "anthropic" },
-    { "id": "grok-4-7", "name": "Grok 4.7 (high)", "provider": "grok", "intelligence": 35, "speed": 78, "costPerTask": 6.18, "input": 2, "output": 6, "context": "500k", "metricSrc": "aa", "priceSrc": "xai" },
-    { "id": "gemini-3-8-flash", "name": "Gemini 3.8 Flash", "provider": "gemini", "intelligence": null, "speed": null, "costPerTask": null, "input": 0.75, "output": 3.75, "context": "1M", "metricSrc": null, "priceSrc": "google", "priceNote": { "en": "Intro price; doubles on 1 Jan 2027", "zh": "優惠價；2027/1/1 起加倍" } },
-    { "id": "claude-haiku-5-5", "name": "Claude Haiku 5.5", "provider": "claude", "intelligence": null, "speed": null, "costPerTask": null, "input": 0.1, "output": 0.5, "context": "—", "metricSrc": null, "priceSrc": "anthropic", "priceNote": { "en": "Price for prompts ≤100k tokens", "zh": "提示 ≤100k tokens 的價格" } },
-    { "id": "grok-4-3", "name": "Grok 4.3", "provider": "grok", "intelligence": null, "speed": null, "costPerTask": null, "input": 1.25, "output": 2.5, "context": "1M", "metricSrc": null, "priceSrc": "xai" }
+    {
+      "id": "gemini-4-carbon",
+      "name": "Gemini 4 Carbon (high)",
+      "provider": "gemini",
+      "intelligence": 59,
+      "speed": 92,
+      "costPerTask": 7.76,
+      "input": null,
+      "output": null,
+      "context": "1M",
+      "metricSrc": "aa",
+      "priceSrc": null,
+      "priceNote": {
+        "en": "API price not listed on Google's pricing page",
+        "zh": "Google 價格頁未列出 API 價格"
+      }
+    },
+    {
+      "id": "claude-opus-5-5",
+      "name": "Claude Opus 5.5 (max)",
+      "provider": "claude",
+      "intelligence": 58,
+      "speed": 96,
+      "costPerTask": 10.04,
+      "input": 4,
+      "output": 20,
+      "context": "1M",
+      "metricSrc": "aa",
+      "priceSrc": "anthropic"
+    },
+    {
+      "id": "gpt-6-astra",
+      "name": "GPT-6 Astra (max)",
+      "provider": "chatgpt",
+      "intelligence": 57,
+      "speed": 75,
+      "costPerTask": 6.24,
+      "input": null,
+      "output": null,
+      "context": "1M",
+      "metricSrc": "aa",
+      "priceSrc": null,
+      "priceNote": {
+        "en": "API price not verified",
+        "zh": "API 價格尚未查證"
+      }
+    },
+    {
+      "id": "gpt-6-1-sol",
+      "name": "GPT-6.1 Sol (max)",
+      "provider": "chatgpt",
+      "intelligence": 55,
+      "speed": 98,
+      "costPerTask": 1.27,
+      "input": 2,
+      "output": 10,
+      "context": "1M",
+      "metricSrc": "aa",
+      "priceSrc": "openai3p"
+    },
+    {
+      "id": "claude-sonnet-5-5",
+      "name": "Claude Sonnet 5.5 (max)",
+      "provider": "claude",
+      "intelligence": 54,
+      "speed": 138,
+      "costPerTask": 10.02,
+      "input": 2,
+      "output": 10,
+      "context": "1M",
+      "metricSrc": "aa",
+      "priceSrc": "anthropic"
+    },
+    {
+      "id": "gpt-6-1-terra",
+      "name": "GPT-6.1 Terra (max)",
+      "provider": "chatgpt",
+      "intelligence": 51,
+      "speed": 110,
+      "costPerTask": 0.96,
+      "input": null,
+      "output": null,
+      "context": "1M",
+      "metricSrc": "aa",
+      "priceSrc": null,
+      "priceNote": {
+        "en": "API price not verified",
+        "zh": "API 價格尚未查證"
+      }
+    },
+    {
+      "id": "gemini-4-argon",
+      "name": "Gemini 4 Argon (high)",
+      "provider": "gemini",
+      "intelligence": 50,
+      "speed": 83,
+      "costPerTask": 7.68,
+      "input": 2,
+      "output": 10,
+      "context": "1M",
+      "metricSrc": "aa",
+      "priceSrc": "google",
+      "priceNote": {
+        "en": "Doubles to $4 / $20 on 1 Dec 2026",
+        "zh": "2026/12/1 起調漲為 $4 / $20"
+      }
+    },
+    {
+      "id": "claude-fable-5-1",
+      "name": "Claude Fable 5.1 (xhigh)",
+      "provider": "claude",
+      "intelligence": 50,
+      "speed": 63,
+      "costPerTask": 10.85,
+      "input": 10,
+      "output": 50,
+      "context": "1M",
+      "metricSrc": "aa",
+      "priceSrc": "anthropic"
+    },
+    {
+      "id": "grok-4-7",
+      "name": "Grok 4.7 (high)",
+      "provider": "grok",
+      "intelligence": 35,
+      "speed": 78,
+      "costPerTask": 6.18,
+      "input": 2,
+      "output": 6,
+      "context": "500k",
+      "metricSrc": "aa",
+      "priceSrc": "xai"
+    },
+    {
+      "id": "gemini-3-8-flash",
+      "name": "Gemini 3.8 Flash",
+      "provider": "gemini",
+      "intelligence": null,
+      "speed": null,
+      "costPerTask": null,
+      "input": 0.75,
+      "output": 3.75,
+      "context": "1M",
+      "metricSrc": null,
+      "priceSrc": "google",
+      "priceNote": {
+        "en": "Intro price; doubles on 1 Jan 2027",
+        "zh": "優惠價；2027/1/1 起加倍"
+      }
+    },
+    {
+      "id": "claude-haiku-5-5",
+      "name": "Claude Haiku 5.5",
+      "provider": "claude",
+      "intelligence": null,
+      "speed": null,
+      "costPerTask": null,
+      "input": 0.1,
+      "output": 0.5,
+      "context": "—",
+      "metricSrc": null,
+      "priceSrc": "anthropic",
+      "priceNote": {
+        "en": "Price for prompts ≤100k tokens",
+        "zh": "提示 ≤100k tokens 的價格"
+      }
+    },
+    {
+      "id": "grok-4-3",
+      "name": "Grok 4.3",
+      "provider": "grok",
+      "intelligence": null,
+      "speed": null,
+      "costPerTask": null,
+      "input": 1.25,
+      "output": 2.5,
+      "context": "1M",
+      "metricSrc": null,
+      "priceSrc": "xai"
+    },
+    {
+      "id": "gpt-6-luna",
+      "name": "GPT-6 Luna (max)",
+      "provider": "chatgpt",
+      "intelligence": 28,
+      "speed": 118,
+      "costPerTask": 0.15,
+      "input": null,
+      "output": null,
+      "context": "—",
+      "metricSrc": "aa",
+      "priceSrc": null,
+      "priceNote": {
+        "en": "API price not verified",
+        "zh": "API 價格尚未查證"
+      }
+    }
   ]
 }

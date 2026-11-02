@@ -1,0 +1,550 @@
+{
+  "sample": true,
+  "generated": "2026-11-02T12:00:00.000Z",
+  "windowDays": 7,
+  "eventWindowDays": 30,
+  "minSamples": 3,
+  "totals": {
+    "reports": 215,
+    "reporters": 22,
+    "rejected": 0
+  },
+  "speed": [
+    {
+      "model": "claude-sonnet-5-5",
+      "n": 29,
+      "median": 86.8,
+      "p25": 76.1,
+      "p75": 96.4,
+      "clients": [
+        "CLI",
+        "Desktop",
+        "API",
+        "Codex"
+      ]
+    },
+    {
+      "model": "gemini-4-carbon",
+      "n": 8,
+      "median": 70.9,
+      "p25": 64.4,
+      "p75": 75.7,
+      "clients": [
+        "CLI",
+        "Desktop",
+        "API"
+      ]
+    },
+    {
+      "model": "claude-opus-5-5",
+      "n": 26,
+      "median": 63.9,
+      "p25": 57.7,
+      "p75": 69.3,
+      "clients": [
+        "CLI",
+        "Desktop",
+        "API",
+        "Codex"
+      ]
+    },
+    {
+      "model": "gpt-6-1-sol",
+      "n": 27,
+      "median": 60.4,
+      "p25": 52.3,
+      "p75": 66.6,
+      "clients": [
+        "CLI",
+        "Desktop",
+        "API",
+        "Codex"
+      ]
+    },
+    {
+      "model": "grok-4-7",
+      "n": 11,
+      "median": 58.1,
+      "p25": 51.6,
+      "p75": 63.7,
+      "clients": [
+        "CLI",
+        "Desktop",
+        "API"
+      ]
+    },
+    {
+      "model": "gpt-6-astra",
+      "n": 30,
+      "median": 50.7,
+      "p25": 44.4,
+      "p75": 55.1,
+      "clients": [
+        "CLI",
+        "Desktop",
+        "API",
+        "Codex"
+      ]
+    }
+  ],
+  "effortUsage": [
+    {
+      "model": "claude-opus-5-5",
+      "effort": "low",
+      "n": 4,
+      "tps": 61.6,
+      "perCall": 218,
+      "reasoningShare": 0.2
+    },
+    {
+      "model": "claude-opus-5-5",
+      "effort": "medium",
+      "n": 4,
+      "tps": 53.2,
+      "perCall": 412,
+      "reasoningShare": 0.4
+    },
+    {
+      "model": "claude-opus-5-5",
+      "effort": "high",
+      "n": 4,
+      "tps": 65.6,
+      "perCall": 692,
+      "reasoningShare": 0.6
+    },
+    {
+      "model": "claude-opus-5-5",
+      "effort": "xhigh",
+      "n": 4,
+      "tps": 67.5,
+      "perCall": 1053,
+      "reasoningShare": 0.7
+    },
+    {
+      "model": "claude-opus-5-5",
+      "effort": "max",
+      "n": 4,
+      "tps": 75.6,
+      "perCall": 1409,
+      "reasoningShare": 0.8
+    },
+    {
+      "model": "claude-sonnet-5-5",
+      "effort": "low",
+      "n": 4,
+      "tps": 72,
+      "perCall": 214,
+      "reasoningShare": 0.2
+    },
+    {
+      "model": "claude-sonnet-5-5",
+      "effort": "medium",
+      "n": 4,
+      "tps": 78.7,
+      "perCall": 378,
+      "reasoningShare": 0.4
+    },
+    {
+      "model": "claude-sonnet-5-5",
+      "effort": "high",
+      "n": 4,
+      "tps": 80.6,
+      "perCall": 702,
+      "reasoningShare": 0.6
+    },
+    {
+      "model": "claude-sonnet-5-5",
+      "effort": "xhigh",
+      "n": 4,
+      "tps": 72.2,
+      "perCall": 1018,
+      "reasoningShare": 0.7
+    },
+    {
+      "model": "claude-sonnet-5-5",
+      "effort": "max",
+      "n": 4,
+      "tps": 107,
+      "perCall": 1494,
+      "reasoningShare": 0.8
+    },
+    {
+      "model": "gpt-6-1-sol",
+      "effort": "low",
+      "n": 4,
+      "tps": 51.9,
+      "perCall": 265,
+      "reasoningShare": 0.2
+    },
+    {
+      "model": "gpt-6-1-sol",
+      "effort": "medium",
+      "n": 4,
+      "tps": 47.8,
+      "perCall": 448,
+      "reasoningShare": 0.4
+    },
+    {
+      "model": "gpt-6-1-sol",
+      "effort": "high",
+      "n": 4,
+      "tps": 53.9,
+      "perCall": 611,
+      "reasoningShare": 0.5
+    },
+    {
+      "model": "gpt-6-1-sol",
+      "effort": "xhigh",
+      "n": 4,
+      "tps": 63.7,
+      "perCall": 865,
+      "reasoningShare": 0.6
+    },
+    {
+      "model": "gpt-6-1-sol",
+      "effort": "max",
+      "n": 4,
+      "tps": 69.7,
+      "perCall": 1593,
+      "reasoningShare": 0.8
+    },
+    {
+      "model": "gpt-6-astra",
+      "effort": "low",
+      "n": 4,
+      "tps": 39.6,
+      "perCall": 236,
+      "reasoningShare": 0.2
+    },
+    {
+      "model": "gpt-6-astra",
+      "effort": "medium",
+      "n": 4,
+      "tps": 42.3,
+      "perCall": 379,
+      "reasoningShare": 0.4
+    },
+    {
+      "model": "gpt-6-astra",
+      "effort": "high",
+      "n": 4,
+      "tps": 52.9,
+      "perCall": 565,
+      "reasoningShare": 0.6
+    },
+    {
+      "model": "gpt-6-astra",
+      "effort": "xhigh",
+      "n": 4,
+      "tps": 56.1,
+      "perCall": 974,
+      "reasoningShare": 0.7
+    },
+    {
+      "model": "gpt-6-astra",
+      "effort": "max",
+      "n": 4,
+      "tps": 56.3,
+      "perCall": 1628,
+      "reasoningShare": 0.8
+    }
+  ],
+  "ratings": [
+    {
+      "model": "gemini-4-carbon",
+      "n": 8,
+      "avg": 8.3,
+      "degradedShare": 0.13,
+      "alert": false
+    },
+    {
+      "model": "claude-opus-5-5",
+      "n": 6,
+      "avg": 8.2,
+      "degradedShare": 0.17,
+      "alert": false
+    },
+    {
+      "model": "gpt-6-1-sol",
+      "n": 7,
+      "avg": 8,
+      "degradedShare": 0.14,
+      "alert": false
+    },
+    {
+      "model": "gpt-6-astra",
+      "n": 10,
+      "avg": 7.9,
+      "degradedShare": 0.5,
+      "alert": true
+    },
+    {
+      "model": "claude-sonnet-5-5",
+      "n": 9,
+      "avg": 7.6,
+      "degradedShare": 0.11,
+      "alert": false
+    },
+    {
+      "model": "grok-4-7",
+      "n": 11,
+      "avg": 5.4,
+      "degradedShare": 0.09,
+      "alert": false
+    }
+  ],
+  "quota": [
+    {
+      "provider": "chatgpt",
+      "plan": "Pro (200)",
+      "window": "weekly",
+      "n": 4,
+      "medianTokens": 218586678,
+      "p25Tokens": 196465723,
+      "p75Tokens": 248352579,
+      "medianUsd": 786.9
+    },
+    {
+      "provider": "chatgpt",
+      "plan": "Plus",
+      "window": "5h",
+      "n": 4,
+      "medianTokens": 845572,
+      "p25Tokens": 751340,
+      "p75Tokens": 960564,
+      "medianUsd": 3
+    },
+    {
+      "provider": "claude",
+      "plan": "Max",
+      "window": "5h",
+      "n": 4,
+      "medianTokens": 3289265,
+      "p25Tokens": 3181729,
+      "p75Tokens": 3395460,
+      "medianUsd": 23.7
+    },
+    {
+      "provider": "claude",
+      "plan": "Pro",
+      "window": "5h",
+      "n": 3,
+      "medianTokens": 585170,
+      "p25Tokens": 552970,
+      "p75Tokens": 624928,
+      "medianUsd": 4.2
+    },
+    {
+      "provider": "gemini",
+      "plan": "AI Pro",
+      "window": "5h",
+      "n": 4,
+      "medianTokens": 1379958,
+      "p25Tokens": 1295663,
+      "p75Tokens": 1424740,
+      "medianUsd": 5
+    }
+  ],
+  "events": {
+    "byHourUtc": {
+      "chatgpt": [
+        0,
+        1,
+        1,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        1,
+        1,
+        0,
+        0,
+        0,
+        1,
+        0,
+        0,
+        0,
+        0,
+        2,
+        0,
+        1,
+        0,
+        2
+      ],
+      "claude": [
+        2,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        1,
+        1,
+        1,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        2,
+        1,
+        0,
+        2
+      ],
+      "gemini": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        1,
+        1,
+        1,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        2,
+        1,
+        0,
+        0,
+        0,
+        0,
+        1,
+        3
+      ],
+      "grok": [
+        0,
+        0,
+        0,
+        1,
+        1,
+        0,
+        0,
+        1,
+        1,
+        0,
+        0,
+        0,
+        0,
+        0,
+        1,
+        1,
+        0,
+        0,
+        1,
+        0,
+        0,
+        0,
+        2,
+        1
+      ],
+      "cursor": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "antigravity": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    "counts": [
+      {
+        "provider": "claude",
+        "kind": "reset",
+        "n": 4
+      },
+      {
+        "provider": "chatgpt",
+        "kind": "hit_limit",
+        "n": 7
+      },
+      {
+        "provider": "gemini",
+        "kind": "hit_limit",
+        "n": 7
+      },
+      {
+        "provider": "grok",
+        "kind": "reset",
+        "n": 4
+      },
+      {
+        "provider": "claude",
+        "kind": "hit_limit",
+        "n": 6
+      },
+      {
+        "provider": "gemini",
+        "kind": "reset",
+        "n": 3
+      },
+      {
+        "provider": "grok",
+        "kind": "hit_limit",
+        "n": 6
+      },
+      {
+        "provider": "chatgpt",
+        "kind": "reset",
+        "n": 3
+      }
+    ]
+  }
+}

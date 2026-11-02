@@ -272,7 +272,7 @@ func renderText(_ snapshot: Snapshot) -> String {
 // MARK: Share (opt-in)
 
 /// Repo that receives shared reports as GitHub issues. Override with QUOTAPILOT_SHARE_REPO.
-let shareRepo = ProcessInfo.processInfo.environment["QUOTAPILOT_SHARE_REPO"] ?? "dwagwd/ai-quota-watch"
+let shareRepo = ProcessInfo.processInfo.environment["QUOTAPILOT_SHARE_REPO"] ?? "dwagwd/quotapilot"
 
 /// Collects the anonymous numbers for `share`. Reads the same sources as `status`; sends nothing.
 func shareReports(hours: Double) -> (reports: [[String: Any]], errors: [String: String]) {

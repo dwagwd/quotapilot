@@ -1,0 +1,50 @@
+# AI Quota Watch (site/): saves "data-report" issues and rebuilds site/data/community.json.
+# Reports come from `quotapilot share` or the website form. Uses only the default token.
+name: Community data
+
+on:
+  issues:
+    types: [opened, edited, labeled]
+  schedule:
+    - cron: "17 */6 * * *"   # re-aggregate so the 7-day window keeps moving
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  issues: write
+
+concurrency:
+  group: community-data
+  cancel-in-progress: false
+
+jobs:
+  ingest:
+    runs-on: ubuntu-latest
+    if: github.event_name != 'issues' || contains(github.event.issue.labels.*.name, 'data-report')
+    defaults:
+      run:
+        working-directory: site
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Save the report from the issue
+        if: github.event_name == 'issues'
+        run: node scripts/ingest-issue.mjs "$GITHUB_EVENT_PATH"
+      - name: Aggregate
+        run: node scripts/aggregate.mjs
+      - name: Commit
+        run: |
+          git config user.name "community-bot"
+          git config user.email "community-bot@users.noreply.github.com"
+          git add data/submissions data/community.json
+          git diff --cached --quiet || git commit -m "Update community data"
+          git push
+      - name: Thank and close the issue
+        if: github.event_name == 'issues' && success()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh issue comment ${{ github.event.issue.number }} --repo ${{ github.repository }} --body "Thanks, your report is saved. It shows on AI Quota Watch once at least 3 reports exist for the same model or plan."
+          gh issue close ${{ github.event.issue.number }} --repo ${{ github.repository }}

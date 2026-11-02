@@ -1,0 +1,11 @@
+{
+  "name": "ai-quota-watch",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test tests/*.test.mjs && node scripts/validate-data.mjs && node scripts/check-i18n.mjs",
+    "aggregate": "node scripts/aggregate.mjs",
+    "sample": "node scripts/make-sample.mjs",
+    "serve": "python3 -m http.server 8765"
+  }
+}

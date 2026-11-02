@@ -12,7 +12,7 @@ brew install --cask dwagwd/tap/quotapilot
 
 Signed and notarized. Or download the ZIP from [Releases](https://github.com/dwagwd/quotapilot/releases/latest).
 
-[繁體中文](README.zh-TW.md) · [Privacy](PRIVACY.md) · [Contributing](CONTRIBUTING.md) · [MIT license](LICENSE)
+[繁體中文](README.zh-TW.md) · [AI Quota Watch site](site/) · [Privacy](PRIVACY.md) · [Contributing](CONTRIBUTING.md) · [MIT license](LICENSE)
 
 Unofficial community project. Not affiliated with or endorsed by OpenAI, Anthropic, Google, or Cursor. Product names belong to their respective owners.
 

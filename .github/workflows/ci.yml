@@ -1,7 +1,9 @@
 name: CI
 on:
   push:
+    paths-ignore: ["site/**", ".github/workflows/community-data.yml", ".github/workflows/site-pages.yml"]
   pull_request:
+    paths-ignore: ["site/**", ".github/workflows/community-data.yml", ".github/workflows/site-pages.yml"]
 permissions:
   contents: read
 jobs:

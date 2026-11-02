@@ -1,0 +1,384 @@
+{
+  "lastReviewed": "2026-11-02",
+  "source": {
+    "name": "Artificial Analysis LLM Leaderboard",
+    "url": "https://artificialanalysis.ai/leaderboards/models",
+    "checked": "2026-11-02",
+    "covers": "Intelligence Index, cost per task and output speed for each reasoning effort. Claude rows are the 'with fallback' variants."
+  },
+  "effortOrder": [
+    "low",
+    "medium",
+    "high",
+    "xhigh",
+    "max"
+  ],
+  "models": [
+    {
+      "model": "claude-opus-5-5",
+      "name": "Claude Opus 5.5",
+      "provider": "claude",
+      "efforts": [
+        {
+          "effort": "low",
+          "intelligence": 35,
+          "costPerTask": 0.98,
+          "speed": 79
+        },
+        {
+          "effort": "medium",
+          "intelligence": 48,
+          "costPerTask": 2.45,
+          "speed": 80
+        },
+        {
+          "effort": "high",
+          "intelligence": 52,
+          "costPerTask": 3.46,
+          "speed": 80
+        },
+        {
+          "effort": "xhigh",
+          "intelligence": 57,
+          "costPerTask": 6.05,
+          "speed": 83
+        },
+        {
+          "effort": "max",
+          "intelligence": 58,
+          "costPerTask": 10.04,
+          "speed": 96
+        }
+      ]
+    },
+    {
+      "model": "claude-sonnet-5-5",
+      "name": "Claude Sonnet 5.5",
+      "provider": "claude",
+      "efforts": [
+        {
+          "effort": "low",
+          "intelligence": 25,
+          "costPerTask": 0.51,
+          "speed": 107
+        },
+        {
+          "effort": "medium",
+          "intelligence": 30,
+          "costPerTask": 0.78,
+          "speed": 106
+        },
+        {
+          "effort": "high",
+          "intelligence": 41,
+          "costPerTask": 1.64,
+          "speed": 108
+        },
+        {
+          "effort": "xhigh",
+          "intelligence": 50,
+          "costPerTask": 4.09,
+          "speed": 109
+        },
+        {
+          "effort": "max",
+          "intelligence": 54,
+          "costPerTask": 10.02,
+          "speed": 138
+        }
+      ]
+    },
+    {
+      "model": "claude-fable-5-1",
+      "name": "Claude Fable 5.1",
+      "provider": "claude",
+      "efforts": [
+        {
+          "effort": "low",
+          "intelligence": 38,
+          "costPerTask": 4.47,
+          "speed": 57
+        },
+        {
+          "effort": "medium",
+          "intelligence": 43,
+          "costPerTask": 5.56,
+          "speed": 58
+        },
+        {
+          "effort": "high",
+          "intelligence": 47,
+          "costPerTask": 7.54,
+          "speed": 58
+        },
+        {
+          "effort": "xhigh",
+          "intelligence": 50,
+          "costPerTask": 10.85,
+          "speed": 63
+        },
+        {
+          "effort": "max",
+          "intelligence": 49,
+          "costPerTask": 12.99,
+          "speed": 71
+        }
+      ]
+    },
+    {
+      "model": "claude-haiku-5-5",
+      "name": "Claude Haiku 5.5",
+      "provider": "claude",
+      "efforts": [
+        {
+          "effort": "low",
+          "intelligence": 19,
+          "costPerTask": 0.04,
+          "speed": 168
+        },
+        {
+          "effort": "medium",
+          "intelligence": 25,
+          "costPerTask": 0.09,
+          "speed": 176
+        },
+        {
+          "effort": "high",
+          "intelligence": 30,
+          "costPerTask": 0.16,
+          "speed": 182
+        },
+        {
+          "effort": "xhigh",
+          "intelligence": 34,
+          "costPerTask": 0.25,
+          "speed": 200
+        },
+        {
+          "effort": "max",
+          "intelligence": 36,
+          "costPerTask": 0.41,
+          "speed": 236
+        }
+      ]
+    },
+    {
+      "model": "gpt-6-astra",
+      "name": "GPT-6 Astra",
+      "provider": "chatgpt",
+      "efforts": [
+        {
+          "effort": "low",
+          "intelligence": 43,
+          "costPerTask": 1.42,
+          "speed": 57
+        },
+        {
+          "effort": "medium",
+          "intelligence": 51,
+          "costPerTask": 2.73,
+          "speed": 57
+        },
+        {
+          "effort": "high",
+          "intelligence": 55,
+          "costPerTask": 3.24,
+          "speed": 63
+        },
+        {
+          "effort": "xhigh",
+          "intelligence": 55,
+          "costPerTask": 3.66,
+          "speed": 70
+        },
+        {
+          "effort": "max",
+          "intelligence": 57,
+          "costPerTask": 6.24,
+          "speed": 74
+        }
+      ]
+    },
+    {
+      "model": "gpt-6-1-sol",
+      "name": "GPT-6.1 Sol",
+      "provider": "chatgpt",
+      "efforts": [
+        {
+          "effort": "low",
+          "intelligence": 35,
+          "costPerTask": 0.16,
+          "speed": 61
+        },
+        {
+          "effort": "medium",
+          "intelligence": 46,
+          "costPerTask": 0.36,
+          "speed": 63
+        },
+        {
+          "effort": "high",
+          "intelligence": 50,
+          "costPerTask": 0.59,
+          "speed": 67
+        },
+        {
+          "effort": "xhigh",
+          "intelligence": 52,
+          "costPerTask": 0.76,
+          "speed": 75
+        },
+        {
+          "effort": "max",
+          "intelligence": 55,
+          "costPerTask": 1.27,
+          "speed": 91
+        }
+      ]
+    },
+    {
+      "model": "gpt-6-1-terra",
+      "name": "GPT-6.1 Terra",
+      "provider": "chatgpt",
+      "efforts": [
+        {
+          "effort": "low",
+          "intelligence": 29,
+          "costPerTask": 0.07,
+          "speed": 91
+        },
+        {
+          "effort": "medium",
+          "intelligence": 38,
+          "costPerTask": 0.17,
+          "speed": 91
+        },
+        {
+          "effort": "high",
+          "intelligence": 42,
+          "costPerTask": 0.26,
+          "speed": 95
+        },
+        {
+          "effort": "xhigh",
+          "intelligence": 45,
+          "costPerTask": 0.4,
+          "speed": 99
+        },
+        {
+          "effort": "max",
+          "intelligence": 51,
+          "costPerTask": 0.96,
+          "speed": 107
+        }
+      ]
+    },
+    {
+      "model": "gpt-6-luna",
+      "name": "GPT-6 Luna",
+      "provider": "chatgpt",
+      "efforts": [
+        {
+          "effort": "low",
+          "intelligence": 10,
+          "costPerTask": 0.01,
+          "speed": 127
+        },
+        {
+          "effort": "medium",
+          "intelligence": 18,
+          "costPerTask": 0.04,
+          "speed": null
+        },
+        {
+          "effort": "high",
+          "intelligence": 21,
+          "costPerTask": 0.07,
+          "speed": 120
+        },
+        {
+          "effort": "xhigh",
+          "intelligence": 23,
+          "costPerTask": 0.1,
+          "speed": 127
+        },
+        {
+          "effort": "max",
+          "intelligence": 28,
+          "costPerTask": 0.15,
+          "speed": 118
+        }
+      ]
+    },
+    {
+      "model": "gemini-4-carbon",
+      "name": "Gemini 4 Carbon",
+      "provider": "gemini",
+      "efforts": [
+        {
+          "effort": "high",
+          "intelligence": 59,
+          "costPerTask": 7.76,
+          "speed": 95
+        }
+      ]
+    },
+    {
+      "model": "gemini-4-argon",
+      "name": "Gemini 4 Argon",
+      "provider": "gemini",
+      "efforts": [
+        {
+          "effort": "high",
+          "intelligence": 50,
+          "costPerTask": 7.68,
+          "speed": 83
+        }
+      ]
+    },
+    {
+      "model": "gemini-3-8-flash",
+      "name": "Gemini 3.8 Flash",
+      "provider": "gemini",
+      "efforts": [
+        {
+          "effort": "medium",
+          "intelligence": 30,
+          "costPerTask": 6.26,
+          "speed": null
+        },
+        {
+          "effort": "high",
+          "intelligence": 31,
+          "costPerTask": 7.77,
+          "speed": 135
+        }
+      ]
+    },
+    {
+      "model": "grok-4-7",
+      "name": "Grok 4.7",
+      "provider": "grok",
+      "efforts": [
+        {
+          "effort": "low",
+          "intelligence": 31,
+          "costPerTask": 2.92,
+          "speed": 70
+        },
+        {
+          "effort": "high",
+          "intelligence": 35,
+          "costPerTask": 6.18,
+          "speed": 76
+        },
+        {
+          "effort": "xhigh",
+          "intelligence": 34,
+          "costPerTask": 7.51,
+          "speed": 84
+        }
+      ]
+    }
+  ]
+}

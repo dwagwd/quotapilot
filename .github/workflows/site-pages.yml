@@ -1,0 +1,45 @@
+# Publishes site/ (AI Quota Watch) to GitHub Pages. Enable Pages with source "GitHub Actions" first.
+name: Site
+
+on:
+  push:
+    branches: [main]
+    paths: ["site/**"]
+  workflow_run:
+    workflows: [Community data]
+    types: [completed]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Check data
+        working-directory: site
+        run: npm test
+      - name: Package the static files only
+        run: |
+          mkdir -p _site
+          cp -R site/index.html site/assets site/data _site/
+          rm -rf _site/data/submissions
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+      - id: deployment
+        uses: actions/deploy-pages@v4

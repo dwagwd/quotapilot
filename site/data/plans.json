@@ -1,0 +1,408 @@
+{
+  "lastReviewed": "2026-11-02",
+  "note": "Every plan row carries its own source URL, the date we checked it, and a confidence level. 'official' = read on the vendor's own page; 'reported' = third-party coverage we could not confirm on an official page.",
+  "providers": [
+    {
+      "id": "chatgpt",
+      "name": "ChatGPT",
+      "vendor": "OpenAI",
+      "color": "#10a37f",
+      "window": {
+        "en": "Per-model rolling windows (Codex: 5-hour local message estimates)",
+        "zh": "依模型的滾動視窗（Codex：每 5 小時本機訊息估計）"
+      },
+      "publishesNumbers": false,
+      "plans": [
+        {
+          "name": "Free",
+          "priceUsd": 0,
+          "multiple": null,
+          "summary": {
+            "en": "Limited access to the flagship model; reported unlimited plain text chat since Aug 2026.",
+            "zh": "旗艦模型有限使用；據報 2026 年 8 月起一般文字聊天不限量。"
+          },
+          "confidence": "reported",
+          "source": "https://elephas.app/resources/chatgpt-message-limit",
+          "checked": "2026-11-02"
+        },
+        {
+          "name": "Go",
+          "priceUsd": 8,
+          "multiple": null,
+          "summary": {
+            "en": "Low-cost tier, price varies by country.",
+            "zh": "低價方案，價格依國家而異。"
+          },
+          "confidence": "reported",
+          "source": "https://dupple.com/learn/chatgpt-go-vs-plus",
+          "checked": "2026-11-02"
+        },
+        {
+          "name": "Plus",
+          "priceUsd": 20,
+          "multiple": 1,
+          "summary": {
+            "en": "Baseline paid tier. GPT-6 Astra in ChatGPT Work and Codex; Codex estimate 5–45 Astra messages per 5h.",
+            "zh": "付費基準方案。ChatGPT Work 與 Codex 可用 GPT-6 Astra；Codex 估計每 5 小時 5–45 則 Astra 訊息。"
+          },
+          "confidence": "reported",
+          "source": "https://blog.laozhang.ai/en/posts/chatgpt-usage-limits-by-plan",
+          "checked": "2026-11-02"
+        },
+        {
+          "name": "Pro (100)",
+          "priceUsd": 100,
+          "multiple": 5,
+          "summary": {
+            "en": "Launched 9 Apr 2026; reported 5x Plus usage.",
+            "zh": "2026/4/9 推出；據報為 Plus 的 5 倍用量。"
+          },
+          "confidence": "reported",
+          "source": "https://www.nocode.mba/articles/chatgpt-pricing",
+          "checked": "2026-11-02"
+        },
+        {
+          "name": "Pro (200)",
+          "priceUsd": 200,
+          "multiple": 20,
+          "summary": {
+            "en": "Highest tier; reported ~20x Plus. Included usage reportedly lowered for new subscribers late Sep 2026.",
+            "zh": "最高方案；據報約 Plus 的 20 倍。據報 2026 年 9 月底起新訂閱者的內含用量下調。"
+          },
+          "confidence": "reported",
+          "source": "https://overchat.ai/ai-hub/chatgpt-price-plans",
+          "checked": "2026-11-02"
+        }
+      ]
+    },
+    {
+      "id": "claude",
+      "name": "Claude",
+      "vendor": "Anthropic",
+      "color": "#d97757",
+      "window": {
+        "en": "5-hour session window + weekly cap",
+        "zh": "5 小時工作階段視窗 + 每週上限"
+      },
+      "publishesNumbers": false,
+      "plans": [
+        {
+          "name": "Free",
+          "priceUsd": 0,
+          "multiple": null,
+          "summary": {
+            "en": "Limited usage every 5 hours and every week.",
+            "zh": "每 5 小時與每週皆有有限用量。"
+          },
+          "confidence": "official",
+          "source": "https://claude.com/pricing",
+          "checked": "2026-11-02"
+        },
+        {
+          "name": "Pro",
+          "priceUsd": 20,
+          "multiple": 1,
+          "summary": {
+            "en": "Baseline. $17/mo billed annually.",
+            "zh": "基準方案。年繳每月 $17。"
+          },
+          "confidence": "official",
+          "source": "https://claude.com/pricing",
+          "checked": "2026-11-02"
+        },
+        {
+          "name": "Max",
+          "priceUsd": 100,
+          "multiple": 5,
+          "summary": {
+            "en": "5x Pro usage; includes $100/mo API credits.",
+            "zh": "Pro 的 5 倍用量；含每月 $100 API 額度。"
+          },
+          "confidence": "official",
+          "source": "https://claude.com/pricing",
+          "checked": "2026-11-02"
+        },
+        {
+          "name": "Ultra",
+          "priceUsd": 200,
+          "multiple": 10,
+          "summary": {
+            "en": "10x Pro weekly usage, no 5-hour limit for verified accounts; $200/mo API credits.",
+            "zh": "每週為 Pro 的 10 倍用量，驗證帳號無 5 小時限制；含每月 $200 API 額度。"
+          },
+          "confidence": "official",
+          "source": "https://claude.com/pricing",
+          "checked": "2026-11-02"
+        }
+      ]
+    },
+    {
+      "id": "gemini",
+      "name": "Gemini",
+      "vendor": "Google",
+      "color": "#4f7cff",
+      "window": {
+        "en": "Compute-based, refreshes every 5 hours until the weekly limit",
+        "zh": "依運算量計算，每 5 小時重置，直到達到每週上限"
+      },
+      "publishesNumbers": false,
+      "plans": [
+        {
+          "name": "Free",
+          "priceUsd": 0,
+          "multiple": 1,
+          "summary": {
+            "en": "Standard limits (the 1x reference for Google plans).",
+            "zh": "標準額度（Google 方案的 1 倍基準）。"
+          },
+          "confidence": "official",
+          "source": "https://support.google.com/gemini/answer/16275805?hl=en",
+          "checked": "2026-11-02"
+        },
+        {
+          "name": "AI Plus",
+          "priceUsd": null,
+          "multiple": 2,
+          "summary": {
+            "en": "2x standard limits. Price varies by region.",
+            "zh": "標準額度的 2 倍。價格依地區而異。"
+          },
+          "confidence": "official",
+          "source": "https://support.google.com/gemini/answer/16275805?hl=en",
+          "checked": "2026-11-02"
+        },
+        {
+          "name": "AI Pro",
+          "priceUsd": 19.99,
+          "multiple": 4,
+          "summary": {
+            "en": "4x standard limits ($19.99, reported price).",
+            "zh": "標準額度的 4 倍（$19.99，價格為第三方資料）。"
+          },
+          "confidence": "official",
+          "source": "https://support.google.com/gemini/answer/16275805?hl=en",
+          "checked": "2026-11-02"
+        },
+        {
+          "name": "AI Ultra",
+          "priceUsd": 99.99,
+          "multiple": 20,
+          "summary": {
+            "en": "5x AI Pro limits ($99.99 tier, reported price).",
+            "zh": "AI Pro 的 5 倍（$99.99 方案，價格為第三方資料）。"
+          },
+          "confidence": "official",
+          "source": "https://support.google.com/gemini/answer/16275805?hl=en",
+          "checked": "2026-11-02"
+        },
+        {
+          "name": "AI Ultra (top)",
+          "priceUsd": 199.99,
+          "multiple": 80,
+          "summary": {
+            "en": "20x AI Pro limits ($199.99 tier, reported price).",
+            "zh": "AI Pro 的 20 倍（$199.99 方案，價格為第三方資料）。"
+          },
+          "confidence": "official",
+          "source": "https://support.google.com/gemini/answer/16275805?hl=en",
+          "checked": "2026-11-02"
+        }
+      ]
+    },
+    {
+      "id": "grok",
+      "name": "Grok",
+      "vendor": "xAI",
+      "color": "#a3a3a3",
+      "window": {
+        "en": "One weekly pool shared across Chat, Imagine and Voice, shown as % used",
+        "zh": "Chat、Imagine、Voice 共用一個每週額度池，以使用百分比顯示"
+      },
+      "publishesNumbers": false,
+      "plans": [
+        {
+          "name": "Free",
+          "priceUsd": 0,
+          "multiple": null,
+          "summary": {
+            "en": "Limited access.",
+            "zh": "有限使用。"
+          },
+          "confidence": "reported",
+          "source": "https://www.ai-toolbox.co/grok-management-and-productivity/grok-usage-limits-2026",
+          "checked": "2026-11-02"
+        },
+        {
+          "name": "SuperGrok",
+          "priceUsd": 30,
+          "multiple": 1,
+          "summary": {
+            "en": "Baseline paid tier. xAI publishes no fixed message counts.",
+            "zh": "付費基準方案。xAI 未公布固定訊息數。"
+          },
+          "confidence": "reported",
+          "source": "https://krater.ai/blog/grok-pricing",
+          "checked": "2026-11-02"
+        },
+        {
+          "name": "SuperGrok Plus",
+          "priceUsd": 100,
+          "multiple": null,
+          "summary": {
+            "en": "\"Significantly higher usage\"; no published multiple.",
+            "zh": "「大幅提高用量」；未公布倍數。"
+          },
+          "confidence": "reported",
+          "source": "https://krater.ai/blog/grok-pricing",
+          "checked": "2026-11-02"
+        },
+        {
+          "name": "SuperGrok Heavy",
+          "priceUsd": 300,
+          "multiple": null,
+          "summary": {
+            "en": "Top tier with Heavy models; no published multiple.",
+            "zh": "最高方案，含 Heavy 模型；未公布倍數。"
+          },
+          "confidence": "reported",
+          "source": "https://www.tooljunction.io/blog/grok-pricing-usage-limits-2026",
+          "checked": "2026-11-02"
+        }
+      ]
+    },
+    {
+      "id": "cursor",
+      "name": "Cursor",
+      "vendor": "Anysphere",
+      "color": "#a259d9",
+      "window": {
+        "en": "Shared AI usage pool that refreshes weekly",
+        "zh": "共用 AI 用量池，每週重置"
+      },
+      "publishesNumbers": false,
+      "plans": [
+        {
+          "name": "Free",
+          "priceUsd": 0,
+          "multiple": null,
+          "summary": {
+            "en": "Limited agent and chat requests.",
+            "zh": "有限的 agent 與聊天請求。"
+          },
+          "confidence": "official",
+          "source": "https://cursor.com/pricing",
+          "checked": "2026-11-02"
+        },
+        {
+          "name": "Plus",
+          "priceUsd": 8,
+          "multiple": 1,
+          "summary": {
+            "en": "Baseline shared usage pool.",
+            "zh": "基準共用用量池。"
+          },
+          "confidence": "official",
+          "source": "https://cursor.com/pricing",
+          "checked": "2026-11-02"
+        },
+        {
+          "name": "Premium",
+          "priceUsd": 30,
+          "multiple": 4,
+          "summary": {
+            "en": "4x the usage of Plus.",
+            "zh": "Plus 的 4 倍用量。"
+          },
+          "confidence": "official",
+          "source": "https://cursor.com/pricing",
+          "checked": "2026-11-02"
+        },
+        {
+          "name": "Super",
+          "priceUsd": 100,
+          "multiple": 15,
+          "summary": {
+            "en": "15x the usage of Plus.",
+            "zh": "Plus 的 15 倍用量。"
+          },
+          "confidence": "official",
+          "source": "https://cursor.com/pricing",
+          "checked": "2026-11-02"
+        },
+        {
+          "name": "Ultra",
+          "priceUsd": 200,
+          "multiple": 50,
+          "summary": {
+            "en": "50x the usage of Plus.",
+            "zh": "Plus 的 50 倍用量。"
+          },
+          "confidence": "official",
+          "source": "https://cursor.com/pricing",
+          "checked": "2026-11-02"
+        }
+      ]
+    },
+    {
+      "id": "antigravity",
+      "name": "Antigravity",
+      "vendor": "Google",
+      "color": "#d4a017",
+      "window": {
+        "en": "Paid: refreshes every 5 hours until the weekly limit. Free: refreshes weekly",
+        "zh": "付費：每 5 小時重置直到每週上限；免費：每週重置"
+      },
+      "publishesNumbers": false,
+      "plans": [
+        {
+          "name": "Free",
+          "priceUsd": 0,
+          "multiple": null,
+          "summary": {
+            "en": "\"A meaningful quota, refreshed weekly.\"",
+            "zh": "「相當的額度，每週重置」。"
+          },
+          "confidence": "official",
+          "source": "https://antigravity.google/docs/plans",
+          "checked": "2026-11-02"
+        },
+        {
+          "name": "with AI Pro",
+          "priceUsd": 19.99,
+          "multiple": 1,
+          "summary": {
+            "en": "High quota, 5-hour refresh, higher weekly limit. Price is the Google AI Pro subscription (reported).",
+            "zh": "高額度、每 5 小時重置、較高每週上限。價格為 Google AI Pro 訂閱（第三方資料）。"
+          },
+          "confidence": "official",
+          "source": "https://antigravity.google/docs/plans",
+          "checked": "2026-11-02"
+        },
+        {
+          "name": "with AI Ultra",
+          "priceUsd": 99.99,
+          "multiple": 5,
+          "summary": {
+            "en": "Highest quota and weekly limits; reported as 5x AI Pro on the $99.99 tier.",
+            "zh": "最高額度與每週上限；據報 $99.99 方案為 AI Pro 的 5 倍。"
+          },
+          "confidence": "reported",
+          "source": "https://www.codeagentswarm.com/en/guides/antigravity-plans-and-pricing",
+          "checked": "2026-11-02"
+        },
+        {
+          "name": "with AI Ultra (top)",
+          "priceUsd": 199.99,
+          "multiple": 20,
+          "summary": {
+            "en": "Reported as 20x AI Pro on the $199.99 tier.",
+            "zh": "據報 $199.99 方案為 AI Pro 的 20 倍。"
+          },
+          "confidence": "reported",
+          "source": "https://www.codeagentswarm.com/en/guides/antigravity-plans-and-pricing",
+          "checked": "2026-11-02"
+        }
+      ]
+    }
+  ]
+}

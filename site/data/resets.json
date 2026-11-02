@@ -1,0 +1,215 @@
+{
+  "lastReviewed": "2026-11-02",
+  "note": "Usage-limit resets announced by vendors. 'at' is the UTC time of the announcing or confirming post, decoded from the X post ID; the moment each account was reset can differ. official = the vendor's own post, cross-checked; tracker = only third-party trackers report it.",
+  "trackers": [
+    {
+      "name": "codexlimitreset.com",
+      "url": "https://codexlimitreset.com/"
+    },
+    {
+      "name": "Tibo Codex Monitor (ModelYard)",
+      "url": "https://tibo.modelyard.dev/"
+    },
+    {
+      "name": "codexradar.com",
+      "url": "https://codexradar.com/#reset-ledger"
+    }
+  ],
+  "resets": [
+    {
+      "at": "2026-11-01T23:27:00Z",
+      "provider": "chatgpt",
+      "product": "Codex",
+      "kind": "banked",
+      "confidence": "official",
+      "text": {
+        "en": "Second banked reset card (2/2) posted, end of the 28-day run.",
+        "zh": "第二張可儲存重置卡（2/2）公布，28 天活動結束。"
+      },
+      "source": "https://x.com/thsottiaux/status/2117035794678546764",
+      "timeKnown": true
+    },
+    {
+      "at": "2026-11-01T00:43:00Z",
+      "provider": "chatgpt",
+      "product": "Codex",
+      "kind": "banked",
+      "confidence": "official",
+      "text": {
+        "en": "First banked reset card (1/2). Apply it yourself in Codex settings.",
+        "zh": "第一張可儲存重置卡（1/2），需自行在 Codex 設定中套用。"
+      },
+      "source": "https://x.com/thsottiaux/status/2116692529970311254",
+      "timeKnown": true
+    },
+    {
+      "at": "2026-10-28T06:29:00Z",
+      "provider": "chatgpt",
+      "product": "Codex",
+      "kind": "full",
+      "confidence": "official",
+      "text": {
+        "en": "Day 23: full reset confirmed complete.",
+        "zh": "Day 23：完整重置確認完成。"
+      },
+      "source": "https://x.com/thsottiaux/status/2115330127886463244",
+      "timeKnown": true
+    },
+    {
+      "at": "2026-10-26T05:21:00Z",
+      "provider": "chatgpt",
+      "product": "Codex",
+      "kind": "full",
+      "confidence": "tracker",
+      "text": {
+        "en": "Day 21: reset announced; completion reported by trackers only.",
+        "zh": "Day 21：預告重置，完成僅由追蹤站回報。"
+      },
+      "source": "https://x.com/thsottiaux/status/2114588174249071102",
+      "timeKnown": true
+    },
+    {
+      "at": "2026-10-25T06:06:00Z",
+      "provider": "chatgpt",
+      "product": "Codex",
+      "kind": "full",
+      "confidence": "official",
+      "text": {
+        "en": "Day 20: full reset completed and propagated.",
+        "zh": "Day 20：完整重置完成並全面生效。"
+      },
+      "source": "https://x.com/thsottiaux/status/2114237083652882932",
+      "timeKnown": true
+    },
+    {
+      "at": "2026-10-23T04:46:00Z",
+      "provider": "chatgpt",
+      "product": "Codex",
+      "kind": "full",
+      "confidence": "tracker",
+      "text": {
+        "en": "Day 17/18: resets reported complete by trackers; no completion post found.",
+        "zh": "Day 17/18：追蹤站回報重置完成，未找到官方完成貼文。"
+      },
+      "source": "https://x.com/thsottiaux/status/2113492187770175603",
+      "timeKnown": true
+    },
+    {
+      "at": "2026-10-20T06:33:00Z",
+      "provider": "chatgpt",
+      "product": "Codex",
+      "kind": "full",
+      "confidence": "official",
+      "text": {
+        "en": "Day 15: usage reset confirmed.",
+        "zh": "Day 15：額度重置確認。"
+      },
+      "source": "https://x.com/thsottiaux/status/2112432076767289678",
+      "timeKnown": true
+    },
+    {
+      "at": "2026-10-17T00:00:00Z",
+      "provider": "chatgpt",
+      "product": "Codex",
+      "kind": "full",
+      "confidence": "tracker",
+      "text": {
+        "en": "Day 13: global reset planned by end of day; completion from community reports.",
+        "zh": "Day 13：預告當日完成全域重置，完成由社群回報確認。"
+      },
+      "source": "https://tibo.modelyard.dev/events/124",
+      "timeKnown": false
+    },
+    {
+      "at": "2026-10-15T06:28:00Z",
+      "provider": "chatgpt",
+      "product": "Codex",
+      "kind": "full",
+      "confidence": "official",
+      "text": {
+        "en": "Day 10: reset confirmed complete.",
+        "zh": "Day 10：重置確認完成。"
+      },
+      "source": "https://x.com/thsottiaux/status/2110618732666257557",
+      "timeKnown": true
+    },
+    {
+      "at": "2026-10-13T05:06:00Z",
+      "provider": "chatgpt",
+      "product": "Codex",
+      "kind": "full",
+      "confidence": "official",
+      "text": {
+        "en": "Day 8: global reset complete.",
+        "zh": "Day 8：全域重置完成。"
+      },
+      "source": "https://x.com/thsottiaux/status/2109873287853707513",
+      "timeKnown": true
+    },
+    {
+      "at": "2026-10-11T04:01:00Z",
+      "provider": "chatgpt",
+      "product": "Codex",
+      "kind": "full",
+      "confidence": "official",
+      "text": {
+        "en": "Day 6: global reset propagated to all accounts.",
+        "zh": "Day 6：全域重置已套用到所有帳號。"
+      },
+      "source": "https://x.com/thsottiaux/status/2109132167112782291",
+      "timeKnown": true
+    },
+    {
+      "at": "2026-07-28T03:09:00Z",
+      "provider": "chatgpt",
+      "product": "Codex + ChatGPT Work",
+      "kind": "full",
+      "confidence": "official",
+      "text": {
+        "en": "Limits reset for all paid Codex and ChatGPT Work users.",
+        "zh": "所有付費 Codex 與 ChatGPT Work 使用者額度重置。"
+      },
+      "source": "https://x.com/thsottiaux/status/2081940052154933696",
+      "timeKnown": true
+    },
+    {
+      "at": "2026-06-29T23:39:00Z",
+      "provider": "chatgpt",
+      "product": "Codex",
+      "kind": "full",
+      "confidence": "official",
+      "text": {
+        "en": "Full reset plus one banked reset after usage drained faster than expected.",
+        "zh": "因額度消耗異常加快，完整重置並加贈一張可儲存重置卡。"
+      },
+      "source": "https://x.com/thsottiaux/status/2071740419030053227",
+      "timeKnown": true
+    },
+    {
+      "at": "2026-05-23T20:14:00Z",
+      "provider": "chatgpt",
+      "product": "Codex",
+      "kind": "full",
+      "confidence": "official",
+      "text": {
+        "en": "Reset for all accounts after a cache-hit regression was rolled back.",
+        "zh": "快取命中率問題回滾後，所有帳號重置。"
+      },
+      "source": "https://x.com/thsottiaux/status/2058280452851638313",
+      "timeKnown": true
+    },
+    {
+      "at": "2026-05-16T17:51:00Z",
+      "provider": "chatgpt",
+      "product": "Codex",
+      "kind": "full",
+      "confidence": "official",
+      "text": {
+        "en": "Reset across all paid plans after two quality issues were fixed.",
+        "zh": "修正兩個品質問題後，所有付費方案重置。"
+      },
+      "source": "https://x.com/thsottiaux/status/2055707616605835333",
+      "timeKnown": true
+    }
+  ]
+}

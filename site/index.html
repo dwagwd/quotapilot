@@ -1,0 +1,237 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>AI Quota Watch</title>
+  <meta name="description" content="Track usage limits, plan changes, API prices, intelligence scores and speed for ChatGPT, Claude, Gemini, Grok, Cursor and Antigravity. Every number cites its source and date.">
+  <link rel="stylesheet" href="assets/style.css">
+  <script src="assets/config.js"></script>
+</head>
+<body>
+  <header class="topbar">
+    <div class="wrap topbar-inner">
+      <a class="brand" href="#top" id="top">
+        <span class="brand-mark" aria-hidden="true"></span>
+        <span>AI Quota Watch</span>
+      </a>
+      <nav class="nav">
+        <a href="#plans" data-i18n="nav.plans">Plans</a>
+        <a href="#changes" data-i18n="nav.changes">Changes</a>
+        <a href="#resets" data-i18n="nav.resets">Resets</a>
+        <a href="#calculator" data-i18n="nav.calc">Calculator</a>
+        <a href="#radar" data-i18n="nav.radar">Radar</a>
+        <a href="#effort" data-i18n="nav.effort">Effort</a>
+        <a href="#community" data-i18n="nav.community">Community</a>
+        <a href="#sources" data-i18n="nav.sources">Sources</a>
+      </nav>
+      <button class="lang-toggle" id="langToggle" type="button" aria-label="Switch language">中文</button>
+    </div>
+  </header>
+
+  <div class="live" id="live" aria-live="polite">
+    <div class="wrap live-inner" id="liveInner"></div>
+  </div>
+
+  <main class="wrap">
+    <section class="hero">
+      <h1 data-i18n="hero.title">How much AI do you actually get?</h1>
+      <p class="lede" data-i18n="hero.lede">Usage limits, plan changes, API prices, intelligence scores and speed for ChatGPT, Claude, Gemini and Grok, in one place. Every number links to where it came from and when we checked it.</p>
+      <div class="stamp"><span data-i18n="hero.reviewed">Data last reviewed</span> <strong id="reviewed">—</strong></div>
+    </section>
+
+    <div class="ad-slot" data-slot="top-banner" aria-hidden="true"><span data-i18n="ad.label">Ad space (not connected)</span></div>
+
+    <section id="plans" class="section">
+      <div class="section-head">
+        <h2 data-i18n="plans.title">Plan quota radar</h2>
+        <p data-i18n="plans.sub">Bars show each plan's usage relative to that vendor's own 1x baseline. Vendors don't publish absolute message counts, so multiples are not comparable across vendors.</p>
+      </div>
+      <div class="legend">
+        <span class="badge official" data-i18n="conf.official">Official</span> <span data-i18n="conf.officialDesc">read on the vendor's page</span>
+        <span class="badge reported" data-i18n="conf.reported">Reported</span> <span data-i18n="conf.reportedDesc">third-party, not yet confirmed</span>
+      </div>
+      <div class="provider-grid" id="providerGrid"></div>
+    </section>
+
+    <section id="changes" class="section">
+      <div class="section-head">
+        <h2 data-i18n="changes.title">What changed</h2>
+        <p data-i18n="changes.sub">Quota and price changes, newest first. Green means users get more, red means less or pricier.</p>
+      </div>
+      <div class="filters" id="changeFilters"></div>
+      <ol class="timeline" id="timeline"></ol>
+    </section>
+
+    <section id="resets" class="section">
+      <div class="section-head">
+        <h2 data-i18n="rs.title">Reset radar</h2>
+        <p data-i18n="rs.sub">Every usage-limit reset we can trace to a post by the vendor, mostly Codex resets announced by Tibo (@thsottiaux). Times are when the post went out; your account may update a little later.</p>
+      </div>
+      <div class="rs-top">
+        <article class="rs-status" id="rsStatus"></article>
+        <div class="rs-stats" id="rsStats"></div>
+      </div>
+      <div class="rs-charts">
+        <article class="com-card"><h3 data-i18n="rs.monthTitle">Resets per month</h3><p class="com-note" data-i18n="rs.monthNote">Full resets and banked reset cards, last 7 months.</p><div id="rsMonths"></div></article>
+        <article class="com-card"><h3 data-i18n="rs.hourTitle">What time resets land</h3><p class="com-note" data-i18n="rs.hourNote">Hour of the announcing post, in your time zone. Posts with unknown time are left out.</p><div id="rsHours"></div></article>
+      </div>
+      <div class="filters" id="rsFilters"></div>
+      <ol class="ledger" id="rsLedger"></ol>
+      <p class="fine" id="rsTrackers"></p>
+    </section>
+
+    <div class="ad-slot" data-slot="mid-content" aria-hidden="true"><span data-i18n="ad.label">Ad space (not connected)</span></div>
+
+    <section id="calculator" class="section">
+      <div class="section-head">
+        <h2 data-i18n="calc.title">Model calculator</h2>
+        <p data-i18n="calc.sub">Enter your workload to compare monthly API cost, response time, intelligence and value. Click a column to sort.</p>
+      </div>
+      <div class="calc">
+        <form class="calc-inputs" id="calcForm" onsubmit="return false">
+          <label><span data-i18n="calc.in">Input tokens per request</span><input type="number" id="inTok" min="0" step="100" value="2000"></label>
+          <label><span data-i18n="calc.out">Output tokens per request</span><input type="number" id="outTok" min="0" step="100" value="800"></label>
+          <label><span data-i18n="calc.req">Requests per day</span><input type="number" id="reqDay" min="0" step="1" value="100"></label>
+          <label><span data-i18n="calc.days">Days per month</span><input type="number" id="days" min="1" max="31" step="1" value="30"></label>
+          <label><span data-i18n="calc.minIq">Minimum intelligence</span><input type="range" id="minIq" min="0" max="60" step="1" value="0"><output id="minIqOut">0</output></label>
+          <fieldset class="prov-filter" id="provFilter"><legend data-i18n="calc.providers">Providers</legend></fieldset>
+          <div class="presets">
+            <span data-i18n="calc.presets">Presets:</span>
+            <button type="button" data-preset="chat" data-i18n="preset.chat">Chat</button>
+            <button type="button" data-preset="code" data-i18n="preset.code">Coding agent</button>
+            <button type="button" data-preset="bulk" data-i18n="preset.bulk">Bulk summaries</button>
+          </div>
+        </form>
+        <div class="calc-results">
+          <div class="kpis" id="kpis"></div>
+          <div class="table-scroll">
+            <table class="models" id="modelTable">
+              <thead>
+                <tr>
+                  <th data-sort="name" data-i18n="col.model">Model</th>
+                  <th data-sort="intelligence" class="num" data-i18n="col.iq">Intelligence</th>
+                  <th data-sort="speed" class="num" data-i18n="col.speed">Tokens/s</th>
+                  <th data-sort="input" class="num" data-i18n="col.price">$ in / out per 1M</th>
+                  <th data-sort="monthly" class="num" data-i18n="col.monthly">Monthly cost</th>
+                  <th data-sort="latency" class="num" data-i18n="col.latency">Sec / reply</th>
+                  <th data-sort="value" class="num" data-i18n="col.value">IQ per $ task</th>
+                </tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+          </div>
+          <p class="fine" data-i18n="calc.notes">Monthly cost = (input × in-price + output × out-price) × requests × days, list price, no caching or batch discounts. Sec / reply = output tokens ÷ measured tokens/s (excludes time to first token). IQ per $ task = Intelligence Index ÷ Artificial Analysis cost per task.</p>
+          <div class="chart-card">
+            <h3 data-i18n="chart.title">Intelligence vs cost per task</h3>
+            <div id="scatter"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+
+
+    <section id="radar" class="section">
+      <div class="section-head">
+        <h2 data-i18n="radar.title">Model radar</h2>
+        <p data-i18n="radar.sub">Pick up to four models to compare intelligence, speed, cost efficiency, how far your budget goes, and context size. Each axis is scored 0–100 against the best model in the list. The workload comes from the calculator above.</p>
+      </div>
+      <div class="radar">
+        <div class="radar-controls">
+          <label class="budget"><span data-i18n="radar.budget">Monthly budget (USD)</span><input type="number" id="budget" min="1" step="5" value="50"></label>
+          <div class="radar-pick" id="radarPick"></div>
+          <p class="fine" data-i18n="radar.max">Up to 4 models at once.</p>
+        </div>
+        <div class="radar-chart" id="radarChart"></div>
+      </div>
+      <div class="table-scroll">
+        <table class="models radar-table" id="radarTable"><thead></thead><tbody></tbody></table>
+      </div>
+      <p class="fine" data-i18n="radar.notes">Scoring: Intelligence and Speed are divided by the top value. Cost efficiency and Budget reach use a log scale, so 100 is the cheapest model and 0 the most expensive. Budget reach = budget ÷ API cost per request with your calculator workload. A model without a verified API price scores 0 on Budget reach and shows n/a.</p>
+    </section>
+    <section id="effort" class="section">
+      <div class="section-head">
+        <h2 data-i18n="ef.title">Effort ladder</h2>
+        <p data-i18n="ef.sub">The same model at different reasoning efforts: how much smarter each step gets, what it costs, and how many tokens it really burns. Benchmarks come from Artificial Analysis; real usage comes from people who share QuotaPilot data.</p>
+      </div>
+      <div class="filters" id="efPick"></div>
+      <div class="chart-card"><h3 data-i18n="ef.chartTitle">Intelligence vs cost per task, by effort</h3><div id="efChart"></div></div>
+      <div class="seg ef-family" id="efFamily" role="tablist"></div>
+      <div class="table-scroll">
+        <table class="models ef-table" id="efTable"><thead></thead><tbody></tbody></table>
+      </div>
+      <p class="fine" id="efNote"></p>
+    </section>
+
+    <section id="community" class="section">
+      <div class="section-head">
+        <h2 data-i18n="com.title">Community radar</h2>
+        <p data-i18n="com.sub">Real measurements from people who use these plans every day: speed, how good a model feels, how much a plan really holds, and when limits hit or reset. Rows appear once at least 3 people report the same model or plan in the last 7 days.</p>
+      </div>
+      <div class="sample-banner" id="sampleBanner" hidden data-i18n="com.sampleBanner">Example data for preview only. These are generated numbers, not real reports.</div>
+      <div class="com-totals" id="comTotals"></div>
+      <div class="com-grid">
+        <article class="com-card"><h3 data-i18n="com.speedTitle">Measured speed</h3><p class="com-note" data-i18n="com.speedNote">Median output tokens/s from real sessions, bar shows the middle 50%.</p><div id="comSpeed"></div></article>
+        <article class="com-card"><h3 data-i18n="com.ratingTitle">How it feels</h3><p class="com-note" data-i18n="com.ratingNote">Average score out of 10. A warning shows when 30% or more of reports say the model got worse.</p><div id="comRating"></div></article>
+        <article class="com-card"><h3 data-i18n="com.quotaTitle">Measured plan quota</h3><p class="com-note" data-i18n="com.quotaNote">Estimated tokens per window: tokens used ÷ share of the limit used. $ is the same tokens at API list price.</p><div id="comQuota"></div></article>
+        <article class="com-card"><h3 data-i18n="com.eventTitle">When limits hit and reset</h3><p class="com-note" data-i18n="com.eventNote">Reports in the last 30 days by hour of day, in your time zone.</p><div id="comEvents"></div></article>
+      </div>
+      <div class="tool-cta">
+        <div>
+          <h3 data-i18n="tool.title">Share real numbers with QuotaPilot</h3>
+          <p data-i18n="tool.sub">QuotaPilot is a free, open-source quota monitor for Codex, Claude Code, Gemini CLI, Grok CLI, Antigravity and Cursor. It reads your local usage and shares nothing by default. Run the share command to see exactly which anonymous numbers it would send, and send them only if you agree.</p>
+          <ul class="tool-points">
+            <li data-i18n="tool.p1">Measured speed per model from your own sessions</li>
+            <li data-i18n="tool.p2">Quota used vs. tokens spent, so we can estimate what each plan really holds</li>
+            <li data-i18n="tool.p3">No prompts, file paths, project names or account ids</li>
+          </ul>
+        </div>
+        <div class="tool-cmd">
+          <pre><span class="c"># macOS</span>
+brew install --cask dwagwd/tap/quotapilot
+<span class="c"># preview, then confirm</span>
+quotapilot share</pre>
+          <a class="btn" href="https://github.com/dwagwd/quotapilot" target="_blank" rel="noopener" data-i18n="tool.cta">QuotaPilot on GitHub</a>
+        </div>
+      </div>
+      <div class="report" id="report">
+        <div class="report-head">
+          <h3 data-i18n="rep.title">Report a data point</h3>
+          <p data-i18n="rep.sub">Takes under a minute. Reports are public and tied to your GitHub account so one person can't flood the stats.</p>
+        </div>
+        <div class="seg" id="repType" role="tablist"></div>
+        <form id="repForm" class="rep-form" novalidate></form>
+        <div class="rep-out" id="repOut" hidden></div>
+      </div>
+    </section>
+
+    <section class="section partners">
+      <div class="section-head">
+        <h2 data-i18n="partners.title">Get a plan</h2>
+        <p data-i18n="partners.sub">Links go to each vendor's official pricing page.</p>
+      </div>
+      <div class="partner-grid" id="partnerGrid"></div>
+      <p class="fine" id="affDisclosure" hidden data-i18n="partners.disclosure">Some links may be affiliate links. We may earn a commission at no extra cost to you.</p>
+    </section>
+
+    <section id="sources" class="section">
+      <div class="section-head">
+        <h2 data-i18n="sources.title">Sources and method</h2>
+        <p data-i18n="sources.sub">We re-check every source by hand and update the date next to it. If an official page cannot be read, we mark the number as Reported.</p>
+      </div>
+      <ul class="sources" id="sourceList"></ul>
+      <p class="fine" data-i18n="sources.disclaimer">Not affiliated with OpenAI, Anthropic, Google or xAI. Limits change without notice; check your account's usage page before you rely on a number. Nothing here is financial advice.</p>
+    </section>
+  </main>
+
+  <div class="ad-slot sticky-foot" data-slot="footer" aria-hidden="true"><span data-i18n="ad.label">Ad space (not connected)</span></div>
+
+  <footer class="footer">
+    <div class="wrap"><span>AI Quota Watch</span> · <span data-i18n="footer.text">Independent tracker. Data as of</span> <span id="footReviewed">—</span></div>
+  </footer>
+
+  <script src="assets/i18n.js"></script>
+  <script src="assets/app.js"></script>
+</body>
+</html>

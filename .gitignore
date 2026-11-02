@@ -27,3 +27,6 @@ claude.json
 antigravity.json
 cursor.json
 settings.json.usage-widget-backup-*
+
+# Wrangler local cache (contains account details and request geolocation)
+.wrangler/

@@ -10,6 +10,8 @@ public struct OutputSpeedSample: Equatable {
     public let reasoningTokens: Double
     public let seconds: Double
     public let key: String
+    /// Model that produced the response, when the log names it.
+    public var model: String? = nil
     public var tokensPerSecond: Double { seconds > 0 ? outputTokens / seconds : 0 }
 }
 
@@ -17,6 +19,7 @@ public struct OutputSpeedSample: Equatable {
 public struct CallTimer {
     public let provider: String
     private var start: Double?
+    private var codexModel: String?
     private var pending: [String: (start: Double, end: Double, output: Double, order: Int, model: String?)] = [:]
     private var order = 0
     public static let plausibleSeconds: ClosedRange<Double> = 0.5...900
@@ -38,6 +41,9 @@ public struct CallTimer {
         let isRecord = line.contains("\"token_usage_record\"")
         guard isRecord || line.contains("_call_output\"") || line.contains("\"user_message\"") || line.contains("\"turn_context\""),
               let object = Self.json(line), let time = AgentLogParser.timestamp(object["timestamp"]) else { return [] }
+        if object["type"] as? String == "turn_context", let payload = object["payload"] as? [String: Any], let model = payload["model"] as? String {
+            codexModel = model
+        }
         guard isRecord, object["type"] as? String == "token_usage_record" else { start = time; return [] }
         defer { start = nil }
         guard let begin = start, let payload = object["payload"] as? [String: Any],
@@ -46,7 +52,8 @@ public struct CallTimer {
         guard Self.plausibleSeconds.contains(seconds), output > 0 else { return [] }
         return [OutputSpeedSample(provider: "codex", timestamp: time, outputTokens: output,
                                   reasoningTokens: min(output, Self.number(usage["reasoning_output_tokens"])),
-                                  seconds: seconds, key: "codex|" + ((payload["response_id"] as? String) ?? "\(time)"))]
+                                  seconds: seconds, key: "codex|" + ((payload["response_id"] as? String) ?? "\(time)"),
+                                  model: (payload["model"] as? String) ?? codexModel)]
     }
 
     /// Claude Code: a `user` line (prompt or tool result) starts a request; the assistant message is written
@@ -77,7 +84,7 @@ public struct CallTimer {
             let seconds = entry.end - entry.start
             guard Self.plausibleSeconds.contains(seconds), entry.output > 0 else { return nil }
             return OutputSpeedSample(provider: AgentLogParser.providerForModel(entry.model), timestamp: entry.end, outputTokens: entry.output,
-                                     reasoningTokens: 0, seconds: seconds, key: "claude|" + id)
+                                     reasoningTokens: 0, seconds: seconds, key: "claude|" + id, model: entry.model)
         }
         pending = [:]
         return done

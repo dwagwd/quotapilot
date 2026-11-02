@@ -54,6 +54,7 @@ quotapilot route review      # prints codex or claude (exit 3 if both are low)
 quotapilot stats --hours 168 # tokens by agent and purpose for 7 days
 quotapilot config rule web codex
 quotapilot status --json     # for scripts and skills
+quotapilot share             # opt-in: preview anonymous speed/quota numbers, then share them with AI Quota Watch
 ```
 
 Build it with Swift 6.2 or later: `swift build -c release --product quotapilot` (binary in `.build/release/`). It needs the Codex CLI on `PATH` for Codex quota and an existing Claude Code login for Claude plan usage. Settings are stored in `~/.local/state/quotapilot/cli-config.json` (Linux) or `%LOCALAPPDATA%\QuotaPilot\cli-config.json` (Windows); on macOS the app's settings are used.

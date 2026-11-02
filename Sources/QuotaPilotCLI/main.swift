@@ -268,6 +268,75 @@ func renderText(_ snapshot: Snapshot) -> String {
     return lines.joined(separator: "\n")
 }
 
+// MARK: Share (opt-in)
+
+/// Repo that receives shared reports as GitHub issues. Override with QUOTAPILOT_SHARE_REPO.
+let shareRepo = ProcessInfo.processInfo.environment["QUOTAPILOT_SHARE_REPO"] ?? "dwagwd/ai-quota-watch"
+
+/// Collects the anonymous numbers for `share`. Reads the same sources as `status`; sends nothing.
+func shareReports(hours: Double) -> (reports: [[String: Any]], errors: [String: String]) {
+    let now = Date().timeIntervalSince1970
+    var errors: [String: String] = [:]
+    let codex = fetchCodexWindows()
+    if let error = codex.error { errors["codex"] = error }
+    let claude: (windows: [WindowItem], error: String?) = AgentDetectionCLI.claudeInstalled ? fetchClaudeWindows() : ([], nil)
+    if let error = claude.error { errors["claude"] = error }
+    // Only the plan-wide buckets: per-model buckets would double count.
+    let shared: [(provider: String, item: WindowItem)] = (codex.windows + claude.windows).compactMap { item in
+        let bucket = item.id.split(separator: ":").dropLast().joined(separator: ":")
+        switch bucket {
+        case "codex": return ("codex", item)
+        case "claude:five_hour", "claude:seven_day": return ("claude", item)
+        default: return nil
+        }
+    }
+    let starts = shared.compactMap { pair -> Double? in
+        guard let reset = pair.item.window.resetsAt, let mins = pair.item.window.windowDurationMins else { return nil }
+        return reset - Double(mins) * 60
+    }
+    let earliest = min(now - hours * 3600, starts.min() ?? now)
+    let scanner = AgentLogScanner(sources: AgentLogScanner.defaultSources(home: FileManager.default.homeDirectoryForCurrentUser))
+    let events = scanner.scan(windowStart: max(earliest, now - 8 * 86400), now: now)
+    for model in scanner.lastModelEvents { modelTracker.observe(model) }
+    let speed = scanner.lastSpeedSamples.filter { $0.timestamp >= now - hours * 3600 }
+    let uses = shared.compactMap { pair -> ContributionReport.WindowUse? in
+        guard let used = pair.item.window.validUsedPercent, let mins = pair.item.window.windowDurationMins, let reset = pair.item.window.resetsAt else { return nil }
+        let start = reset - Double(mins) * 60
+        let tokens = events.filter { $0.provider == pair.provider && $0.timestamp >= start }.reduce(into: TokenBreakdown()) { $0.add($1.usage) }
+        return ContributionReport.WindowUse(provider: pair.provider, plan: pair.item.planType, windowMinutes: mins, usedPercent: used,
+                                            limitReached: pair.item.limitReached, tokensSinceStart: tokens, model: modelTracker.current[pair.provider]?.model)
+    }
+    return (ContributionReport.build(speed: speed, windows: uses, now: now), errors)
+}
+
+func describeReport(_ r: [String: Any]) -> String {
+    func n(_ key: String) -> Double { (r[key] as? Double) ?? Double(r[key] as? Int ?? 0) }
+    switch r["type"] as? String {
+    case "speed":
+        return "speed   \(r["model"] ?? "?"): \(l.number(n("outputTokens") / max(n("seconds"), 0.1), decimals: 1)) tok/s over \(r["calls"] ?? 0) calls"
+    case "quota":
+        return "quota   \(r["provider"] ?? "?") \(r["plan"] ?? "?") \(r["window"] ?? "?"): \(l.number(n("percentUsed"), decimals: 1))% used, \(l.compact(n("tokensUsed"))) tokens"
+    case "event":
+        return "limit   \(r["provider"] ?? "?") \(r["plan"] ?? "?"): limit reached this hour"
+    default:
+        return String(describing: r)
+    }
+}
+
+func openURL(_ url: String) -> Bool {
+    let process = Process()
+    #if os(macOS)
+    process.executableURL = URL(fileURLWithPath: "/usr/bin/open"); process.arguments = [url]
+    #elseif os(Windows)
+    process.executableURL = URL(fileURLWithPath: "C:\\Windows\\System32\\cmd.exe"); process.arguments = ["/c", "start", "", url]
+    #else
+    process.executableURL = URL(fileURLWithPath: "/usr/bin/env"); process.arguments = ["xdg-open", url]
+    #endif
+    guard (try? process.run()) != nil else { return false }
+    process.waitUntilExit()
+    return process.terminationStatus == 0
+}
+
 // MARK: Commands
 
 let usage = """
@@ -282,6 +351,9 @@ USAGE
   quotapilot config [show]                   Show router mode and task rules
   quotapilot config mode <auto|preferCodex|preferClaude>
   quotapilot config rule <web|review|plan|implement> <auto|codex|claude>
+  quotapilot share [--hours N] [--json] [--yes]
+                                             Preview anonymous speed and quota numbers and, only if
+                                             you confirm, open a prefilled report for AI Quota Watch
   quotapilot version
 
 On macOS the router mode and rules come from the QuotaPilot app when it is installed;
@@ -347,6 +419,34 @@ case "stats":
         for line in speedText() { print("Output speed  " + line) }
         print("  Output speed = output tokens (incl. reasoning) ÷ model-call time. The time includes prefill and time to first token, so it is a lower bound on decode (TG) tok/s.")
     }
+case "share":
+    let (reports, errors) = shareReports(hours: hours)
+    let data = (try? JSONSerialization.data(withJSONObject: reports, options: [.prettyPrinted, .sortedKeys])) ?? Data()
+    let json = String(decoding: data, as: UTF8.self)
+    if wantsJSON { print(json); exit(0) }  // preview only, never sends
+    for (agent, error) in errors.sorted(by: { $0.key < $1.key }) { print(providerName(agent) + ": " + error) }
+    guard !reports.isEmpty else {
+        print("Nothing to share yet. Speed needs 3 calls per model in the last \(hoursLabel(hours)); quota needs at least 1% of a 5-hour or weekly window used.")
+        exit(0)
+    }
+    print("QuotaPilot can share these anonymous numbers with AI Quota Watch (\(shareRepo)):\n")
+    for report in reports { print("  " + describeReport(report)) }
+    print("\nExactly what would be sent:\n\(json)\n")
+    print("No paths, project names, prompts or account ids are included. Times are rounded to the hour.")
+    print("Sharing opens a GitHub issue in your browser with this filled in; it is public under your GitHub name and is sent only when you press Submit there.")
+    if !arguments.contains("--yes") {
+        print("\nOpen the report? [y/N] ", terminator: "")
+        guard let answer = readLine()?.trimmingCharacters(in: .whitespaces).lowercased(), answer == "y" || answer == "yes" else {
+            print("Nothing was shared."); exit(0)
+        }
+    }
+    let body = "Shared with `quotapilot share` \(version).\n\n```json\n\(json)\n```"
+    var components = URLComponents(string: "https://github.com/\(shareRepo)/issues/new")!
+    components.queryItems = [URLQueryItem(name: "template", value: "data-report.md"), URLQueryItem(name: "labels", value: "data-report"),
+                             URLQueryItem(name: "title", value: "QuotaPilot report: \(reports.count) data points"), URLQueryItem(name: "body", value: body)]
+    let url = components.url!.absoluteString
+    if openURL(url) { print("Opened the report in your browser. Press Submit there to share it.") }
+    else { print("Open this link to share:\n" + url) }
 case "config":
     var settings = loadSettings()
     let rest = Array(arguments.drop { $0 != "config" }.dropFirst())

@@ -293,7 +293,7 @@ window.I18N = {
     "plan.alsoFrom": "同屬", "sup.none": "",
     "nav.plans": "方案", "nav.changes": "變動", "nav.calc": "計算器", "nav.sources": "來源",
     "hero.title": "你的 AI 方案到底能用多少？",
-    "hero.lede": "一次看 ChatGPT、Claude、Grok、Gemini的用量額度、方案變動、API 價格、智力分數與輸出速度。每個數字都附上來源與查證日期。",
+    "hero.lede": "一次看 ChatGPT、Claude、Grok、Gemini 的用量額度、方案變動、API 價格、智力分數與輸出速度。每個數字都附上來源與查證日期。",
     "hero.reviewed": "資料最後查證",
     "ad.label": "廣告位（尚未串接）",
     "plans.title": "方案額度雷達",

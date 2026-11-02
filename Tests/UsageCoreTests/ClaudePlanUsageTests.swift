@@ -24,4 +24,12 @@ final class ClaudePlanUsageTests: XCTestCase {
         XCTAssertEqual(parsed?.expiresAt ?? 0, 1_792_072_961.569, accuracy: 0.001)
         XCTAssertNil(ClaudePlanUsage.credentials(from: Data("{}".utf8)))
     }
+
+    func testMaxTierComesFromRateLimitTier() {
+        let json = #"{"claudeAiOauth":{"accessToken":"t","subscriptionType":"max","rateLimitTier":"default_claude_max_5x"}}"#
+        XCTAssertEqual(ClaudePlanUsage.credentials(from: Data(json.utf8))?.plan, "max_5x")
+        let plain = #"{"claudeAiOauth":{"accessToken":"t","subscriptionType":"pro"}}"#
+        XCTAssertEqual(ClaudePlanUsage.credentials(from: Data(plain.utf8))?.plan, "pro")
+        XCTAssertEqual(ContributionReport.planName("max_5x"), "Max 5x")
+    }
 }

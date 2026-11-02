@@ -18,7 +18,12 @@ public enum ClaudePlanUsage {
               let oauth = object["claudeAiOauth"] as? [String: Any],
               let token = oauth["accessToken"] as? String, !token.isEmpty else { return nil }
         let expires = (oauth["expiresAt"] as? NSNumber).map { $0.doubleValue / 1000 }
-        return (token, oauth["subscriptionType"] as? String, expires)
+        // `rateLimitTier` tells Max 5x from Max 20x (`default_claude_max_5x`); fall back to the subscription type.
+        let tier = (oauth["rateLimitTier"] as? String).flatMap { t -> String? in
+            guard let range = t.range(of: #"max_\d+x"#, options: .regularExpression) else { return nil }
+            return String(t[range])
+        }
+        return (token, tier ?? oauth["subscriptionType"] as? String, expires)
     }
 
     public static func snapshot(from data: Data, plan: String?, account: String? = nil, now: Double) -> ProviderSnapshot? {

@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Claude Max plans show as Max 5x or Max 20x (from Claude Code's rate-limit tier) in the card, status and shared reports. Claude rate history restarts once after updating.
+
 ## 0.6.0
 
 - **Updates inside the app:** QuotaPilot checks GitHub once a day (turn off with **Check for updates automatically** in the menu bar), downloads a new version in the background with progress in the menu, verifies the SHA-256 digest, code signature, Developer ID team and notarization, and notifies once. **Restart to update** then swaps it in within seconds and keeps your settings. A failed download retries once; nothing installs without your click.

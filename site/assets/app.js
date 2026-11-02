@@ -8,7 +8,7 @@
     changes: null,
     sort: { key: "intelligence", dir: -1 },
     changeFilter: "all",
-    providers: new Set(["chatgpt", "claude", "gemini", "grok", "cursor", "antigravity"]),
+    providers: new Set(["chatgpt", "claude", "gemini", "grok"]),
     radar: ["claude-opus-5-5", "gpt-6-1-sol", "gemini-4-carbon", "grok-4-7"]
   };
   const SLOT_COLORS = ["#3b82f6", "#e4572e", "#17a398", "#a259d9"];

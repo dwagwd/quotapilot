@@ -10,9 +10,7 @@ window.SITE_CONFIG = {
     chatgpt: "",
     claude: "",
     gemini: "",
-    grok: "",
-    cursor: "",
-    antigravity: ""
+    grok: ""
   },
   community: {
     // GitHub repo that receives reports as issues (the QuotaPilot repo hosts the site and its data).
@@ -23,8 +21,6 @@ window.SITE_CONFIG = {
     chatgpt: "https://chatgpt.com/pricing",
     claude: "https://claude.com/pricing",
     gemini: "https://gemini.google/subscriptions/",
-    grok: "https://x.ai/grok",
-    cursor: "https://cursor.com/pricing",
-    antigravity: "https://antigravity.google/docs/plans"
+    grok: "https://x.ai/grok"
   }
 };

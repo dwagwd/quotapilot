@@ -33,7 +33,7 @@ public enum ContributionReport {
     }
 
     public static func siteProvider(_ provider: String) -> String? {
-        ["codex": "chatgpt", "claude": "claude", "gemini": "gemini", "grok": "grok", "antigravity": "antigravity", "cursor": "cursor"][provider]
+        ["codex": "chatgpt", "claude": "claude", "gemini": "gemini", "grok": "grok"][provider]
     }
 
     public static func hourISO(_ time: Double) -> String {

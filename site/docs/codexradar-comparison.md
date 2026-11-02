@@ -50,7 +50,7 @@ Tests after fixes: QuotaPilot 98 Swift tests + Python checks pass; site 10 aggre
 | Email subscribe | Updates by email | None | Gap (needs an email account) |
 | Promo and quota intel | Discounts, free credit offers | None | Gap: natural place for affiliate links |
 | Copy-the-prompt self test | Paste a puzzle into your own app | Not built (decided against pure-web testing) | Skipped by decision |
-| Multi-vendor coverage | Codex only | ChatGPT, Claude, Gemini, Grok, Cursor, Antigravity | We lead |
+| Multi-vendor coverage | Codex only | ChatGPT, Claude, Grok, Gemini | We lead |
 | Bilingual | Simplified Chinese | English first, Traditional Chinese toggle | We lead for global traffic |
 | Open-source data collector | Opt-in client | QuotaPilot (MIT), preview + y/N before sharing | Done |
 | Calculator and budget radar | Not a focus | API cost calculator, 5-axis model radar | We lead |

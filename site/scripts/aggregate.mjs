@@ -7,7 +7,7 @@ import { fileURLToPath } from "node:url";
 export const WINDOW_DAYS = 7;
 export const MIN_SAMPLES = 3;
 export const TYPES = ["speed", "rating", "quota", "event"];
-export const PROVIDERS = ["chatgpt", "claude", "gemini", "grok", "cursor", "antigravity"];
+export const PROVIDERS = ["chatgpt", "claude", "gemini", "grok"];
 export const EFFORTS = ["minimal", "low", "medium", "high", "xhigh", "max", "ultra"];
 
 const quantile = (sorted, q) => {

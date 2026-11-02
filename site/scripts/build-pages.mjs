@@ -101,7 +101,7 @@ ${body}
 <div class="ad-slot" data-slot="article" hidden></div>
 <p class="cta-row"><a class="btn" href="${up}index.html${lang === "zh" ? "?lang=zh" : ""}">${t.openTool} →</a></p>
 </main>
-<footer class="footer"><div class="wrap">AI Quota Watch · ${lang === "zh" ? "獨立追蹤網站，與 OpenAI、Anthropic、Google、xAI、Anysphere 無關。" : "Independent tracker, not affiliated with OpenAI, Anthropic, Google, xAI or Anysphere."}</div></footer>
+<footer class="footer"><div class="wrap">AI Quota Watch · ${lang === "zh" ? "獨立追蹤網站，與 OpenAI、Anthropic、Google、xAI 無關。" : "Independent tracker, not affiliated with OpenAI, Anthropic, Google or xAI."}</div></footer>
 </body>
 </html>
 `;

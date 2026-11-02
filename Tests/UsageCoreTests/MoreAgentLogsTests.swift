@@ -47,8 +47,8 @@ final class MoreAgentLogsTests: XCTestCase {
     func testNewProvidersMapToSite() {
         XCTAssertEqual(ContributionReport.siteProvider("gemini"), "gemini")
         XCTAssertEqual(ContributionReport.siteProvider("grok"), "grok")
-        XCTAssertEqual(ContributionReport.siteProvider("antigravity"), "antigravity")
-        XCTAssertEqual(ContributionReport.siteProvider("cursor"), "cursor")
+        XCTAssertNil(ContributionReport.siteProvider("antigravity"), "the site covers ChatGPT, Claude, Grok and Gemini only")
+        XCTAssertNil(ContributionReport.siteProvider("cursor"))
         XCTAssertNil(ContributionReport.siteProvider("deepseek"))
     }
 }

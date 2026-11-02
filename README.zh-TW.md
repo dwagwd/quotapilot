@@ -7,7 +7,8 @@
 <img src="assets/screenshot-card.png" width="380" alt="QuotaPilot 卡片：Claude 與 Codex 額度、token 速度與重置倒數">
 
 ```sh
-brew install --cask dwagwd/tap/quotapilot
+brew tap dwagwd/quotapilot https://github.com/dwagwd/quotapilot
+brew install --cask dwagwd/quotapilot/quotapilot
 ```
 
 已簽章並經 Apple 公證；也可以從 [Releases](https://github.com/dwagwd/quotapilot/releases/latest) 下載 ZIP。

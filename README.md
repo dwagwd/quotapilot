@@ -7,7 +7,8 @@
 <img src="assets/screenshot-card.png" width="380" alt="QuotaPilot card showing Claude and Codex quota, token rates and reset countdowns">
 
 ```sh
-brew install --cask dwagwd/tap/quotapilot
+brew tap dwagwd/quotapilot https://github.com/dwagwd/quotapilot
+brew install --cask dwagwd/quotapilot/quotapilot
 ```
 
 Signed and notarized. Or download the ZIP from [Releases](https://github.com/dwagwd/quotapilot/releases/latest).

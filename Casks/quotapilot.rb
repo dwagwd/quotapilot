@@ -1,6 +1,7 @@
-# Template for a cask in a separate tap repository, e.g. dwagwd/homebrew-tap at Casks/quotapilot.rb.
-# Use only with a Developer ID signed and notarized universal ZIP (see releasing.md).
-# Users then install with: brew install --cask dwagwd/tap/quotapilot
+# Homebrew cask. This repository is its own tap:
+#   brew tap dwagwd/quotapilot https://github.com/dwagwd/quotapilot
+#   brew install --cask dwagwd/quotapilot/quotapilot
+# Point it only at a Developer ID signed and notarized universal ZIP (see docs/releasing.md).
 cask "quotapilot" do
   version "0.6.1"
   sha256 "6332273142eb16d91f3044d50d88b7780f8e00f99f08b2bb951b7969326e02be"

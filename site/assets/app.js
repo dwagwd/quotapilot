@@ -793,8 +793,8 @@
     initLang();
     applyStatic();
     const get = (f) => fetch(f, { cache: "no-cache" }).then((r) => { if (!r.ok) throw new Error(f + " " + r.status); return r.json(); });
+    const demo = new URLSearchParams(location.search).get("demo") === "1" || window.__AQW_DEMO === true;
     try {
-      const demo = new URLSearchParams(location.search).get("demo") === "1" || window.__AQW_DEMO === true;
       [state.plans, state.models, state.changes, state.community, state.resets, state.efforts] = await Promise.all([get("data/plans.json"), get("data/models.json"), get("data/changes.json"), get(demo ? "data/community.sample.json" : "data/community.json"), get("data/resets.json"), get("data/efforts.json")]);
     } catch (e) {
       document.querySelector("main").insertAdjacentHTML("afterbegin", `<p class="error">Could not load data (${esc(e.message)}). Serve the folder over HTTP, e.g. <code>python3 -m http.server</code>.</p>`);

@@ -42,6 +42,9 @@ function cors(request) {
 }
 const json = (request, status, body) => new Response(JSON.stringify(body), { status, headers: cors(request) });
 
+// Rate-limit counters are read-modify-write, so simultaneous submissions from the same install or IP can each
+// pass before the other's increment lands. They limit abuse, not exact counts; the aggregation step separately
+// caps reports per reporter per day and requires distinct reporters before publishing.
 async function bump(kv, key, limit) {
   const n = Number(await kv.get(key)) || 0;
   if (n >= limit) return false;
@@ -75,31 +78,67 @@ async function report(request, env) {
   return json(request, 200, { ok: true, accepted: stored.length });
 }
 
-// Visitor counting without cookies: one record per day with total views, unique visitors and short
-// hashes of HMAC(SALT, ip + user agent + day) to tell repeat visits apart. Nothing that identifies a visitor
-// is stored. One KV write per visit, capped per day so counting can never use up the free-plan write
-// budget that anonymous reports need (Cloudflare free KV: 1,000 writes a day per account).
+// Visitor counting without cookies. Each visit is its own short-lived key,
+//   hit:<day>:<visitor>:<random>   (expires after HIT_KEEP_DAYS)
+// where <visitor> is a 12-character HMAC(SALT, ip + user agent + day). Nothing is read, changed and written
+// back, so concurrent visits cannot overwrite each other's counts. Once a day is over, its totals are rolled up
+// into visits:<day> = {views, visitors, capped} (no visitor hashes) and kept for ROLLUP_KEEP_DAYS.
+// Writes are capped per day so counting cannot use up the free-plan KV write budget that anonymous reports need
+// (Cloudflare free KV: 1,000 writes a day per account). The cap is checked against a key listing that may be up to
+// COUNT_CACHE_SECONDS old, so it can be exceeded by the visits that arrive within that window.
 export const VISIT_WRITE_CAP = 500;
+export const HIT_KEEP_DAYS = 8;
+export const ROLLUP_KEEP_DAYS = 400;
+const COUNT_CACHE_SECONDS = 60;
+
+async function dayHits(kv, day) {
+  const names = [];
+  let cursor;
+  do {
+    const page = await kv.list({ prefix: "hit:" + day + ":", cursor, limit: 1000 });
+    names.push(...page.keys.map((k) => k.name));
+    cursor = page.list_complete ? undefined : page.cursor;
+  } while (cursor);
+  return { views: names.length, visitors: new Set(names.map((n) => n.split(":")[2])).size, capped: names.length >= VISIT_WRITE_CAP };
+}
+
+// Today's view count for the cap, cached briefly per data center (Cache API) to keep KV list operations low.
+async function todayViews(kv, day) {
+  const cache = globalThis.caches?.default;
+  const url = "https://visit-count.internal/" + day;
+  if (cache) {
+    const cached = await cache.match(url).catch(() => null);
+    if (cached) return Number(await cached.text()) || 0;
+  }
+  const { views } = await dayHits(kv, day);
+  if (cache) await cache.put(url, new Response(String(views), { headers: { "Cache-Control": "max-age=" + COUNT_CACHE_SECONDS } })).catch(() => {});
+  return views;
+}
+
 async function hit(request, env) {
   const day = new Date().toISOString().slice(0, 10);
-  const key = "visits:" + day;
-  const counts = JSON.parse((await env.REPORTS.get(key)) || '{"views":0,"visitors":0,"seen":[]}');
-  if (counts.views >= VISIT_WRITE_CAP) { counts.capped = true; return json(request, 200, { ok: true, capped: true }); }
+  if ((await todayViews(env.REPORTS, day)) >= VISIT_WRITE_CAP) return json(request, 200, { ok: true, capped: true });
   const ip = request.headers.get("CF-Connecting-IP") || "unknown";
   const visitor = (await hmac(env.SALT, "visit:" + ip + ":" + (request.headers.get("User-Agent") || "") + ":" + day)).slice(0, 12);
-  counts.views += 1;
-  if (!counts.seen.includes(visitor)) { counts.visitors += 1; counts.seen.push(visitor); }
-  if (counts.views >= VISIT_WRITE_CAP) counts.capped = true;
-  await env.REPORTS.put(key, JSON.stringify(counts), { expirationTtl: 400 * 86400 });
+  await env.REPORTS.put("hit:" + day + ":" + visitor + ":" + crypto.randomUUID(), "", { expirationTtl: HIT_KEEP_DAYS * 86400 });
   return json(request, 200, { ok: true });
 }
 
 export async function visitStats(env, now = new Date()) {
+  const today = now.toISOString().slice(0, 10);
   const days = [];
   for (let i = 6; i >= 0; i--) days.push(new Date(now.getTime() - i * 86400000).toISOString().slice(0, 10));
   const rows = await Promise.all(days.map(async (day) => {
-    const c = JSON.parse((await env.REPORTS.get("visits:" + day)) || '{"views":0,"visitors":0}');
-    return { day, views: c.views, visitors: c.visitors, capped: !!c.capped };
+    const stored = await env.REPORTS.get("visits:" + day);
+    if (stored) {
+      const c = JSON.parse(stored);
+      // Records written before hit keys existed carried visitor hashes; keep only the totals.
+      if (c.seen) await env.REPORTS.put("visits:" + day, JSON.stringify({ views: c.views, visitors: c.visitors, capped: !!c.capped }), { expirationTtl: ROLLUP_KEEP_DAYS * 86400 });
+      return { day, views: c.views, visitors: c.visitors, capped: !!c.capped };
+    }
+    const c = await dayHits(env.REPORTS, day);
+    if (day < today && c.views > 0) await env.REPORTS.put("visits:" + day, JSON.stringify(c), { expirationTtl: ROLLUP_KEEP_DAYS * 86400 });
+    return { day, ...c };
   }));
   return { days: rows, views: rows.reduce((a, r) => a + r.views, 0), visitors: rows.reduce((a, r) => a + r.visitors, 0), capped: rows.some((r) => r.capped) };
 }

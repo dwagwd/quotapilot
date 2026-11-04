@@ -1,13 +1,14 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import worker, { sanitize, LIMITS, visitStats, VISIT_WRITE_CAP } from "../worker.js";
+import worker, { sanitize, LIMITS, visitStats, VISIT_WRITE_CAP, HIT_KEEP_DAYS, ROLLUP_KEEP_DAYS } from "../worker.js";
 
 function kv() {
   const m = new Map();
   return {
     m,
     async get(k) { return m.has(k) ? m.get(k) : null; },
-    async put(k, v) { m.set(k, v); },
+    ttl: new Map(),
+    async put(k, v, o) { await new Promise((r) => setTimeout(r, 1)); m.set(k, v); this.ttl.set(k, o?.expirationTtl); },
     async list({ prefix }) { return { keys: [...m.keys()].filter((k) => k.startsWith(prefix)).map((name) => ({ name })), list_complete: true }; }
   };
 }
@@ -98,4 +99,37 @@ test("visit counting stops writing at the daily cap", async () => {
   const stats = await visitStats(e);
   assert.equal(stats.capped, true);
   assert.equal(stats.views, VISIT_WRITE_CAP);
+});
+
+test("concurrent visits are all counted", async () => {
+  const e = env();
+  await Promise.all([1, 2, 3, 4, 5].map((i) => worker.fetch(new Request("https://x/api/v1/hit", { method: "POST", headers: { "CF-Connecting-IP": "3.3.3." + i } }), e)));
+  const stats = await visitStats(e);
+  assert.equal(stats.views, 5);
+  assert.equal(stats.visitors, 5);
+});
+
+test("visitor hashes expire within days; only totals are kept long term", async () => {
+  const e = env();
+  await worker.fetch(new Request("https://x/api/v1/hit", { method: "POST", headers: { "CF-Connecting-IP": "4.4.4.4" } }), e);
+  const hitKeys = [...e.REPORTS.ttl.entries()].filter(([k]) => k.startsWith("hit:"));
+  assert.equal(hitKeys.length, 1);
+  assert.equal(hitKeys[0][1], HIT_KEEP_DAYS * 86400);
+  // The next day the finished day is rolled up without hashes.
+  const tomorrow = new Date(Date.now() + 86400000);
+  const stats = await visitStats(e, tomorrow);
+  assert.equal(stats.views, 1);
+  const day = new Date().toISOString().slice(0, 10);
+  const rollup = JSON.parse(e.REPORTS.m.get("visits:" + day));
+  assert.deepEqual(rollup, { views: 1, visitors: 1, capped: false });
+  assert.equal(e.REPORTS.ttl.get("visits:" + day), ROLLUP_KEEP_DAYS * 86400);
+});
+
+test("old daily records lose their visitor hashes when read", async () => {
+  const e = env();
+  const day = new Date(Date.now() - 2 * 86400000).toISOString().slice(0, 10);
+  e.REPORTS.m.set("visits:" + day, JSON.stringify({ views: 4, visitors: 2, seen: ["aaaaaaaaaaaa", "bbbbbbbbbbbb"] }));
+  const stats = await visitStats(e);
+  assert.equal(stats.views, 4);
+  assert.equal(JSON.parse(e.REPORTS.m.get("visits:" + day)).seen, undefined);
 });

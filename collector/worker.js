@@ -131,8 +131,8 @@ export async function visitStats(env, now = new Date()) {
   const rows = await Promise.all(days.map(async (day) => {
     const stored = await env.REPORTS.get("visits:" + day);
     const c = stored ? JSON.parse(stored) : null;
-    // A finished day's rollup is final.
-    if (c && !c.seen && !c.legacy) return { day, views: c.views, visitors: c.visitors, capped: !!c.capped };
+    // A finished day's rollup is final. Today is never final: a record for today can only be an old-format total.
+    if (c && !c.seen && !c.legacy && day < today) return { day, views: c.views, visitors: c.visitors, capped: !!c.capped };
     // Days counted partly by the old single-record format: add the old totals to the per-visit keys.
     // The old record's visitor hashes are dropped the first time it is read.
     if (c?.seen) await env.REPORTS.put("visits:" + day, JSON.stringify({ views: c.views, visitors: c.visitors, capped: !!c.capped, legacy: true }), { expirationTtl: ROLLUP_KEEP_DAYS * 86400 });

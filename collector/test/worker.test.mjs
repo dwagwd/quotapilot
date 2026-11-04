@@ -150,3 +150,11 @@ test("today's old-format record is combined with new per-visit keys", async () =
   stats = await visitStats(e, new Date(Date.now() + 86400000));
   assert.deepEqual(JSON.parse(e.REPORTS.m.get("visits:" + today)), { views: 4, visitors: 4, capped: false });
 });
+
+test("a hash-free total stored for today is still combined with today's visits", async () => {
+  const e = env();
+  const today = new Date().toISOString().slice(0, 10);
+  e.REPORTS.m.set("visits:" + today, JSON.stringify({ views: 2, visitors: 2, capped: false }));
+  await worker.fetch(new Request("https://x/api/v1/hit", { method: "POST", headers: { "CF-Connecting-IP": "8.8.8.8" } }), e);
+  assert.equal((await visitStats(e)).views, 3);
+});

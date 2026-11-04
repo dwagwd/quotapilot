@@ -30,6 +30,18 @@ final class AgentRouterTests: XCTestCase {
         XCTAssertEqual(decision.agents.first { $0.provider == "claude" }?.headroom, 76)
     }
 
+    func testExhaustedAgentStaysUnavailableEvenIfResetIsNear() {
+        // Codex is backend-limited with a reset in 10 minutes; Claude has real headroom now.
+        let items = [item("codex:primary", used: 100, reset: 600, limited: true), item("claude:five_hour:primary", used: 20, reset: 7_200)]
+        let decision = AgentRouter.decide(mode: .auto, items: items, now: 0)
+        XCTAssertEqual(decision.agent, "claude")
+        XCTAssertEqual(decision.agents.first { $0.provider == "codex" }?.headroom, 0)
+        // A passed reset time without a fresh reading is not recovery either.
+        let stale = [item("codex:primary", used: 100, reset: -10, limited: true), item("claude:five_hour:primary", used: 20)]
+        XCTAssertEqual(AgentRouter.decide(mode: .preferCodex, items: stale, now: 0).agent, "claude")
+        XCTAssertEqual(AgentRouter.assign(.web, rules: [.web: .codex], mode: .auto, items: stale, now: 0).agent, "claude")
+    }
+
     func testAllLowOrRateLimited() {
         let items = [item("codex:primary", used: 10, limited: true), item("claude:five_hour:primary", used: 95)]
         let decision = AgentRouter.decide(mode: .auto, items: items, now: 0)

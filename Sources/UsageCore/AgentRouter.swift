@@ -42,7 +42,8 @@ public struct RouterDecision: Equatable {
 }
 
 /// Chooses which agent should take delegated work. Every window counts (5-hour and weekly), the tightest one
-/// decides an agent's headroom, and a window that resets within `soonSeconds` counts as replenished.
+/// decides an agent's headroom, and a window that resets within `soonSeconds` counts as replenished unless it is
+/// already exhausted (work routed now cannot use quota that has not come back yet).
 public enum AgentRouter {
     public static let minimumHeadroom: Double = 10
     public static let soonSeconds: Double = 1800
@@ -53,9 +54,12 @@ public enum AgentRouter {
         for item in items {
             let provider = String(item.id.split(separator: ":").first ?? "")
             guard agents.contains(provider), let used = item.window.validUsedPercent else { continue }
-            if let reset = item.window.resetsAt, reset <= now { continue }
-            var remaining = item.limitReached ? 0 : 100 - used
-            if let reset = item.window.resetsAt, reset - now <= soonSeconds { remaining = 100 }
+            // An exhausted window blocks work now, however close its reset is: the agent stays unavailable
+            // until a fresh reading below the limit arrives (a passed reset time alone is not recovery).
+            let exhausted = item.limitReached || used >= 100
+            if !exhausted, let reset = item.window.resetsAt, reset <= now { continue }
+            var remaining = exhausted ? 0 : 100 - used
+            if !exhausted, let reset = item.window.resetsAt, reset - now <= soonSeconds { remaining = 100 }
             if let current = result[provider], current.headroom <= remaining { continue }
             result[provider] = AgentHeadroom(provider: provider, headroom: remaining, limitingWindow: item.id, resetsAt: item.window.resetsAt)
         }

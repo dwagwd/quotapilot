@@ -16,6 +16,11 @@ cask "quotapilot" do
   auto_updates true
 
   app "QuotaPilot.app"
+  # The `quotapilot` command (used by `quotapilot share`) ships inside the app from 0.6.2 on.
+  # Remove the version guard once the cask points at 0.6.2 or later.
+  if Gem::Version.new(version.to_s) >= Gem::Version.new("0.6.2")
+    binary "#{appdir}/QuotaPilot.app/Contents/Helpers/quotapilot"
+  end
 
   uninstall quit: "io.github.dwagwd.quotapilot"
 

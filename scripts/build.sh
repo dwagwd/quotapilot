@@ -13,8 +13,11 @@ if [ "${QUOTAPILOT_UNIVERSAL:-0}" = "1" ]; then ARCH_FLAGS=(--arch arm64 --arch 
 swift build --scratch-path "$BUILD_CACHE" -c release --disable-index-store --jobs 2 ${ARCH_FLAGS[@]+"${ARCH_FLAGS[@]}"}
 BIN_DIR="$(swift build --scratch-path "$BUILD_CACHE" -c release --show-bin-path ${ARCH_FLAGS[@]+"${ARCH_FLAGS[@]}"})"
 APP="$DIST_DIR/QuotaPilot.app"
-mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
+mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources" "$APP/Contents/Helpers"
 cp "$BIN_DIR/QuotaPilotApp" "$APP/Contents/MacOS/QuotaPilot"
+# The `quotapilot` command-line tool (status, share, ...). Homebrew links it onto PATH (see Casks/quotapilot.rb).
+# It lives in Helpers because Contents/MacOS/quotapilot would collide with QuotaPilot on case-insensitive volumes.
+cp "$BIN_DIR/quotapilot" "$APP/Contents/Helpers/quotapilot"
 # Bundled so "Connect agents…" can install status-line bridges without a source checkout.
 cp "$PLUGIN_ROOT/scripts/provider_bridge.py" "$PLUGIN_ROOT/scripts/setup-provider.py" "$APP/Contents/Resources/"
 cp "$PLUGIN_ROOT/assets/AppIcon.icns" "$APP/Contents/Resources/AppIcon.icns"
@@ -38,9 +41,12 @@ cat > "$APP/Contents/Info.plist" <<PLIST
 PLIST
 # Ad-hoc by default. Set QUOTAPILOT_SIGN_IDENTITY to a "Developer ID Application" identity
 # to sign with the hardened runtime and a secure timestamp, as notarization requires.
+# Nested code is signed first so the app's signature seals it.
 if [ -n "${QUOTAPILOT_SIGN_IDENTITY:-}" ]; then
+  codesign --force --options runtime --timestamp --sign "$QUOTAPILOT_SIGN_IDENTITY" "$APP/Contents/Helpers/quotapilot"
   codesign --force --options runtime --timestamp --sign "$QUOTAPILOT_SIGN_IDENTITY" "$APP"
 else
+  codesign --force --sign - "$APP/Contents/Helpers/quotapilot"
   codesign --force --sign - "$APP"
 fi
 echo "Built: $APP"

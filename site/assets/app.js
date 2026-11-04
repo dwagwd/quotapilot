@@ -205,6 +205,7 @@
     document.querySelectorAll("#modelTable th").forEach((th) => {
       th.classList.toggle("sorted", th.dataset.sort === state.sort.key);
       th.dataset.dir = th.dataset.sort === state.sort.key ? (state.sort.dir > 0 ? "asc" : "desc") : "";
+      if (th.dataset.sort) th.setAttribute("aria-sort", th.dataset.dir === "asc" ? "ascending" : th.dataset.dir === "desc" ? "descending" : "none");
     });
 
     renderScatter(rows);
@@ -265,8 +266,9 @@
       ["#inTok", "#outTok", "#reqDay", "#days"].forEach((id, i) => { $(id).value = v[i]; });
       renderCalc();
     }));
-    document.querySelectorAll("#modelTable th").forEach((th) => th.addEventListener("click", () => {
-      const k = th.dataset.sort;
+    // Native buttons inside the headers make sorting reachable by keyboard (Enter/Space) and screen readers.
+    document.querySelectorAll("#modelTable th[data-sort] .sort-btn").forEach((btn) => btn.addEventListener("click", () => {
+      const k = btn.closest("th").dataset.sort;
       state.sort = { key: k, dir: state.sort.key === k ? -state.sort.dir : (k === "name" || k === "monthly" || k === "latency" || k === "input" ? 1 : -1) };
       renderCalc();
     }));
@@ -679,6 +681,7 @@
     const repo = community.repo;
     const out = $("#repOut");
     out.hidden = false;
+    const githubURL = repo ? `https://github.com/${repo}/issues/new?template=data-report.md&labels=data-report&title=${encodeURIComponent(res.title)}&body=${encodeURIComponent(`Submitted from AI Quota Watch.\n\n\`\`\`json\n${json}\n\`\`\``)}` : null;
     if (community.collector) {
       let install = null;
       try { install = localStorage.getItem("aqw-install"); } catch (e) { /* storage blocked */ }
@@ -686,17 +689,26 @@
         install = (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random().toString(16).slice(2)).replace(/[^A-Za-z0-9-]/g, "");
         try { localStorage.setItem("aqw-install", install); } catch (e) { /* ignore */ }
       }
-      out.innerHTML = `<p>${t("rep.sending")}</p>`;
-      fetch(community.collector + "/v1/report", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ install, reports: [res.r] }) })
-        .then((r) => r.json().then((body) => ({ ok: r.ok, body })))
-        .then(({ ok, body }) => { out.innerHTML = ok ? `<p>${t("rep.thanks")}</p>` : `<p class="rep-err">${esc(body.error || t("rep.failed"))}</p>`; })
-        .catch(() => { out.innerHTML = `<p class="rep-err">${t("rep.failed")}</p>`; });
+      // On failure the report is kept: the user can retry, or choose to file it publicly on GitHub instead.
+      const failed = (message) => {
+        out.innerHTML = `<p class="rep-err" role="alert">${esc(message)}</p>
+          <p><button type="button" class="btn" id="repRetry">${t("rep.retry")}</button></p>
+          ${githubURL ? `<p class="fine">${t("rep.fallbackNote")}</p><a class="btn ghost" href="${esc(githubURL)}" target="_blank" rel="noopener">${t("rep.fallbackGithub")} →</a>` : ""}
+          <pre>${esc(json)}</pre>`;
+        $("#repRetry").addEventListener("click", send);
+      };
+      const send = () => {
+        out.innerHTML = `<p>${t("rep.sending")}</p>`;
+        fetch(community.collector + "/v1/report", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ install, reports: [res.r] }) })
+          .then((r) => r.json().catch(() => ({})).then((body) => ({ ok: r.ok, body })))
+          .then(({ ok, body }) => { if (ok) out.innerHTML = `<p>${t("rep.thanks")}</p>`; else failed(body.error || t("rep.failed")); })
+          .catch(() => failed(t("rep.failed")));
+      };
+      send();
       return;
     }
-    if (repo) {
-      const body = `Submitted from AI Quota Watch.\n\n\`\`\`json\n${json}\n\`\`\``;
-      const url = `https://github.com/${repo}/issues/new?template=data-report.md&labels=data-report&title=${encodeURIComponent(res.title)}&body=${encodeURIComponent(body)}`;
-      out.innerHTML = `<p>${t("rep.ready")}</p><a class="btn" href="${esc(url)}" target="_blank" rel="noopener">${t("rep.openGithub")} →</a><pre>${esc(json)}</pre>`;
+    if (githubURL) {
+      out.innerHTML = `<p>${t("rep.ready")}</p><a class="btn" href="${esc(githubURL)}" target="_blank" rel="noopener">${t("rep.openGithub")} →</a><pre>${esc(json)}</pre>`;
     } else {
       out.innerHTML = `<p>${t("rep.notOpen")}</p><pre id="repJson">${esc(json)}</pre><button type="button" class="btn ghost" id="repCopy">${t("rep.copy")}</button>`;
       $("#repCopy").addEventListener("click", () => {

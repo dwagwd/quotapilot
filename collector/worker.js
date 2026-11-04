@@ -130,15 +130,16 @@ export async function visitStats(env, now = new Date()) {
   for (let i = 6; i >= 0; i--) days.push(new Date(now.getTime() - i * 86400000).toISOString().slice(0, 10));
   const rows = await Promise.all(days.map(async (day) => {
     const stored = await env.REPORTS.get("visits:" + day);
-    if (stored) {
-      const c = JSON.parse(stored);
-      // Records written before hit keys existed carried visitor hashes; keep only the totals.
-      if (c.seen) await env.REPORTS.put("visits:" + day, JSON.stringify({ views: c.views, visitors: c.visitors, capped: !!c.capped }), { expirationTtl: ROLLUP_KEEP_DAYS * 86400 });
-      return { day, views: c.views, visitors: c.visitors, capped: !!c.capped };
-    }
-    const c = await dayHits(env.REPORTS, day);
-    if (day < today && c.views > 0) await env.REPORTS.put("visits:" + day, JSON.stringify(c), { expirationTtl: ROLLUP_KEEP_DAYS * 86400 });
-    return { day, ...c };
+    const c = stored ? JSON.parse(stored) : null;
+    // A finished day's rollup is final.
+    if (c && !c.seen && !c.legacy) return { day, views: c.views, visitors: c.visitors, capped: !!c.capped };
+    // Days counted partly by the old single-record format: add the old totals to the per-visit keys.
+    // The old record's visitor hashes are dropped the first time it is read.
+    if (c?.seen) await env.REPORTS.put("visits:" + day, JSON.stringify({ views: c.views, visitors: c.visitors, capped: !!c.capped, legacy: true }), { expirationTtl: ROLLUP_KEEP_DAYS * 86400 });
+    const hits = await dayHits(env.REPORTS, day);
+    const total = { views: (c?.views || 0) + hits.views, visitors: (c?.visitors || 0) + hits.visitors, capped: !!c?.capped || hits.capped };
+    if (day < today && total.views > 0) await env.REPORTS.put("visits:" + day, JSON.stringify(total), { expirationTtl: ROLLUP_KEEP_DAYS * 86400 });
+    return { day, ...total };
   }));
   return { days: rows, views: rows.reduce((a, r) => a + r.views, 0), visitors: rows.reduce((a, r) => a + r.visitors, 0), capped: rows.some((r) => r.capped) };
 }

@@ -133,3 +133,20 @@ test("old daily records lose their visitor hashes when read", async () => {
   assert.equal(stats.views, 4);
   assert.equal(JSON.parse(e.REPORTS.m.get("visits:" + day)).seen, undefined);
 });
+
+test("today's old-format record is combined with new per-visit keys", async () => {
+  const e = env();
+  const today = new Date().toISOString().slice(0, 10);
+  e.REPORTS.m.set("visits:" + today, JSON.stringify({ views: 2, visitors: 2, seen: ["aaaaaaaaaaaa", "bbbbbbbbbbbb"] }));
+  await worker.fetch(new Request("https://x/api/v1/hit", { method: "POST", headers: { "CF-Connecting-IP": "6.6.6.6" } }), e);
+  let stats = await visitStats(e);
+  assert.equal(stats.views, 3);
+  assert.equal(JSON.parse(e.REPORTS.m.get("visits:" + today)).seen, undefined);
+  await worker.fetch(new Request("https://x/api/v1/hit", { method: "POST", headers: { "CF-Connecting-IP": "6.6.6.7" } }), e);
+  stats = await visitStats(e);
+  assert.equal(stats.views, 4);
+  assert.equal(stats.visitors, 4);
+  // After the day ends it rolls up into one final record.
+  stats = await visitStats(e, new Date(Date.now() + 86400000));
+  assert.deepEqual(JSON.parse(e.REPORTS.m.get("visits:" + today)), { views: 4, visitors: 4, capped: false });
+});

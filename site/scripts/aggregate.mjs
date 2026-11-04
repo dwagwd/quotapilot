@@ -95,34 +95,47 @@ export function aggregate(raw, models, now = new Date(), blocked = []) {
   const recent = all.filter((r) => new Date(r.date) >= since && new Date(r.date) <= now);
   const rejected = raw.length - raw.map((r) => clean(r, models)).filter(Boolean).length;
 
+  // Publication needs MIN_SAMPLES distinct people, not MIN_SAMPLES reports: each reporter contributes one value
+  // per row (the median of their own reports), and `reports` keeps the raw count. Reports without a reporter id
+  // ("anon") cannot be told apart, so together they count as a single reporter.
+  const byReporter = (rs) => Object.values(groupBy(rs, (r) => r.reporter || "anon"));
+  const perPerson = (rs, value) => byReporter(rs).map((mine) => {
+    const v = mine.map(value).filter((x) => x != null && Number.isFinite(x)).sort((a, b) => a - b);
+    return v.length ? quantile(v, 0.5) : null;
+  }).filter((v) => v != null);
+  const people = (rs) => byReporter(rs).length;
+
   const speed = Object.entries(groupBy(recent.filter((r) => r.type === "speed"), (r) => r.model))
-    .map(([model, rs]) => ({ model, ...stats(rs.map((r) => r.tps)), clients: [...new Set(rs.map((r) => r.client).filter(Boolean))].slice(0, 5) }))
-    .filter((s) => s.n >= MIN_SAMPLES).sort((a, b) => b.median - a.median);
+    .map(([model, rs]) => ({ model, ...stats(perPerson(rs, (r) => r.tps)), reporters: people(rs), reports: rs.length, clients: [...new Set(rs.map((r) => r.client).filter(Boolean))].slice(0, 5) }))
+    .filter((s) => s.reporters >= MIN_SAMPLES && s.n >= MIN_SAMPLES).sort((a, b) => b.median - a.median);
 
   // Real usage per model and reasoning effort (reports that name an effort).
   const effortUsage = Object.entries(groupBy(recent.filter((r) => r.type === "speed" && r.effort), (r) => r.model + "|" + r.effort))
     .map(([k, rs]) => {
       const [model, effort] = k.split("|");
-      const share = rs.map((r) => r.reasoningShare).filter((v) => v != null);
-      return { model, effort, n: rs.length, calls: rs.reduce((a, r) => a + (r.calls || 1), 0), tps: stats(rs.map((r) => r.tps)).median, perCall: Math.round(stats(rs.map((r) => r.perCall)).median),
+      const share = perPerson(rs, (r) => r.reasoningShare);
+      return { model, effort, n: people(rs), reports: rs.length, calls: rs.reduce((a, r) => a + (r.calls || 1), 0), tps: stats(perPerson(rs, (r) => r.tps)).median, perCall: Math.round(stats(perPerson(rs, (r) => r.perCall)).median),
         reasoningShare: share.length ? round(stats(share).median, 2) : null };
     })
     .filter((s) => s.n >= MIN_SAMPLES).sort((a, b) => a.model.localeCompare(b.model) || EFFORTS.indexOf(a.effort) - EFFORTS.indexOf(b.effort));
 
   const ratings = Object.entries(groupBy(recent.filter((r) => r.type === "rating"), (r) => r.model))
     .map(([model, rs]) => {
-      const degradedShare = rs.filter((r) => r.degraded).length / rs.length;
-      return { model, n: rs.length, avg: round(rs.reduce((a, r) => a + r.score, 0) / rs.length), degradedShare: round(degradedShare, 2), alert: rs.length >= MIN_SAMPLES && degradedShare >= 0.3 };
+      const scores = byReporter(rs).map((mine) => mine.reduce((a, r) => a + r.score, 0) / mine.length);
+      const degraded = byReporter(rs).map((mine) => mine.filter((r) => r.degraded).length / mine.length);
+      const degradedShare = degraded.reduce((a, v) => a + v, 0) / degraded.length;
+      const n = scores.length;
+      return { model, n, reports: rs.length, avg: round(scores.reduce((a, v) => a + v, 0) / n), degradedShare: round(degradedShare, 2), alert: n >= MIN_SAMPLES && degradedShare >= 0.3 };
     })
     .filter((s) => s.n >= MIN_SAMPLES).sort((a, b) => b.avg - a.avg);
 
   const quota = Object.entries(groupBy(recent.filter((r) => r.type === "quota"), (r) => [r.provider, r.plan, r.window].join("|")))
     .map(([k, rs]) => {
       const [provider, plan, window] = k.split("|");
-      const tok = stats(rs.map((r) => r.estTokens)), usd = stats(rs.map((r) => r.estUsd).filter((v) => v != null));
-      return { provider, plan, window, n: tok.n, medianTokens: Math.round(tok.median), p25Tokens: Math.round(tok.p25), p75Tokens: Math.round(tok.p75), medianUsd: usd.n ? usd.median : null };
+      const tok = stats(perPerson(rs, (r) => r.estTokens)), usd = stats(perPerson(rs, (r) => r.estUsd));
+      return { provider, plan, window, n: tok.n, reporters: people(rs), reports: rs.length, medianTokens: Math.round(tok.median), p25Tokens: Math.round(tok.p25), p75Tokens: Math.round(tok.p75), medianUsd: usd.n ? usd.median : null };
     })
-    .filter((s) => s.n >= MIN_SAMPLES).sort((a, b) => a.provider.localeCompare(b.provider) || b.medianTokens - a.medianTokens);
+    .filter((s) => s.reporters >= MIN_SAMPLES && s.n >= MIN_SAMPLES).sort((a, b) => a.provider.localeCompare(b.provider) || b.medianTokens - a.medianTokens);
 
   // Events use a 30-day window: they are rarer than other reports.
   const eventSince = new Date(now.getTime() - 30 * 864e5);

@@ -99,3 +99,28 @@ test("blocked reporters and floods are ignored", () => {
   const out = aggregate(raw, models, now, ["u1"]);
   assert.equal(out.ratings[0].n, 3); // flood counts once per day, u1 is blocked
 });
+
+test("one person reporting on several days cannot meet the three-people threshold", () => {
+  const raw = [1, 2, 3].map((i) => ({ type: "speed", model: "gpt-6-1-sol", outputTokens: 1000, seconds: 10, date: day(i), reporter: "same-person" }));
+  raw.push(...[1, 2, 3].map((i) => ({ type: "rating", model: "grok-4-7", score: 9, date: day(i), reporter: "same-person" })));
+  raw.push(...[1, 2, 3].map((i) => ({ type: "quota", model: "claude-opus-5-5", plan: "Max", window: "5h", percentUsed: 10, tokensUsed: 1e6, date: day(i), reporter: "same-person" })));
+  raw.push(...[1, 2, 3].map((i) => ({ type: "speed", model: "gpt-6-1-sol", effort: "high", outputTokens: 1000, seconds: 10, date: day(i), reporter: "solo" })));
+  const res = aggregate(raw, models, now);
+  assert.equal(res.speed.length, 0);
+  assert.equal(res.ratings.length, 0);
+  assert.equal(res.quota.length, 0);
+  assert.equal(res.effortUsage.length, 0);
+});
+
+test("each person counts once per row, and report count is kept separately", () => {
+  const raw = [
+    ...[1, 2, 3, 4, 5].map((i) => ({ type: "speed", model: "gpt-6-1-sol", outputTokens: 5000, seconds: 10, date: day(i), reporter: "heavy" })),
+    { type: "speed", model: "gpt-6-1-sol", outputTokens: 1000, seconds: 10, date: day(1), reporter: "a" },
+    { type: "speed", model: "gpt-6-1-sol", outputTokens: 1000, seconds: 10, date: day(1), reporter: "b" }
+  ];
+  const [row] = aggregate(raw, models, now).speed;
+  assert.equal(row.n, 3);
+  assert.equal(row.reporters, 3);
+  assert.equal(row.reports, 7);
+  assert.equal(row.median, 100, "the heavy reporter's five reports weigh as one");
+});

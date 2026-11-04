@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.6.2
+
+- **`quotapilot` command comes with the app:** the app bundle now includes the CLI (`QuotaPilot.app/Contents/Helpers/quotapilot`) and the Homebrew cask puts it on `PATH`, so `quotapilot share` works right after `brew install --cask`.
+- **Auto-continue resumes the right session:** the interrupted Codex session is noted when the limit is first reached, and only that session is resumed after the reset. If several sessions were active, QuotaPilot asks you to resume manually instead of guessing. It resumes only when every quota window has a fresh reading below the limit, and gives up if the account changed.
+- **Routing:** an agent that is at its limit is no longer chosen for work now, even when its reset is minutes away.
+- **Token counts:** a Claude Code reply that is rewritten while it streams is counted with its final token numbers instead of the first partial line.
+- Privacy notice rewritten around the current defaults (log reading, background update downloads, collector vs. GitHub sharing).
+- AI Quota Watch: community rows need three different people, visit counting no longer loses concurrent visits and visitor hashes expire after 8 days, table sorting works from the keyboard, and the report form keeps your report with a retry and GitHub option when the collector is down.
+
 ## 0.6.1
 
 - **Anonymous sharing:** `quotapilot share` and **Share anonymous stats daily** now send reports to the AI Quota Watch collector instead of filing GitHub issues. No GitHub account is involved; the collector keeps only a keyed hash of a random id for this computer, never your IP address, and deletes reports after 35 days. `--github` or `--submit` still file an issue.

@@ -86,6 +86,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
     private var quotaAlertTracker = QuotaAlertTracker()
     private var autoContinuePlanner = AutoContinuePlanner()
     private var autoContinueRunning = false
+    private var autoContinueCapture: CodexSessionLocator.Attribution?
+    private var autoContinueCaptureEpisode: Double?
     private var lastAutoContinue: (at: Double, session: String?, result: String)?
     private let agentScanQueue = DispatchQueue(label: "io.github.dwagwd.quotapilot.agent-logs", qos: .utility)
     private var agentScanner = AgentLogScanner(sources: AgentLogScanner.defaultSources(home: FileManager.default.homeDirectoryForCurrentUser))
@@ -717,7 +719,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
         if !items.contains(where: { $0.id == selectedID }) { selectedID = items.first?.id }
         if tokenHistory.account != account { tokenAvailable = false }
         history.record(account: account, items: codexItems, now: Date().timeIntervalSince1970)
-        checkAutoContinue(now: Date().timeIntervalSince1970)
+        checkAutoContinue(account: account, now: Date().timeIntervalSince1970)
         if let data = try? JSONEncoder().encode(history) { writePrivate(data, to: support.appendingPathComponent("history.json")) }
         ratesDirty = true; resize(); render(); writeStatus()
     }
@@ -1289,44 +1291,76 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
 
     // MARK: Auto-continue
 
-    private func checkAutoContinue(now: Double) {
-        var action = AutoContinuePlanner.Action.none
-        for item in codexItems {
-            let result = autoContinuePlanner.observe(windowID: item.id, used: item.window.validUsedPercent, limitReached: item.limitReached, now: now)
-            if case .resume = result { action = result }
-        }
-        guard settings.autoContinueEnabled, case .resume(let blockedSince) = action, !autoContinueRunning,
-              let executable = client.executable else { return }
-        autoContinueRunning = true
+    private func checkAutoContinue(account: String, now: Double) {
+        let windows = codexItems.map { AutoContinuePlanner.Window(id: $0.id, used: $0.window.validUsedPercent, limitReached: $0.limitReached) }
         let root = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".codex/sessions", isDirectory: true)
-        let logURL = support.appendingPathComponent("auto-continue.log")
-        DispatchQueue.global(qos: .utility).async { [weak self] in
-            let session = CodexSessionLocator.interruptedSession(root: root, blockedSince: blockedSince, now: now)
-            var result = "noSession"
-            if let session {
-                if !FileManager.default.fileExists(atPath: logURL.path) {
-                    FileManager.default.createFile(atPath: logURL.path, contents: Data(), attributes: [.posixPermissions: 0o600])
+        switch autoContinuePlanner.observe(windows: windows, account: account, now: now) {
+        case .none: return
+        case .blocked:
+            // Attribute the interruption now; sessions started after this point must never be resumed for it.
+            autoContinueCapture = nil
+            guard settings.autoContinueEnabled else { return }
+            let episode = now
+            autoContinueCaptureEpisode = episode
+            DispatchQueue.global(qos: .utility).async { [weak self] in
+                let attribution = CodexSessionLocator.interruptedSession(root: root, blockedSince: now)
+                DispatchQueue.main.async {
+                    guard let self, self.autoContinueCaptureEpisode == episode else { return }
+                    self.autoContinueCapture = attribution
                 }
-                let process = Process()
-                process.executableURL = URL(fileURLWithPath: executable)
-                process.arguments = ["exec", "resume", session.id, autoContinueDefaultPrompt]
-                process.currentDirectoryURL = URL(fileURLWithPath: session.cwd)
-                process.standardInput = FileHandle.nullDevice
-                if let log = try? FileHandle(forWritingTo: logURL) {
-                    _ = try? log.seekToEnd()
-                    log.write(Data("\n=== \(Date()) resume \(session.id) in \(session.cwd)\n".utf8))
-                    process.standardOutput = log; process.standardError = log
-                }
-                do { try process.run(); result = "started" } catch { result = "launchFailed" }
             }
-            DispatchQueue.main.async {
-                guard let self else { return }
-                self.autoContinueRunning = false
-                self.lastAutoContinue = (now, session?.id, result)
-                self.notifyAutoContinue(result: result, cwd: session?.cwd)
-                self.writeStatus()
+        case .resume:
+            let capture = autoContinueCapture
+            autoContinueCapture = nil; autoContinueCaptureEpisode = nil
+            guard settings.autoContinueEnabled, !autoContinueRunning, let executable = client.executable else { return }
+            guard case .session(let session)? = capture else {
+                let result: String
+                if case .ambiguous(let sessions)? = capture {
+                    result = "ambiguousSession"
+                    appendAutoContinueLog("skip: several sessions were active when the limit was reached: " + sessions.map { $0.id + " (" + $0.cwd + ")" }.joined(separator: ", "))
+                } else { result = "noSession" }
+                lastAutoContinue = (now, nil, result)
+                notifyAutoContinue(result: result, cwd: nil); writeStatus()
+                return
+            }
+            autoContinueRunning = true
+            let logURL = support.appendingPathComponent("auto-continue.log")
+            DispatchQueue.global(qos: .utility).async { [weak self] in
+                var result = "launchFailed"
+                if FileManager.default.fileExists(atPath: session.cwd) {
+                    if !FileManager.default.fileExists(atPath: logURL.path) {
+                        FileManager.default.createFile(atPath: logURL.path, contents: Data(), attributes: [.posixPermissions: 0o600])
+                    }
+                    let process = Process()
+                    process.executableURL = URL(fileURLWithPath: executable)
+                    process.arguments = ["exec", "resume", session.id, autoContinueDefaultPrompt]
+                    process.currentDirectoryURL = URL(fileURLWithPath: session.cwd)
+                    process.standardInput = FileHandle.nullDevice
+                    if let log = try? FileHandle(forWritingTo: logURL) {
+                        _ = try? log.seekToEnd()
+                        log.write(Data("\n=== \(Date()) resume \(session.id) in \(session.cwd)\n".utf8))
+                        process.standardOutput = log; process.standardError = log
+                    }
+                    do { try process.run(); result = "started" } catch { result = "launchFailed" }
+                } else { result = "noSession" }
+                DispatchQueue.main.async {
+                    guard let self else { return }
+                    self.autoContinueRunning = false
+                    self.lastAutoContinue = (now, session.id, result)
+                    self.notifyAutoContinue(result: result, cwd: session.cwd)
+                    self.writeStatus()
+                }
             }
         }
+    }
+
+    private func appendAutoContinueLog(_ line: String) {
+        let logURL = support.appendingPathComponent("auto-continue.log")
+        if !FileManager.default.fileExists(atPath: logURL.path) {
+            FileManager.default.createFile(atPath: logURL.path, contents: Data(), attributes: [.posixPermissions: 0o600])
+        }
+        guard let log = try? FileHandle(forWritingTo: logURL) else { return }
+        _ = try? log.seekToEnd(); log.write(Data("\n=== \(Date()) \(line)\n".utf8)); try? log.close()
     }
 
     private func notifyAutoContinue(result: String, cwd: String?) {
@@ -1335,7 +1369,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
         UNUserNotificationCenter.current().requestAuthorization(options: [.alert]) { _, _ in }
         let content = UNMutableNotificationContent()
         content.title = l.text("autoContinue")
-        content.body = l.text(result == "started" ? "autoContinueStarted" : "autoContinueSkipped") + (cwd.map { " · " + URL(fileURLWithPath: $0).lastPathComponent } ?? "")
+        content.body = l.text(result == "started" ? "autoContinueStarted" : result == "ambiguousSession" ? "autoContinueAmbiguous" : "autoContinueSkipped") + (cwd.map { " · " + URL(fileURLWithPath: $0).lastPathComponent } ?? "")
         UNUserNotificationCenter.current().add(UNNotificationRequest(identifier: "autoContinue.\(Date().timeIntervalSince1970)", content: content, trigger: nil))
     }
 

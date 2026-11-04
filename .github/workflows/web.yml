@@ -1,0 +1,28 @@
+# Checks the AI Quota Watch website and anonymous collector on every push and pull request that touches them.
+# (The main CI workflow ignores site/ changes, and the site deploy workflow only runs on main.)
+name: Website and collector
+on:
+  push:
+    paths: ["site/**", "collector/**", ".github/workflows/web.yml"]
+  pull_request:
+    paths: ["site/**", "collector/**", ".github/workflows/web.yml"]
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+      - name: Website data, aggregation and translations
+        working-directory: site
+        run: npm test
+      - name: Collector
+        run: node --test collector/test/worker.test.mjs
+      - name: Build static pages
+        working-directory: site
+        run: node scripts/build-pages.mjs

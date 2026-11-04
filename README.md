@@ -119,7 +119,7 @@ Missing or unsupported token data shows `—` while quota continues to work. API
 
 Builds use `~/Library/Caches/QuotaPilot/` by default. Override `QUOTAPILOT_BUILD_CACHE`, `QUOTAPILOT_TEST_CACHE`, or `QUOTAPILOT_DIST_DIR` as needed. `CODEX_USAGE_CODEX_PATH` selects a custom Codex executable when launching the native executable directly.
 
-Packages use ad-hoc signing and are **not notarized**. Source builds are the supported installation path for this version. A manual GitHub Actions packaging workflow creates downloadable artifacts; it does not publish releases. [Release checklist](docs/releasing.md)
+Local builds are ad-hoc signed unless `QUOTAPILOT_SIGN_IDENTITY` is set. Published release ZIPs (and the Homebrew cask) are Developer ID signed and notarized; the manual GitHub Actions packaging workflow only creates ad-hoc artifacts for testing and does not publish releases. [Release checklist](docs/releasing.md)
 
 ## Local data and removal
 

@@ -33,7 +33,7 @@ QUOTAPILOT_NOTARY_PROFILE=codex-widget \
 ./scripts/package.sh
 ```
 
-The script stops if notarization fails and checks the result with `spctl`. It prints the ZIP's SHA-256 for the release notes and the Homebrew cask, which lives in this repo at [`Casks/quotapilot.rb`](../Casks/quotapilot.rb) (update `version` and `sha256` there; once `version` is 0.6.2 or later, drop the version guard around the `binary` stanza). The app bundle includes the `quotapilot` CLI at `Contents/Helpers/quotapilot`; after installing with Homebrew on a clean Mac, run `quotapilot share --json` to confirm the website's install steps work. Download the uploaded ZIP on a second Mac and open it once before announcing the release.
+The script stops if notarization fails and checks the result with `spctl`. It prints the ZIP's SHA-256 for the release notes and the Homebrew cask, which lives in this repo at [`Casks/quotapilot.rb`](../Casks/quotapilot.rb) (update `version` and `sha256` there). The app bundle includes the `quotapilot` CLI at `Contents/Helpers/quotapilot`; after installing with Homebrew on a clean Mac, run `quotapilot share --json` to confirm the website's install steps work. Download the uploaded ZIP on a second Mac and open it once before announcing the release.
 
 ## Publication
 

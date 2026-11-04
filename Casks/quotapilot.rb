@@ -3,8 +3,8 @@
 #   brew install --cask dwagwd/quotapilot/quotapilot
 # Point it only at a Developer ID signed and notarized universal ZIP (see docs/releasing.md).
 cask "quotapilot" do
-  version "0.6.1"
-  sha256 "6332273142eb16d91f3044d50d88b7780f8e00f99f08b2bb951b7969326e02be"
+  version "0.6.2"
+  sha256 "bdaf4d04bb03164cbce12f741c3b65eefe4a73fc493bbf836df1e0472959fd92"
 
   url "https://github.com/dwagwd/quotapilot/releases/download/v#{version}/QuotaPilot-#{version}-macos-universal.zip"
   name "QuotaPilot"
@@ -16,11 +16,8 @@ cask "quotapilot" do
   auto_updates true
 
   app "QuotaPilot.app"
-  # The `quotapilot` command (used by `quotapilot share`) ships inside the app from 0.6.2 on.
-  # Remove the version guard once the cask points at 0.6.2 or later.
-  if Gem::Version.new(version.to_s) >= Gem::Version.new("0.6.2")
-    binary "#{appdir}/QuotaPilot.app/Contents/Helpers/quotapilot"
-  end
+  # The `quotapilot` command (used by `quotapilot share`) ships inside the app.
+  binary "#{appdir}/QuotaPilot.app/Contents/Helpers/quotapilot"
 
   uninstall quit: "io.github.dwagwd.quotapilot"
 

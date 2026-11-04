@@ -19,6 +19,17 @@ final class UsageStatsStoreTests: XCTestCase {
         XCTAssertEqual(daily.first { $0.provider == "claude" }?.tokens, 50)
     }
 
+    func testStreamedRewriteAddsOnlyGrowthAndSurvivesSaving() throws {
+        var store = UsageStatsStore()
+        let call = { (output: Double, t: Double) in AgentTokenEvent(provider: "claude", timestamp: t, usage: TokenBreakdown(input: 5, output: output), dedupeKey: "m") }
+        XCTAssertTrue(store.add(call(1, 3_600)))
+        var restored = try JSONDecoder().decode(UsageStatsStore.self, from: JSONEncoder().encode(store))
+        XCTAssertTrue(restored.add(call(100, 3_610)))
+        XCTAssertFalse(restored.add(call(100, 3_610)))
+        XCTAssertEqual(restored.tokenTotals(since: 0, now: 10_000)["claude"]?.output, 100)
+        XCTAssertEqual(restored.tokenTotals(since: 0, now: 10_000)["claude"]?.input, 5)
+    }
+
     func testPruneStopsAcceptingOldEventsAfterRestart() throws {
         var store = UsageStatsStore()
         store.add(event("x", 100_000))

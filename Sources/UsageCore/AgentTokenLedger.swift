@@ -17,6 +17,41 @@ public struct TokenBreakdown: Codable, Equatable {
         input += other.input; cacheRead += other.cacheRead; cacheWrite += other.cacheWrite
         output += other.output; reasoning += other.reasoning
     }
+    /// Field-wise growth from `previous` to `self` (never negative), for logs that rewrite a call as it streams.
+    public func growth(since previous: TokenBreakdown) -> TokenBreakdown {
+        TokenBreakdown(input: max(0, input - previous.input), cacheRead: max(0, cacheRead - previous.cacheRead),
+                       cacheWrite: max(0, cacheWrite - previous.cacheWrite), output: max(0, output - previous.output),
+                       reasoning: max(0, reasoning - previous.reasoning))
+    }
+    /// Field-wise maximum.
+    public func merged(with other: TokenBreakdown) -> TokenBreakdown {
+        TokenBreakdown(input: max(input, other.input), cacheRead: max(cacheRead, other.cacheRead), cacheWrite: max(cacheWrite, other.cacheWrite),
+                       output: max(output, other.output), reasoning: max(reasoning, other.reasoning))
+    }
+}
+
+/// Remembers the usage already counted for each call, so a repeated log line adds nothing and a call rewritten
+/// with larger numbers while it streams adds only the growth, in the bucket of its first sighting.
+struct CountedCalls: Codable {
+    private(set) var first: [String: Double] = [:]
+    private(set) var usage: [String: TokenBreakdown] = [:]
+    /// Returns the timestamp to book under and the usage not yet counted, or nil when nothing is new.
+    mutating func uncounted(_ event: AgentTokenEvent) -> (timestamp: Double, usage: TokenBreakdown)? {
+        guard let at = first[event.dedupeKey] else {
+            first[event.dedupeKey] = event.timestamp; usage[event.dedupeKey] = event.usage
+            return (event.timestamp, event.usage)
+        }
+        let previous = usage[event.dedupeKey] ?? TokenBreakdown()
+        let growth = event.usage.growth(since: previous)
+        guard !growth.isEmpty || growth.reasoning > 0 else { return nil }
+        usage[event.dedupeKey] = previous.merged(with: event.usage)
+        return (at, growth)
+    }
+    func contains(_ key: String) -> Bool { first[key] != nil }
+    mutating func keep(where include: (Double) -> Bool) {
+        first = first.filter { include($0.value) }
+        usage = usage.filter { first[$0.key] != nil }
+    }
 }
 
 public struct AgentTokenEvent: Equatable {
@@ -131,21 +166,21 @@ public struct AgentTokenLedger {
     public static let bucketSeconds: Double = 300
     public let retention: Double
     private var buckets: [String: [Double: TokenBreakdown]] = [:]
-    private var seen: [String: Double] = [:]
+    private var seen = CountedCalls()
     public init(retention: Double = 31 * 86400) { self.retention = retention }
 
+    /// Counts a call once; a later line for the same call with larger numbers adds only the difference.
     @discardableResult
     public mutating func add(_ event: AgentTokenEvent) -> Bool {
-        guard seen[event.dedupeKey] == nil else { return false }
-        seen[event.dedupeKey] = event.timestamp
-        let start = (event.timestamp / Self.bucketSeconds).rounded(.down) * Self.bucketSeconds
-        buckets[event.provider, default: [:]][start, default: TokenBreakdown()].add(event.usage)
+        guard let (timestamp, usage) = seen.uncounted(event) else { return false }
+        let start = (timestamp / Self.bucketSeconds).rounded(.down) * Self.bucketSeconds
+        buckets[event.provider, default: [:]][start, default: TokenBreakdown()].add(usage)
         return true
     }
 
     public mutating func prune(now: Double) {
         let cutoff = now - retention
-        seen = seen.filter { $0.value >= cutoff }
+        seen.keep { $0 >= cutoff }
         for provider in Array(buckets.keys) {
             buckets[provider] = buckets[provider]?.filter { $0.key + Self.bucketSeconds > cutoff }
             if buckets[provider]?.isEmpty == true { buckets.removeValue(forKey: provider) }

@@ -39,6 +39,19 @@ final class AgentTokenLedgerTests: XCTestCase {
         XCTAssertTrue(ledger.add(a), "pruned keys may be seen again only after leaving retention")
     }
 
+    func testStreamedRewriteCountsTheFinalUsage() throws {
+        var ledger = AgentTokenLedger()
+        let first = try XCTUnwrap(AgentLogParser.claudeEvent(claudeLine("2026-10-15T03:00:00Z", id: "s", input: 5, read: 900, write: 0, output: 1)))
+        let final = try XCTUnwrap(AgentLogParser.claudeEvent(claudeLine("2026-10-15T03:00:09Z", id: "s", input: 5, read: 900, write: 0, output: 100)))
+        XCTAssertTrue(ledger.add(first))
+        XCTAssertTrue(ledger.add(final), "a rewrite with more output tokens adds the growth")
+        XCTAssertFalse(ledger.add(final), "an exact repeat adds nothing")
+        XCTAssertFalse(ledger.add(first), "an older, smaller copy adds nothing")
+        let total = ledger.total(since: 0, now: first.timestamp + 60)
+        XCTAssertEqual(total.output, 100)
+        XCTAssertEqual(total.cacheRead, 900)
+    }
+
     func testScannerReadsBackwardThenIncrementallyAndSkipsPartialLines() throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         let day = root.appendingPathComponent("2026/10/15", isDirectory: true)

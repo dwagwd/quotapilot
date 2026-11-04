@@ -26,6 +26,8 @@ public struct UsageStatsStore: Codable {
     public private(set) var backfilledFiles: Set<String>? = nil
     private var tokenHours: [String: [String: TokenBreakdown]] = [:]
     private var recentKeys: [String: Double] = [:]
+    /// Usage already counted per recent call, so streamed rewrites add only their growth (absent in older files).
+    private var recentUsage: [String: TokenBreakdown]? = nil
     private var quotaSamples: [String: [QuotaSample]] = [:]
     /// Output tokens and model-call seconds per provider per hour, for output speed (decode lower bound).
     private var speedHours: [String: [String: [Double]]]? = nil
@@ -39,9 +41,23 @@ public struct UsageStatsStore: Codable {
     /// Adds a token event once. Returns false for duplicates and for events at or before `acceptAfter`.
     @discardableResult
     public mutating func add(_ event: AgentTokenEvent) -> Bool {
-        guard event.timestamp > acceptAfter, recentKeys[event.dedupeKey] == nil else { return false }
-        recentKeys[event.dedupeKey] = event.timestamp
-        tokenHours[event.provider, default: [:]][Self.hourKey(event.timestamp), default: TokenBreakdown()].add(event.usage)
+        var counted = recentUsage ?? [:]
+        let booked: Double, usage: TokenBreakdown
+        if let first = recentKeys[event.dedupeKey] {
+            // Same call seen again: count only growth (a streamed message rewritten with more output tokens).
+            guard let previous = counted[event.dedupeKey] else { return false }
+            let growth = event.usage.growth(since: previous)
+            guard !growth.isEmpty else { return false }
+            booked = first; usage = growth
+            counted[event.dedupeKey] = previous.merged(with: event.usage)
+        } else {
+            guard event.timestamp > acceptAfter else { return false }
+            recentKeys[event.dedupeKey] = event.timestamp
+            counted[event.dedupeKey] = event.usage
+            booked = event.timestamp; usage = event.usage
+        }
+        recentUsage = counted
+        tokenHours[event.provider, default: [:]][Self.hourKey(booked), default: TokenBreakdown()].add(usage)
         return true
     }
 
@@ -125,6 +141,7 @@ public struct UsageStatsStore: Codable {
         let cutoff = now - Self.retention
         if backfilledAt != nil { acceptAfter = max(acceptAfter, now - Self.recentKeySpan) }
         recentKeys = recentKeys.filter { $0.value > acceptAfter }
+        recentUsage = recentUsage?.filter { recentKeys[$0.key] != nil }
         for provider in Array(tokenHours.keys) {
             tokenHours[provider] = tokenHours[provider]?.filter { (Double($0.key) ?? 0) + 3600 > cutoff }
             if tokenHours[provider]?.isEmpty == true { tokenHours.removeValue(forKey: provider) }

@@ -13,6 +13,9 @@ for (const p of plans.providers) for (const pl of [...p.plans, ...(p.subproducts
   if (!isUrl(pl.source)) errors.push(`${id}: missing source URL`);
   if (!isDate(pl.checked)) errors.push(`${id}: missing checked date`);
   if (!["official", "reported"].includes(pl.confidence)) errors.push(`${id}: bad confidence`);
+  for (const [k, v] of Object.entries(pl.fields || {})) {
+    if (!["price", "multiple"].includes(k) || !["official", "reported"].includes(v)) errors.push(`${id}: bad field confidence ${k}=${v}`);
+  }
   if (!pl.summary?.en || !pl.summary?.zh) errors.push(`${id}: summary needs en + zh`);
 }
 for (const [k, s] of Object.entries(models.sources)) {

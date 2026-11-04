@@ -51,6 +51,8 @@ a:hover { text-decoration: underline; }
 
 /* sections */
 .section { padding: 36px 0 12px; }
+/* keep anchor targets below the sticky top bar (56px + breathing room) */
+section[id], [id].report { scroll-margin-top: 72px; }
 .section-head { max-width: 760px; margin-bottom: 18px; }
 .section-head h2 { font-size: 24px; letter-spacing: -0.015em; margin: 0 0 6px; }
 .section-head p { margin: 0; color: var(--muted); }
@@ -355,3 +357,26 @@ a.lang-toggle { text-decoration: none; }
 .subproduct h4 { margin: 0 0 4px; font-size: 16px; display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px; }
 .sub-tag { font-size: 11px; font-weight: 500; color: var(--muted); }
 .sub-note { font-size: 12px; color: var(--muted); margin: 0 0 6px; }
+
+/* per-field source labels on plan rows */
+.field-conf { display: inline-flex; align-items: center; gap: 4px; }
+.field-name { font-size: 11px; color: var(--muted); }
+
+/* radar: incomplete models */
+.radar-chart .shape.partial { stroke-dasharray: 5 4; }
+.radar-chart .unknown circle { fill: var(--surface); stroke-width: 1.5; stroke-dasharray: 2 2; }
+.radar-chart .unknown text { font-size: 10px; font-weight: 700; }
+.radar-legend small, .radar-table .muted { color: var(--muted); }
+
+/* workload pick */
+.pick { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 14px 16px; margin-bottom: 14px; display: grid; gap: 10px; }
+.pick-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; }
+.pick-head h3 { margin: 0; font-size: 16px; }
+.pick-step { font-size: 13px; color: var(--muted); }
+.pick-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px; }
+.pick-card { display: grid; gap: 2px; border: 1px solid var(--line); border-left: 3px solid var(--good); border-radius: 8px; padding: 10px 12px; font-size: 13px; }
+.pick-card strong { font-size: 15px; }
+.pick-card .fine { margin: 4px 0 0; }
+.pick-more { font-size: 13px; color: var(--muted); }
+.pick-more summary { cursor: pointer; color: var(--text); }
+.pick-more ul { margin: 6px 0 0; padding-left: 18px; display: grid; gap: 4px; }

@@ -23,7 +23,7 @@ const monthYear = (iso, lang) => new Date(iso + "T00:00:00Z").toLocaleDateString
 const T = {
   en: {
     home: "AI Quota Watch", all: "All products", dataAsOf: "Data checked", source: "Source", checked: "checked",
-    official: "Official", reported: "Reported", tracker: "Tracker",
+    official: "Official", reported: "Reported", tracker: "Tracker", priceIs: "· price:",
     plansTitle: (n, d) => `${n} usage limits and plans (${d})`,
     plansIntro: (p) => `How much ${p.name} each plan really gives you, how the limit resets, and what changed recently. Every row links to its source.`,
     plan: "Plan", price: "Price / month", usage: "Usage vs. baseline", notes: "Notes", window: "How the limit resets",
@@ -45,7 +45,7 @@ const T = {
   },
   zh: {
     home: "AI Quota Watch", all: "所有產品", dataAsOf: "資料查證於", source: "來源", checked: "查證於",
-    official: "官方", reported: "第三方", tracker: "追蹤站",
+    official: "官方", reported: "第三方", tracker: "追蹤站", priceIs: "· 價格：",
     plansTitle: (n, d) => `${n} 用量額度與方案（${d}）`,
     plansIntro: (p) => `${p.name} 各方案實際能用多少、額度怎麼重置，以及最近的變動。每一列都附上來源。`,
     plan: "方案", price: "月費", usage: "相對基準用量", notes: "說明", window: "額度如何重置",
@@ -117,6 +117,8 @@ ${body}
 }
 
 const badge = (lang, c) => `<span class="badge ${c === "official" ? "official" : "reported"}">${T[lang][c] || c}</span>`;
+// A plan row's price can come from a weaker source than its usage numbers; say so next to the row badge.
+const planBadge = (lang, pl) => badge(lang, pl.confidence) + (pl.fields?.price && pl.fields.price !== pl.confidence ? ` ${T[lang].priceIs} ${badge(lang, pl.fields.price)}` : "");
 
 for (const lang of ["en", "zh"]) {
   const t = T[lang], prefix = lang === "zh" ? "zh/" : "", other = lang === "zh" ? "" : "zh/";
@@ -132,9 +134,9 @@ for (const lang of ["en", "zh"]) {
     const withText = { ...p, windowText: loc(p.window) };
     const faq = t.faq(withText, base, top);
     const rows = p.plans.map((pl) => `<tr><td><strong>${esc(pl.name)}</strong></td><td class="num">${pl.priceUsd == null ? t.varies : money(pl.priceUsd)}</td>
-      <td class="num">${pl.multiple ? pl.multiple + "x" : t.notPublished}</td><td>${esc(loc(pl.summary))}<br><small>${badge(lang, pl.confidence)} <a href="${esc(pl.source)}" rel="noopener">${esc(host(pl.source))}</a> · ${t.checked} ${esc(pl.checked)}</small></td></tr>`).join("");
+      <td class="num">${pl.multiple ? pl.multiple + "x" : t.notPublished}</td><td>${esc(loc(pl.summary))}<br><small>${planBadge(lang, pl)} <a href="${esc(pl.source)}" rel="noopener">${esc(host(pl.source))}</a> · ${t.checked} ${esc(pl.checked)}</small></td></tr>`).join("");
     const subTables = (p.subproducts || []).map((s) => `<h2>${esc(s.name)}</h2>${s.note ? `<p>${esc(loc(s.note))}</p>` : ""}<p><strong>${t.window}:</strong> ${esc(loc(s.window))}</p>
-<div class="table-scroll"><table class="models"><thead><tr><th>${t.plan}</th><th class="num">${t.price}</th><th class="num">${t.usage}</th><th>${t.notes}</th></tr></thead><tbody>${s.plans.map((pl) => `<tr><td><strong>${esc(pl.name)}</strong></td><td class="num">${pl.priceUsd == null ? t.varies : money(pl.priceUsd)}</td><td class="num">${pl.multiple ? pl.multiple + "x" : t.notPublished}</td><td>${esc(loc(pl.summary))}<br><small>${badge(lang, pl.confidence)} <a href="${esc(pl.source)}" rel="noopener">${esc(host(pl.source))}</a> · ${t.checked} ${esc(pl.checked)}</small></td></tr>`).join("")}</tbody></table></div>`).join("");
+<div class="table-scroll"><table class="models"><thead><tr><th>${t.plan}</th><th class="num">${t.price}</th><th class="num">${t.usage}</th><th>${t.notes}</th></tr></thead><tbody>${s.plans.map((pl) => `<tr><td><strong>${esc(pl.name)}</strong></td><td class="num">${pl.priceUsd == null ? t.varies : money(pl.priceUsd)}</td><td class="num">${pl.multiple ? pl.multiple + "x" : t.notPublished}</td><td>${esc(loc(pl.summary))}<br><small>${planBadge(lang, pl)} <a href="${esc(pl.source)}" rel="noopener">${esc(host(pl.source))}</a> · ${t.checked} ${esc(pl.checked)}</small></td></tr>`).join("")}</tbody></table></div>`).join("");
     const ch = changes.changes.filter((c) => c.provider === p.id).sort((a, b) => b.date.localeCompare(a.date));
     const body = `
 <p class="crumbs"><a href="index.html">${t.plansIndex}</a> › ${esc(p.name)}</p>

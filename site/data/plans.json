@@ -1,6 +1,6 @@
 {
   "lastReviewed": "2026-11-02",
-  "note": "Every plan row carries its own source URL, the date we checked it, and a confidence level. 'official' = read on the vendor's own page; 'reported' = third-party coverage we could not confirm on an official page.",
+  "note": "Every plan row carries its own source URL, the date we checked it, and a confidence level. 'official' = read on the vendor's own page; 'reported' = third-party coverage we could not confirm on an official page. A row can override this per field with 'fields' (price, multiple) when, for example, the usage multiple is on the vendor's page but the price only appears in third-party coverage.",
   "providers": [
     {
       "id": "chatgpt",
@@ -182,6 +182,9 @@
             "zh": "標準額度的 4 倍（$19.99，價格為第三方資料）。"
           },
           "confidence": "official",
+          "fields": {
+            "price": "reported"
+          },
           "source": "https://support.google.com/gemini/answer/16275805?hl=en",
           "checked": "2026-11-02"
         },
@@ -194,6 +197,9 @@
             "zh": "AI Pro 的 5 倍（$99.99 方案，價格為第三方資料）。"
           },
           "confidence": "official",
+          "fields": {
+            "price": "reported"
+          },
           "source": "https://support.google.com/gemini/answer/16275805?hl=en",
           "checked": "2026-11-02"
         },
@@ -206,6 +212,9 @@
             "zh": "AI Pro 的 20 倍（$199.99 方案，價格為第三方資料）。"
           },
           "confidence": "official",
+          "fields": {
+            "price": "reported"
+          },
           "source": "https://support.google.com/gemini/answer/16275805?hl=en",
           "checked": "2026-11-02"
         }
@@ -246,6 +255,9 @@
                 "zh": "高額度、每 5 小時重置、較高每週上限。價格為 Google AI Pro 訂閱（第三方資料）。"
               },
               "confidence": "official",
+              "fields": {
+                "price": "reported"
+              },
               "source": "https://antigravity.google/docs/plans",
               "checked": "2026-11-02"
             },

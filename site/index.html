@@ -58,6 +58,7 @@
       <div class="legend">
         <span class="badge official" data-i18n="conf.official">Official</span> <span data-i18n="conf.officialDesc">read on the vendor's page</span>
         <span class="badge reported" data-i18n="conf.reported">Reported</span> <span data-i18n="conf.reportedDesc">third-party, not yet confirmed</span>
+        <span data-i18n="conf.perField">Price, usage multiple and limits are labelled separately.</span>
       </div>
       <div class="provider-grid" id="providerGrid"></div>
     </section>
@@ -112,6 +113,7 @@
           </div>
         </form>
         <div class="calc-results">
+          <section class="pick" id="pick" aria-live="polite"></section>
           <div class="kpis" id="kpis"></div>
           <div class="table-scroll">
             <table class="models" id="modelTable">

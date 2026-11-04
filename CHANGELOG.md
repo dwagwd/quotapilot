@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- AI Quota Watch: the top strip now separates when sources were checked by hand, when community data was compiled, and when the page last loaded (it no longer says LIVE / "Data just now"). Plan rows label price, usage multiple and limits separately, so a third-party price on an otherwise official row is visible. The model radar leaves unknown values unscored (dashed outline with a "?" marker) instead of scoring them 0. The report form shows the exact payload before **Send anonymously**. Links to #sections land below the sticky top bar, also on first load.
+- AI Quota Watch: the calculator opens with a workload pick: set a quality bar, then see the cheapest and the fastest priced model that clear it, with the reason and limits one click away. Models without a score or a verified price are listed as not compared instead of being ranked. Presets set a suggested quality bar.
+
 ## 0.6.2
 
 - **`quotapilot` command comes with the app:** the app bundle now includes the CLI (`QuotaPilot.app/Contents/Helpers/quotapilot`) and the Homebrew cask puts it on `PATH`, so `quotapilot share` works right after `brew install --cask`.

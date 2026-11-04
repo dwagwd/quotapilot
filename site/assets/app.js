@@ -49,6 +49,20 @@
   }
 
   // ---------- plans ----------
+  // Each number in a plan row gets its own source label: the price can come from third-party coverage
+  // while the usage multiple is on the vendor's page. "fields" overrides the row's confidence per field.
+  function fieldConfidence(pl) {
+    const f = pl.fields || {};
+    const out = [["price", f.price || pl.confidence]];
+    if (pl.multiple != null) out.push(["multiple", f.multiple || pl.confidence]);
+    out.push(["limits", pl.confidence]);
+    return out;
+  }
+  function fieldBadges(pl) {
+    return fieldConfidence(pl).map(([k, c]) =>
+      `<span class="field-conf"><span class="field-name">${t("field." + k)}</span><span class="badge ${c}">${t("conf." + c)}</span></span>`).join("");
+  }
+
   function planRows(plans, color) {
     const maxMult = Math.max(...plans.map((pl) => pl.multiple || 0), 1);
     return plans.map((pl) => {
@@ -67,7 +81,7 @@
             </div>
             <p class="plan-sum">${esc(loc(pl.summary))}</p>
             <div class="plan-meta">
-              <span class="badge ${pl.confidence}">${t("conf." + pl.confidence)}</span>
+              ${fieldBadges(pl)}
               <a href="${esc(pl.source)}" target="_blank" rel="noopener">${t("plan.source")}: ${esc(host(pl.source))}</a>
               <span>${t("plan.checked")} ${esc(pl.checked)}</span>
             </div>
@@ -176,13 +190,15 @@
 
     const cheap = best(rows, "monthly", true), smart = best(rows, "intelligence"), fast = best(rows, "speed"), value = best(rows, "value");
     const tokens = (inp.inTok + inp.outTok) * inp.req * inp.days;
-    const kpi = (label, model, val) => `<div class="kpi"><span class="kpi-label">${label}</span><strong>${model ? esc(model.name) : t("calc.na")}</strong><span class="kpi-val">${val || ""}</span></div>`;
+    const kpi = (label, model, val) => `<div class="kpi"><span class="kpi-label">${label}</span><strong>${model ? esc(model.name) : t("calc.na")}</strong><span class="kpi-val">${val || ""}</span>${model && model.intelligence == null ? `<span class="kpi-label">${t("kpi.qualityUnknown")}</span>` : ""}</div>`;
     $("#kpis").innerHTML =
       kpi(t("kpi.cheapest"), cheap, cheap && money(cheap.monthly)) +
       kpi(t("kpi.smartest"), smart, smart && smart.intelligence) +
       kpi(t("kpi.fastest"), fast, fast && fast.speed + " tok/s") +
       kpi(t("kpi.value"), value, value && value.value.toFixed(1)) +
       `<div class="kpi"><span class="kpi-label">${t("kpi.tokens")}</span><strong>${(tokens / 1e6).toFixed(2)}M</strong><span class="kpi-val">${esc(inp.req)} × ${esc(inp.days)}</span></div>`;
+
+    renderPick(rows, inp);
 
     const tbody = $("#modelTable tbody");
     if (!rows.length) { tbody.innerHTML = `<tr><td colspan="7" class="empty">${t("calc.empty")}</td></tr>`; }
@@ -209,6 +225,53 @@
     });
 
     renderScatter(rows);
+  }
+
+  // Workload pick: quality bar first, then the cheapest and the fastest model that clear it.
+  // Models without a quality score or a verified price are listed as "not compared", not ranked last.
+  function pickFor(rows, minIq) {
+    const passing = rows.filter((r) => r.intelligence != null && r.intelligence >= minIq);
+    const priced = passing.filter((r) => r.monthly != null);
+    // Ties on the main key go to the other key, so equal-cost models resolve to the faster one and vice versa.
+    const lowest = (list, key, tie) => list.filter((r) => r[key] != null).reduce((a, b) => {
+      if (!a) return b;
+      if (Math.abs(b[key] - a[key]) > 1e-9) return b[key] < a[key] ? b : a;
+      return (b[tie] ?? Infinity) < (a[tie] ?? Infinity) ? b : a;
+    }, null);
+    return {
+      passing, priced,
+      cheapest: lowest(priced, "monthly", "latency"),
+      fastest: lowest(priced, "latency", "monthly"),
+      noQuality: rows.filter((r) => r.intelligence == null),
+      noPrice: passing.filter((r) => r.monthly == null)
+    };
+  }
+
+  function renderPick(rows, inp) {
+    const p = pickFor(rows, inp.minIq);
+    const bar = inp.minIq > 0 ? t("pick.bar").replace("{n}", inp.minIq) : t("pick.noBar");
+    const facts = (r) => `${money(r.monthly)}${t("plan.perMonth")} · IQ ${r.intelligence}${r.latency != null ? " · " + r.latency.toFixed(1) + "s " + t("pick.perReply") : ""}`;
+    const card = (label, r, why) => `<div class="pick-card"><span class="kpi-label">${label}</span><strong>${esc(r.name)}</strong><span>${esc(facts(r))}</span><span class="fine">${esc(why)}</span></div>`;
+    let cards;
+    if (!p.cheapest) cards = `<p class="com-empty">${t("pick.none")}</p>`;
+    else if (p.fastest && p.fastest.id !== p.cheapest.id) {
+      const extra = p.fastest.monthly - p.cheapest.monthly, saved = p.cheapest.latency != null ? p.cheapest.latency - p.fastest.latency : null;
+      cards = card(t("pick.cheapest"), p.cheapest, t("pick.whyCheap").replace("{k}", p.priced.length)) +
+        card(t("pick.fastest"), p.fastest, extra > 0.005
+          ? t("pick.whyFast").replace("{s}", saved != null ? saved.toFixed(1) : "?").replace("{c}", money(extra))
+          : t("pick.whyFastSame").replace("{s}", saved != null ? saved.toFixed(1) : "?"));
+    } else cards = card(t("pick.both"), p.cheapest, t("pick.whyBoth").replace("{k}", p.priced.length));
+    const names = (list) => list.map((r) => esc(r.name.replace(/\s*\(.*\)$/, ""))).join(", ");
+    const skipped = [
+      p.noPrice.length ? `<li>${t("pick.noPrice")}: ${names(p.noPrice)}</li>` : "",
+      p.noQuality.length ? `<li>${t("pick.noQuality")}: ${names(p.noQuality)}</li>` : ""
+    ].join("");
+    $("#pick").innerHTML = `
+      <div class="pick-head"><h3>${t("pick.title")}</h3><span class="pick-step">${t("pick.step1")} ${esc(bar)}</span></div>
+      <div class="pick-cards">${cards}</div>
+      <details class="pick-more"><summary>${t("pick.more")}</summary>
+        <ul>${skipped}<li>${t("pick.limitIq")}</li><li>${t("pick.limitCost")}</li><li>${t("pick.limitSpeed")}</li></ul>
+      </details>`;
   }
 
   function renderScatter(rows) {
@@ -260,10 +323,11 @@
       renderCalc();
     });
     $("#calcForm").addEventListener("input", renderCalc);
-    const presets = { chat: [1500, 600, 50, 30], code: [30000, 3000, 200, 22], bulk: [8000, 400, 2000, 30] };
+    // The last number is a suggested quality bar for that kind of work; people can move the slider.
+    const presets = { chat: [1500, 600, 50, 30, 30], code: [30000, 3000, 200, 22, 50], bulk: [8000, 400, 2000, 30, 25] };
     document.querySelectorAll("[data-preset]").forEach((b) => b.addEventListener("click", () => {
       const v = presets[b.dataset.preset];
-      ["#inTok", "#outTok", "#reqDay", "#days"].forEach((id, i) => { $(id).value = v[i]; });
+      ["#inTok", "#outTok", "#reqDay", "#days", "#minIq"].forEach((id, i) => { $(id).value = v[i]; });
       renderCalc();
     }));
     // Native buttons inside the headers make sorting reachable by keyboard (Enter/Space) and screen readers.
@@ -292,14 +356,15 @@
     const costLo = min("cost"), costHi = max("cost");
     const reqVals = raw.filter((r) => r.budget > 0).map((r) => r.budget);
     const reqLo = Math.min(...reqVals), reqHi = Math.max(...reqVals);
+    // A missing value stays null ("not scored"), never 0: an unknown price is not the same as an expensive one.
     return raw.map((r) => ({
       m: r.m, raw: r,
       score: {
-        iq: r.iq ? (r.iq / max("iq")) * 100 : 0,
-        speed: r.speed ? (r.speed / max("speed")) * 100 : 0,
-        cost: logScore(r.cost, costLo, costHi),
-        budget: r.budget ? 100 - logScore(r.budget, reqLo, reqHi) : 0,
-        ctx: r.ctx ? (r.ctx / max("ctx")) * 100 : 0
+        iq: r.iq ? (r.iq / max("iq")) * 100 : null,
+        speed: r.speed ? (r.speed / max("speed")) * 100 : null,
+        cost: r.cost > 0 ? logScore(r.cost, costLo, costHi) : null,
+        budget: r.budget > 0 ? 100 - logScore(r.budget, reqLo, reqHi) : null,
+        ctx: r.ctx ? (r.ctx / max("ctx")) * 100 : null
       }
     }));
   }
@@ -331,12 +396,21 @@
     });
     sel.forEach((d, k) => {
       const c = SLOT_COLORS[k];
-      const pts = AXES.map((a, i) => pt(i, d.score[a]));
-      svg += `<polygon class="shape" points="${pts.map((p) => p.join(",")).join(" ")}" fill="${c}" stroke="${c}"><title>${esc(d.m.name)}</title></polygon>`;
-      pts.forEach((p, i) => { svg += `<circle class="vertex" cx="${p[0]}" cy="${p[1]}" r="4" fill="${c}"><title>${esc(d.m.name)} · ${esc(t("axis." + AXES[i]))} ${Math.round(d.score[AXES[i]])}</title></circle>`; });
+      const known = AXES.map((a, i) => (d.score[a] == null ? null : pt(i, d.score[a])));
+      const pts = known.filter(Boolean);
+      // Incomplete models are drawn as a dashed outline with no fill, skipping the unknown corner,
+      // so their area can't be compared with complete shapes; the unknown axis gets a hollow "?" marker.
+      const partial = pts.length < AXES.length;
+      if (pts.length >= 2) svg += `<polygon class="shape${partial ? " partial" : ""}" points="${pts.map((p) => p.join(",")).join(" ")}" ${partial ? "fill=\"none\"" : `fill="${c}"`} stroke="${c}"><title>${esc(d.m.name)}</title></polygon>`;
+      known.forEach((p, i) => {
+        const label = `${esc(d.m.name)} · ${esc(t("axis." + AXES[i]))}`;
+        if (p) svg += `<circle class="vertex" cx="${p[0]}" cy="${p[1]}" r="4" fill="${c}"><title>${label} ${Math.round(d.score[AXES[i]])}</title></circle>`;
+        else { const [ux, uy] = pt(i, 104 + k * 4); svg += `<g class="unknown"><circle cx="${ux}" cy="${uy}" r="6" stroke="${c}"/><text x="${ux}" y="${uy + 3.5}" text-anchor="middle" fill="${c}">?</text><title>${label}: ${esc(t("radar.unknown"))}</title></g>`; }
+      });
     });
     svg += `</svg>`;
-    const legend = sel.map((d, k) => `<span><i style="background:${SLOT_COLORS[k]}"></i>${esc(d.m.name)}</span>`).join("");
+    const missing = (d) => AXES.filter((a) => d.score[a] == null).map((a) => t("axis." + a));
+    const legend = sel.map((d, k) => { const miss = missing(d); return `<span><i style="background:${SLOT_COLORS[k]}"></i>${esc(d.m.name)}${miss.length ? ` <small class="muted">(${esc(t("radar.incomplete"))}: ${esc(miss.join(", "))})</small>` : ""}</span>`; }).join("");
     $("#radarChart").innerHTML = svg + `<div class="radar-legend">${legend}</div>`;
 
     const fmtRaw = (d, a) => {
@@ -350,7 +424,9 @@
     $("#radarTable thead").innerHTML = `<tr><th>${t("col.model")}</th>${AXES.map((a) => `<th class="num">${esc(t("axis." + a))}</th>`).join("")}</tr>`;
     $("#radarTable tbody").innerHTML = sel.length ? sel.map((d, k) => `<tr>
       <td><span class="dot" style="background:${SLOT_COLORS[k]}"></span>${esc(d.m.name)}</td>
-      ${AXES.map((a) => `<td class="num"><span class="score">${Math.round(d.score[a])}</span><span class="raw">${esc(fmtRaw(d, a))}</span></td>`).join("")}
+      ${AXES.map((a) => d.score[a] == null
+        ? `<td class="num"><span class="score muted">—</span><span class="raw">${esc(t("radar.unknown"))}</span></td>`
+        : `<td class="num"><span class="score">${Math.round(d.score[a])}</span><span class="raw">${esc(fmtRaw(d, a))}</span></td>`).join("")}
     </tr>`).join("") : `<tr><td colspan="6" class="empty">${t("calc.empty")}</td></tr>`;
   }
 
@@ -454,14 +530,20 @@
     const upcoming = state.changes.changes.filter((c) => c.upcoming && new Date(c.date) > now).sort((a, b) => a.date.localeCompare(b.date))[0];
     const fastest = state.community.speed[0];
     const item = (label, value, extra) => `<span class="live-item"><span class="live-label">${label}</span><strong>${value}</strong>${extra ? `<small>${extra}</small>` : ""}</span>`;
+    // Three different clocks, kept apart so "loaded just now" is never read as "measured just now":
+    // when we last checked the vendor sources by hand, when community reports were last aggregated,
+    // and when this browser last fetched the files.
+    const comAt = state.community.generated ? new Date(state.community.generated) : null;
     $("#liveInner").innerHTML =
-      `<span class="live-tag"><span class="pulse"></span>LIVE</span>` +
+      `<span class="live-tag">${t("live.tag")}</span>` +
       item(t("live.lastReset"), `<span data-since="${esc(st.last.at)}">${fmtSince(now - new Date(st.last.at), true)}</span>`, t("rs.kind." + st.last.kind)) +
       item(t("live.resets30"), st.in30.length) +
       (fastest ? item(t("live.fastest"), `${esc(modelName(fastest.model))} ${fastest.median}`, "tok/s" + (state.community.sample ? " · " + t("live.example") : "")) : item(t("live.fastest"), "—", t("live.noReports"))) +
       (upcoming ? item(t("live.next"), `<span data-until="${esc(upcoming.date)}T00:00:00Z">${fmtSince(new Date(upcoming.date + "T00:00:00Z") - now, false)}</span>`, esc(loc(upcoming.text).slice(0, 26)) + "…") : "") +
       (state.visits ? item(t("live.visits"), state.visits.visitors.toLocaleString("en-US"), t("live.views").replace("{n}", state.visits.views.toLocaleString("en-US"))) : "") +
-      item(t("live.updated"), `<span data-ago="${state.loadedAt.toISOString()}">${t("live.justNow")}</span>`);
+      item(t("live.checked"), esc(state.plans.lastReviewed), t("live.checkedNote")) +
+      (comAt && !isNaN(comAt) ? item(t("live.collected"), esc(fmtLocal(comAt.toISOString())), state.community.sample ? t("live.example") : "") : "") +
+      item(t("live.loaded"), `<span data-ago="${state.loadedAt.toISOString()}">${t("live.justNow")}</span>`, t("live.loadedNote"));
   }
   function tick() {
     const now = Date.now();
@@ -704,7 +786,13 @@
           .then(({ ok, body }) => { if (ok) out.innerHTML = `<p>${t("rep.thanks")}</p>`; else failed(body.error || t("rep.failed")); })
           .catch(() => failed(t("rep.failed")));
       };
-      send();
+      // Nothing leaves the browser until the person has seen the exact payload and pressed Send.
+      out.innerHTML = `<p><strong>${t("rep.previewTitle")}</strong></p>
+        <p class="fine">${t("rep.previewNote")}</p>
+        <pre>${esc(JSON.stringify({ install, reports: [res.r] }, null, 2))}</pre>
+        <div class="rep-actions"><button type="button" class="btn" id="repSend">${t("rep.send")}</button><button type="button" class="btn ghost" id="repCancel">${t("rep.cancel")}</button></div>`;
+      $("#repSend").addEventListener("click", send);
+      $("#repCancel").addEventListener("click", () => { out.hidden = true; out.innerHTML = ""; });
       return;
     }
     if (githubURL) {
@@ -819,6 +907,10 @@
     initResets();
     initEffort();
     renderAll();
+    // The browser jumps to #anchor before the data has rendered, when the target is still near the top.
+    // Jump again once the page has its real height; scroll-margin-top keeps the heading clear of the top bar.
+    const target = location.hash.length > 1 && document.getElementById(decodeURIComponent(location.hash.slice(1)));
+    if (target) requestAnimationFrame(() => target.scrollIntoView({ block: "start" }));
     startAutoRefresh(get, demo);
   }
 

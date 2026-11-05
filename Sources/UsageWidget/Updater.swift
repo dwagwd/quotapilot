@@ -207,8 +207,8 @@ final class AppUpdater: NSObject, URLSessionDownloadDelegate {
         guard gatekeeper.status == 0 else { throw Failure.signature("Gatekeeper: " + gatekeeper.output) }
     }
 
-    /// The helper waits for this process to exit, moves the old app aside, copies the new one in,
-    /// restores the old one if the copy fails, and opens the result. Paths are passed as arguments,
+    /// The helper (`AppUpdate.swapScript`) waits for this process to exit, moves the old app aside, copies the
+    /// new one in, restores the old one only if a backup was made, and opens the result. Paths are passed as arguments,
     /// not pasted into the script.
     func swapAndRelaunch() {
         guard let staged = stagedApp, let release else { return }
@@ -218,13 +218,7 @@ final class AppUpdater: NSObject, URLSessionDownloadDelegate {
             state = .failed(release, Failure.location.description); return
         }
         UserDefaults.standard.set(release.version, forKey: "updatedTo")
-        let script = """
-        while /bin/kill -0 "$1" 2>/dev/null; do /bin/sleep 0.3; done
-        backup="$2.previous"
-        /bin/rm -rf "$backup"
-        if /bin/mv "$2" "$backup" && /usr/bin/ditto "$3" "$2"; then /bin/rm -rf "$backup" "$4"; else /bin/rm -rf "$2"; /bin/mv "$backup" "$2"; fi
-        /usr/bin/open "$2"
-        """
+        let script = AppUpdate.swapScript
         let helper = Process()
         helper.executableURL = URL(fileURLWithPath: "/bin/sh")
         helper.arguments = ["-c", script, "quotapilot-update", String(ProcessInfo.processInfo.processIdentifier),

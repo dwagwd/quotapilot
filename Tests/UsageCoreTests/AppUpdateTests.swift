@@ -29,6 +29,16 @@ final class AppUpdateTests: XCTestCase {
         XCTAssertNil(AppUpdate.parse(release("v0.6.0", assets: [("QuotaPilot-0.6.0-macos-arm64.zip", "http://github.com/a/b/x.zip")]), arch: "arm64"))
     }
 
+    func testRefusesPathLikeTagsAndAssetNames() {
+        XCTAssertNil(AppUpdate.parse(release("v99.0.0/../../../..", assets: [("QuotaPilot-99.0.0-macos-arm64.zip", "https://github.com/a/b/x.zip")]), arch: "arm64"))
+        XCTAssertNil(AppUpdate.parse(release("v0.6.0", assets: [("QuotaPilot-../../x-macos-arm64.zip", "https://github.com/a/b/x.zip")]), arch: "arm64"))
+        XCTAssertNil(AppUpdate.parse(release("v0.6.0", assets: [("QuotaPilot-a/b-macos-arm64.zip", "https://github.com/a/b/x.zip")]), arch: "arm64"))
+        XCTAssertNotNil(AppUpdate.parse(release("v0.6.0-beta.1", assets: [("QuotaPilot-0.6.0-beta.1-macos-arm64.zip", "https://github.com/a/b/x.zip")]), arch: "arm64"))
+        XCTAssertTrue(AppUpdate.isSafeVersion("0.10.2+12"))
+        XCTAssertFalse(AppUpdate.isSafeVersion("0.1/../x"))
+        XCTAssertFalse(AppUpdate.isSafeVersion(""))
+    }
+
     func testVersionOrder() {
         XCTAssertTrue(AppUpdate.isNewer("0.10.0", than: "0.9.2"))
         XCTAssertTrue(AppUpdate.isNewer("0.5.1", than: "0.5.0"))

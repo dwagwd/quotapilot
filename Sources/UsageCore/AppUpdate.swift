@@ -27,15 +27,29 @@ public enum AppUpdate {
               let tag = object["tag_name"] as? String, let page = (object["html_url"] as? String).flatMap(URL.init(string:)),
               let assets = object["assets"] as? [[String: Any]] else { return nil }
         let version = tag.hasPrefix("v") ? String(tag.dropFirst()) : tag
+        // Both strings become path components under ~/Library/Caches and the version folder is removed before any
+        // signature check, so a tag or asset name with "/" or ".." must never get that far.
+        guard isSafeVersion(version) else { return nil }
         func asset(_ suffix: String) -> [String: Any]? {
             assets.first { ($0["name"] as? String)?.hasSuffix(suffix) == true && ($0["name"] as? String)?.hasPrefix("QuotaPilot-") == true }
         }
         guard let chosen = asset("-macos-\(arch).zip") ?? asset("-macos-universal.zip"),
-              let name = chosen["name"] as? String,
+              let name = chosen["name"] as? String, isSafeAssetName(name),
               let link = (chosen["browser_download_url"] as? String).flatMap(URL.init(string:)),
               link.scheme == "https", link.host == "github.com" || link.host?.hasSuffix(".githubusercontent.com") == true else { return nil }
         let digest = (chosen["digest"] as? String).flatMap { $0.hasPrefix("sha256:") ? String($0.dropFirst(7)).lowercased() : nil }
         return Release(version: version, pageURL: page, assetURL: link, assetName: name, sha256: digest)
+    }
+
+    /// `1.2.3`, optionally followed by `-pre.1` or `+build`: digits, dots and a short ASCII suffix only.
+    public static func isSafeVersion(_ version: String) -> Bool {
+        version.range(of: #"^[0-9]+(\.[0-9]+){0,3}([-+][A-Za-z0-9.]{1,32})?$"#, options: .regularExpression) != nil
+    }
+
+    /// `QuotaPilot-<something>.zip` built from file-name-safe ASCII; no separators, no `..`.
+    public static func isSafeAssetName(_ name: String) -> Bool {
+        name.count <= 128 && !name.contains("..")
+            && name.range(of: #"^QuotaPilot-[A-Za-z0-9._-]+\.zip$"#, options: .regularExpression) != nil
     }
 
     /// Numeric comparison of dotted versions; `0.10.0` is newer than `0.9.2`. Anything after `+` or `-` is ignored.

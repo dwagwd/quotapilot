@@ -2259,6 +2259,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
         updater.check(prefetch: settings.updateChecksEnabled) { [weak self] release in
             guard let self else { return }
             self.defaults.set(now, forKey: "lastUpdateCheck")
+            // No signed download: QuotaPilot is built from source, so a newer tag means `brew upgrade`.
+            if release == nil {
+                self.updater.checkTags { [weak self] version in
+                    guard let self else { return }
+                    if let version {
+                        let title = String(format: self.l.text("updateAvailable"), version)
+                        if manual { self.inform(title, self.l.text("updateBrew")) }
+                        else if self.defaults.string(forKey: "updateNotified") != version {
+                            self.defaults.set(version, forKey: "updateNotified")
+                            self.notifyUpdate(title, self.l.text("updateBrew"))
+                        }
+                    } else if manual { self.inform(self.l.text("upToDate"), self.updater.currentVersion) }
+                }
+                return
+            }
             if manual {
                 if release != nil { self.installUpdate() } else { self.inform(self.l.text("upToDate"), self.updater.currentVersion) }
             } else if let release, self.defaults.string(forKey: "updateNotified") != release.version {

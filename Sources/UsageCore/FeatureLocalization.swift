@@ -13,6 +13,7 @@ let featureTranslations: [String: [String: String]] = [
         "updateHowTo": ["en": "It is downloading in the background. Choose Restart to update in the menu bar icon when you are ready; nothing changes until then.", "zh-Hant": "已在背景下載。準備好時，在選單列圖示選「重新啟動以更新」；在那之前不會有任何變動。", "zh-Hans": "已在后台下载。准备好时，在菜单栏图标选择“重新启动以更新”；在那之前不会有任何变动。"],
         "updateConfirm": ["en": "Update from %@ to %@? QuotaPilot downloads the release from GitHub, checks its signature and notarization, then restarts.", "zh-Hant": "要從 %@ 更新到 %@ 嗎？QuotaPilot 會從 GitHub 下載、檢查簽章與公證，然後重新啟動。", "zh-Hans": "要从 %@ 更新到 %@ 吗？QuotaPilot 会从 GitHub 下载、检查签名与公证，然后重新启动。"],
         "installNow": ["en": "Install and restart", "zh-Hant": "安裝並重新啟動", "zh-Hans": "安装并重新启动"],
+        "updateBrew": ["en": "Update in Terminal with: brew upgrade quotapilot", "zh-Hant": "請在終端機執行：brew upgrade quotapilot", "zh-Hans": "请在终端执行：brew upgrade quotapilot"],
         "upToDate": ["en": "QuotaPilot is up to date", "zh-Hant": "QuotaPilot 已是最新版本", "zh-Hans": "QuotaPilot 已是最新版本"],
         "updateFailed": ["en": "The update was not installed", "zh-Hant": "更新沒有安裝", "zh-Hans": "更新没有安装"],
         "autoShare": ["en": "Share anonymous stats daily", "zh-Hant": "每天分享匿名統計", "zh-Hans": "每天分享匿名统计"],

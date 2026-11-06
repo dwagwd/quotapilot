@@ -87,6 +87,20 @@ final class AppUpdater: NSObject, URLSessionDownloadDelegate {
         }.resume()
     }
 
+    /// For source installs: the newest version tag, if it is newer than this build.
+    func checkTags(completion: @escaping (String?) -> Void) {
+        var request = URLRequest(url: AppUpdate.tagsURL, timeoutInterval: 20)
+        request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
+        URLSession.shared.dataTask(with: request) { [weak self] data, response, _ in
+            let ok = ((response as? HTTPURLResponse)?.statusCode ?? 0) == 200
+            DispatchQueue.main.async {
+                guard let self else { return }
+                let newest = ok ? data.flatMap(AppUpdate.newestTag) : nil
+                completion(newest.flatMap { AppUpdate.isNewer($0, than: self.currentVersion) ? $0 : nil })
+            }
+        }.resume()
+    }
+
     /// A download verified in an earlier session is used again after a quick signature re-check.
     private func reuseStagedDownload(_ release: AppUpdate.Release) {
         let app = folder(for: release).appendingPathComponent("QuotaPilot.app")
@@ -198,6 +212,7 @@ final class AppUpdater: NSObject, URLSessionDownloadDelegate {
     }
 
     private func verify(_ app: URL) throws {
+        guard !AppUpdate.teamID.isEmpty else { throw Failure.signature("no signed builds are published; update with Homebrew") }
         let check = run("/usr/bin/codesign", ["--verify", "--deep", "--strict", app.path])
         guard check.status == 0 else { throw Failure.signature("codesign: " + check.output) }
         guard run("/usr/bin/codesign", ["-dv", app.path]).output.contains("TeamIdentifier=\(AppUpdate.teamID)") else {

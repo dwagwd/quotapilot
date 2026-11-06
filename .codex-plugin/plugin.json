@@ -1,6 +1,6 @@
 {
   "name": "quotapilot",
-  "version": "0.6.2",
+  "version": "0.6.3",
   "description": "Native macOS widget for Codex plan quota, account token rates, and reset countdowns.",
   "author": {
     "name": "QuotaPilot contributors"

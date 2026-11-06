@@ -1,5 +1,7 @@
 # Release checklist
 
+**From 0.6.3 releases are source only.** Bump `VERSION`, the plugin manifest, the CLI `version` constant, `CHANGELOG.md` and the `tag:` in [`Formula/quotapilot.rb`](../Formula/quotapilot.rb), run `./scripts/check.sh`, then push the `vX.Y.Z` tag. Homebrew compiles the app on each user's Mac, so nothing is signed with a personal Developer ID and no binary carries the maintainer's machine paths. The signed-build notes below are kept only for a future organization account.
+
 ## Local preparation
 
 - Run `./scripts/check.sh` and `./scripts/package.sh` on macOS.
@@ -33,7 +35,7 @@ QUOTAPILOT_NOTARY_PROFILE=codex-widget \
 ./scripts/package.sh
 ```
 
-The script stops if notarization fails and checks the result with `spctl`. It prints the ZIP's SHA-256 for the release notes and the Homebrew cask, which lives in this repo at [`Casks/quotapilot.rb`](../Casks/quotapilot.rb) (update `version` and `sha256` there). The app bundle includes the `quotapilot` CLI at `Contents/Helpers/quotapilot`; after installing with Homebrew on a clean Mac, run `quotapilot share --json` to confirm the website's install steps work. Download the uploaded ZIP on a second Mac and open it once before announcing the release.
+The script stops if notarization fails and checks the result with `spctl`. It prints the ZIP's SHA-256 for the release notes and a future Homebrew cask (the repo currently ships a build-from-source formula instead). The app bundle includes the `quotapilot` CLI at `Contents/Helpers/quotapilot`; after installing with Homebrew on a clean Mac, run `quotapilot share --json` to confirm the website's install steps work. Download the uploaded ZIP on a second Mac and open it once before announcing the release.
 
 ## Publication
 

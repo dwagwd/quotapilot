@@ -13,12 +13,14 @@ if [ "${QUOTAPILOT_UNIVERSAL:-0}" = "1" ]; then ARCH_FLAGS=(--arch arm64 --arch 
 # Published binaries must not carry this machine's paths (user name, folder names): map the source and
 # build folders to neutral names, and strip debug symbols, which otherwise point at the object files.
 PREFIX_FLAGS=(-Xswiftc -file-prefix-map -Xswiftc "$PLUGIN_ROOT=quotapilot" -Xswiftc -file-prefix-map -Xswiftc "$BUILD_CACHE=build")
-swift build --scratch-path "$BUILD_CACHE" -c release --disable-index-store --jobs 2 "${PREFIX_FLAGS[@]}" ${ARCH_FLAGS[@]+"${ARCH_FLAGS[@]}"}
-BIN_DIR="$(swift build --scratch-path "$BUILD_CACHE" -c release --show-bin-path "${PREFIX_FLAGS[@]}" ${ARCH_FLAGS[@]+"${ARCH_FLAGS[@]}"})"
+# Extra SwiftPM arguments, e.g. --disable-sandbox when Homebrew builds inside its own sandbox.
+read -r -a EXTRA_ARGS <<< "${QUOTAPILOT_SWIFTPM_ARGS:-}"
+swift build --scratch-path "$BUILD_CACHE" -c release --disable-index-store --jobs 2 ${EXTRA_ARGS[@]+"${EXTRA_ARGS[@]}"} "${PREFIX_FLAGS[@]}" ${ARCH_FLAGS[@]+"${ARCH_FLAGS[@]}"}
+BIN_DIR="$(swift build --scratch-path "$BUILD_CACHE" -c release --show-bin-path ${EXTRA_ARGS[@]+"${EXTRA_ARGS[@]}"} "${PREFIX_FLAGS[@]}" ${ARCH_FLAGS[@]+"${ARCH_FLAGS[@]}"})"
 APP="$DIST_DIR/QuotaPilot.app"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources" "$APP/Contents/Helpers"
 cp "$BIN_DIR/QuotaPilotApp" "$APP/Contents/MacOS/QuotaPilot"
-# The `quotapilot` command-line tool (status, share, ...). Homebrew links it onto PATH (see Casks/quotapilot.rb).
+# The `quotapilot` command-line tool (status, share, ...). Homebrew links it onto PATH (see Formula/quotapilot.rb).
 # It lives in Helpers because Contents/MacOS/quotapilot would collide with QuotaPilot on case-insensitive volumes.
 cp "$BIN_DIR/quotapilot" "$APP/Contents/Helpers/quotapilot"
 strip -S "$APP/Contents/MacOS/QuotaPilot" "$APP/Contents/Helpers/quotapilot"

@@ -8,7 +8,20 @@ import FoundationNetworking
 public enum AppUpdate {
     public static let latestReleaseURL = URL(string: "https://api.github.com/repos/dwagwd/quotapilot/releases/latest")!
     /// Developer ID team that signs official builds. An update signed by anyone else is refused.
+    /// Empty while no signed builds are published (QuotaPilot is built from source by Homebrew), so the
+    /// in-app downloader can never install anything.
     public static let teamID = ""
+    /// Version tags, for source installs: a newer tag means `brew upgrade quotapilot` has something to do.
+    public static let tagsURL = URL(string: "https://api.github.com/repos/dwagwd/quotapilot/tags?per_page=100")!
+
+    /// The highest safe `vX.Y.Z` tag in a GitHub tags listing.
+    public static func newestTag(_ data: Data) -> String? {
+        guard let list = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] else { return nil }
+        return list.compactMap { $0["name"] as? String }
+            .map { $0.hasPrefix("v") ? String($0.dropFirst()) : $0 }
+            .filter { isSafeVersion($0) && !$0.contains("-") }
+            .reduce(nil as String?) { best, v in best.map { isNewer(v, than: $0) ? v : $0 } ?? v }
+    }
     public static let checkInterval: Double = 86400
 
     public struct Release: Equatable {

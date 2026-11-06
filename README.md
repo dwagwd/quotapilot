@@ -1,6 +1,6 @@
 # QuotaPilot
 
-[![Latest release](https://img.shields.io/github/v/release/dwagwd/quotapilot)](https://github.com/dwagwd/quotapilot/releases/latest) [![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE) ![macOS 13+](https://img.shields.io/badge/macOS-13%2B-lightgrey) ![CLI: macOS · Linux · Windows](https://img.shields.io/badge/CLI-macOS%20%C2%B7%20Linux%20%C2%B7%20Windows-lightgrey)
+[![Latest version](https://img.shields.io/github/v/tag/dwagwd/quotapilot?label=version)](https://github.com/dwagwd/quotapilot/tags) [![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE) ![macOS 13+](https://img.shields.io/badge/macOS-13%2B-lightgrey) ![CLI: macOS · Linux · Windows](https://img.shields.io/badge/CLI-macOS%20%C2%B7%20Linux%20%C2%B7%20Windows-lightgrey)
 
 **Know how much Codex and Claude Code quota you have left before you hit the limit.** QuotaPilot is a small, native macOS desktop widget for **plan quota**, **account token consumption**, and **reset countdowns** across Codex, Claude Code, Antigravity, Cursor and DeepSeek, plus token usage from Gemini CLI and Grok CLI. Built with AppKit and Swift, without a browser runtime or model-turn polling.
 
@@ -8,10 +8,11 @@
 
 ```sh
 brew tap dwagwd/quotapilot https://github.com/dwagwd/quotapilot
-brew install --cask dwagwd/quotapilot/quotapilot
+brew install dwagwd/quotapilot/quotapilot
+open "$(brew --prefix quotapilot)/QuotaPilot.app"
 ```
 
-Signed and notarized. Or download the ZIP from [Releases](https://github.com/dwagwd/quotapilot/releases/latest).
+Homebrew builds QuotaPilot from source on your Mac (about two minutes, needs the Xcode Command Line Tools); update with `brew upgrade quotapilot`. No prebuilt binaries are published.
 
 [繁體中文](README.zh-TW.md) · [AI Quota Watch site](site/) · [Privacy](PRIVACY.md) · [Contributing](CONTRIBUTING.md) · [MIT license](LICENSE)
 
@@ -32,7 +33,7 @@ Unofficial community project. Not affiliated with or endorsed by OpenAI, Anthrop
 - **Agent collaboration** (menu bar → Agent collaboration…): choose a `codex-review` skill for Claude Code (independent read-only review via `codex exec`), a `claude-review` skill for Codex (review via `claude -p` in plan mode), and, separately, Codex access to Claude Code's tools over MCP. A **quota router** (Automatic / Codex first / Claude first) weighs every 5-hour and weekly window and their reset times; skills consult it before delegating and never delegate twice.
 - **Usage statistics** window (menu bar → Usage statistics…): 24h / 7d / 30d token totals and tokens per hour, curves per provider, and quota-used curves with the average percentage points consumed per hour. The first launch backfills 30 days from local logs.
 - **All agents** row: total tokens across Codex and Claude Code (plus DeepSeek, Kimi, GLM or Qwen models used through Claude Code) read from local session logs, with an input / cache read / cache write / output / reasoning breakdown per provider in the tooltip. Only token counts are read; turn it off in Settings.
-- **Updates** (menu bar): checks GitHub once a day (turn off with **Check for updates automatically**), notifies once per new version, and **Install update…** downloads it, verifies the SHA-256 digest, code signature, Developer ID team and notarization, then restarts. Nothing installs without your click.
+- **Updates** (menu bar): checks GitHub's version tags once a day (turn off with **Check for updates automatically**) and notifies once per new version; update with `brew upgrade quotapilot`.
 - **Share anonymous stats daily** (menu bar, off by default): once a day files the same numbers `quotapilot share` previews to [AI Quota Watch](site/) as a public GitHub issue, using your GitHub CLI login. `quotapilot share --submit --yes` does the same from cron or launchd.
 - Remaining quota and countdown on the reset line (for example `57% left · reset 02:10:00`).
 - Optional **auto-continue** for Codex (Settings, off by default): when a quota window that was full resets, the interrupted session is resumed once with `codex exec resume` in its project folder. This starts a model turn using your Codex configuration; output is written to `auto-continue.log`.
@@ -60,15 +61,15 @@ quotapilot status --json     # for scripts and skills
 quotapilot share             # opt-in: preview anonymous speed/quota numbers, then share them with AI Quota Watch
 ```
 
-On macOS the Homebrew cask puts `quotapilot` on `PATH` from version 0.6.2 (the tool ships inside the app at `QuotaPilot.app/Contents/Helpers/quotapilot`). Elsewhere, build it with Swift 6.2 or later: `swift build -c release --product quotapilot` (binary in `.build/release/`). It needs the Codex CLI on `PATH` for Codex quota and an existing Claude Code login for Claude plan usage. Settings are stored in `~/.local/state/quotapilot/cli-config.json` (Linux) or `%LOCALAPPDATA%\QuotaPilot\cli-config.json` (Windows); on macOS the app's settings are used.
+On macOS the Homebrew formula puts `quotapilot` on `PATH` (the tool ships inside the app at `QuotaPilot.app/Contents/Helpers/quotapilot`). Elsewhere, build it with Swift 6.2 or later: `swift build -c release --product quotapilot` (binary in `.build/release/`). It needs the Codex CLI on `PATH` for Codex quota and an existing Claude Code login for Claude plan usage. Settings are stored in `~/.local/state/quotapilot/cli-config.json` (Linux) or `%LOCALAPPDATA%\QuotaPilot\cli-config.json` (Windows); on macOS the app's settings are used.
 
 ## Build and install
 
 Requirements: macOS 13+, Swift 5.9+ / Xcode Command Line Tools, Python 3 for tests and packaging, and Codex desktop or CLI signed in with a ChatGPT account. The core Codex app is native and does not require Python; optional provider bridges use Python 3.
 
-**Quick install:** download `QuotaPilot-<version>-macos-universal.zip` from [Releases](https://github.com/dwagwd/quotapilot/releases/latest), unzip it, and move **QuotaPilot.app** to Applications. It is signed and notarized, so it opens without a Gatekeeper warning.
+**Quick install:** use the Homebrew commands at the top; they compile and install QuotaPilot on your Mac.
 
-**From source:** download the source ZIP from [Releases](https://github.com/dwagwd/quotapilot/releases/latest), extract it, and open a terminal in the extracted `quotapilot` folder. Or clone the repository:
+**From source:** clone the repository:
 
 ```sh
 git clone https://github.com/dwagwd/quotapilot.git quotapilot
@@ -119,7 +120,7 @@ Missing or unsupported token data shows `—` while quota continues to work. API
 
 Builds use `~/Library/Caches/QuotaPilot/` by default. Override `QUOTAPILOT_BUILD_CACHE`, `QUOTAPILOT_TEST_CACHE`, or `QUOTAPILOT_DIST_DIR` as needed. `CODEX_USAGE_CODEX_PATH` selects a custom Codex executable when launching the native executable directly.
 
-Local builds are ad-hoc signed unless `QUOTAPILOT_SIGN_IDENTITY` is set. Published release ZIPs (and the Homebrew cask) are Developer ID signed and notarized; the manual GitHub Actions packaging workflow only creates ad-hoc artifacts for testing and does not publish releases. [Release checklist](docs/releasing.md)
+Builds are ad-hoc signed on the machine that compiles them (set `QUOTAPILOT_SIGN_IDENTITY` to sign with your own Developer ID). From 0.6.3 no prebuilt app is published: Homebrew and `./scripts/build.sh` compile it locally. The manual GitHub Actions packaging workflow only creates ad-hoc artifacts for testing. [Release checklist](docs/releasing.md)
 
 ## Local data and removal
 
@@ -129,4 +130,4 @@ To remove: quit the widget, remove its app, optionally remove its local data and
 
 ## Status
 
-Version 0.5.0 (QuotaPilot) adds the cross-platform `quotapilot` CLI for macOS, Linux and Windows. Since 0.4.0 releases include a Developer ID signed, Apple-notarized universal (Apple silicon + Intel) app ZIP alongside the source ZIP and SHA-256 checksums. Codex is the live-tested provider. Optional Claude/Antigravity/Cursor bridges are experimental and fixture-tested; see their support boundaries before setup. CI tests and builds on macOS 14 and 15. See [validation scope](docs/validation.md) for local checks and limitations.
+Version 0.5.0 (QuotaPilot) adds the cross-platform `quotapilot` CLI for macOS, Linux and Windows. From 0.6.3 QuotaPilot is distributed as source only and compiled by Homebrew on your Mac. Codex is the live-tested provider. Optional Claude/Antigravity/Cursor bridges are experimental and fixture-tested; see their support boundaries before setup. CI tests and builds on macOS 14 and 15. See [validation scope](docs/validation.md) for local checks and limitations.

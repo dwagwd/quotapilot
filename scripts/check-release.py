@@ -21,10 +21,11 @@ for path in public_files():
     text = path.read_text(encoding="utf-8")
     for pattern in patterns:
         assert not re.search(pattern, text), f"Potential private data in {path.relative_to(ROOT)}"
-# The cask links the CLI that the website's install steps invoke; it must point where build.sh puts it.
-cask = (ROOT / "Casks/quotapilot.rb").read_text()
+# The formula links the CLI that the website's install steps invoke; it must point where build.sh puts it.
+formula = (ROOT / "Formula/quotapilot.rb").read_text()
 build = (ROOT / "scripts/build.sh").read_text()
-cli_path = re.search(r'binary "#\{appdir\}/QuotaPilot\.app/(Contents/[^"]+)"', cask)
-assert cli_path, "Cask does not link the quotapilot command"
-assert f'"$APP/{cli_path.group(1)}"' in build, "build.sh does not place the CLI where the cask links it"
+cli_path = re.search(r'bin\.install_symlink prefix/"QuotaPilot\.app/(Contents/[^"]+)"', formula)
+assert cli_path, "Formula does not link the quotapilot command"
+assert f'"$APP/{cli_path.group(1)}"' in build, "build.sh does not place the CLI where the formula links it"
+assert f'tag: "v{version}"' in formula, "Formula does not build the current VERSION"
 print(f"Release hygiene passed ({len(public_files())} source files, version {version}).")

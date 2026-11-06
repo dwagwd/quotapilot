@@ -71,4 +71,14 @@ final class AppUpdateTests: XCTestCase {
         XCTAssertEqual(Set(object.keys), ["install", "reports"])
         try? FileManager.default.removeItem(at: dir)
     }
+
+    func testNewestTagIgnoresUnsafeAndPrereleaseTags() throws {
+        let tags: [[String: Any]] = [["name": "v0.6.2"], ["name": "v0.10.0"], ["name": "v0.9.9"], ["name": "v1.0.0-beta.1"], ["name": "../x"], ["name": "nightly"]]
+        XCTAssertEqual(AppUpdate.newestTag(try JSONSerialization.data(withJSONObject: tags)), "0.10.0")
+        XCTAssertNil(AppUpdate.newestTag(Data("{}".utf8)))
+    }
+
+    func testNoSignedBuildsMeansNoTeamToTrust() {
+        XCTAssertTrue(AppUpdate.teamID.isEmpty)
+    }
 }

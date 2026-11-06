@@ -33,7 +33,13 @@ export function xLength(text) {
   return n;
 }
 
+// X bills a post that contains a link ~13x a plain one ($0.20 vs $0.015). AQW_X_LINKS=0 drops every link
+// (sources and site) and points readers to the profile link instead.
+export const linksOn = () => process.env.AQW_X_LINKS !== "0";
+const stripLinks = (s) => s.replace(/\s*https?:\/\/\S+/g, "").replace(/(Source|Sources|Reported, not confirmed):?\s*$/gm, "").replace(/\n{2,}/g, "\n").trim();
+
 function fit(head, body, tail) {
+  if (!linksOn()) { body = stripLinks(body); tail = "Full tracker: link in bio"; }
   let b = body;
   while (b && xLength([head, b, tail].filter(Boolean).join("\n\n")) > LIMIT) b = b.slice(0, -2).replace(/\s+\S*$/, "") + "…";
   return [head, b, tail].filter(Boolean).join("\n\n");
@@ -57,6 +63,8 @@ export function changePost(c) {
 }
 
 export function pinnedPost() {
+  if (!linksOn()) return fit("AI Quota Watch tracks how much ChatGPT, Claude, Gemini and Grok plans actually give you.",
+    "Alerts here when usage limits reset or plan prices change, each checked against the vendor's own post or page. ", "");
   return fit("AI Quota Watch tracks how much ChatGPT, Claude, Gemini and Grok plans actually give you.",
     "Plan limits, API cost for your own workload, every Codex reset and model speed, each number with its source and the date we checked it. Free, no account.",
     SITE);
@@ -108,7 +116,7 @@ async function main() {
 
   if (args.has("--mark-seen")) { [...post, ...stale].forEach((i) => seen.add(i.id)); save(); console.log(`Marked ${post.length + stale.length} items as seen.`); return; }
   if (!args.has("--send")) {
-    console.log(`${post.length} to post, ${stale.length} older items will be marked seen without posting.\n`);
+    console.log(`${linksOn() ? "Links on" : "Links off (AQW_X_LINKS=0)"}. ${post.length} to post, ${stale.length} older items will be marked seen without posting.\n`);
     post.forEach((i) => console.log(`--- ${i.id} (${xLength(i.text)}/280)\n${i.text}\n`));
     return;
   }

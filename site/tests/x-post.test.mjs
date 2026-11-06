@@ -35,3 +35,13 @@ test("OAuth 1.0a signature matches X's documented example", () => {
     "kYjzVBB8Y0ZFabxSWbWovY3uYSQ2pTgmZeNu2VS4cg", 1318622958, { include_entities: "true", status: "Hello Ladies + Gentlemen, a signed OAuth request!" });
   assert.match(h, /oauth_signature="hCtSmYh%2BiHYCEqBWrE7C7hYmtUk%3D"/);
 });
+
+test("AQW_X_LINKS=0 removes every link so posts bill at the plain rate", () => {
+  process.env.AQW_X_LINKS = "0";
+  try {
+    for (const t of [...resets.resets.map(resetPost), ...changes.changes.map(changePost), pinnedPost()]) {
+      assert.doesNotMatch(t, /https?:\/\/|\.pages\.dev/, t);
+      assert.ok(xLength(t) <= 280);
+    }
+  } finally { delete process.env.AQW_X_LINKS; }
+});

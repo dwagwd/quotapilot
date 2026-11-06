@@ -271,6 +271,19 @@ func renderText(_ snapshot: Snapshot) -> String {
 
 // MARK: Share (opt-in)
 
+/// Kinds to share: `--only speed,quota` for this run, otherwise the app's "What to share" setting.
+func shareKinds() -> Set<ShareCategory> {
+    if let i = arguments.firstIndex(of: "--only"), i + 1 < arguments.count {
+        let kinds = arguments[i + 1].split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }
+        let known = Set(kinds.compactMap(ShareCategory.init(rawValue:)))
+        guard known.count == kinds.count, !known.isEmpty else {
+            fail("--only takes a comma-separated list of: " + ShareCategory.allCases.map(\.rawValue).joined(separator: ", "), code: 2)
+        }
+        return known
+    }
+    return loadSettings().sharedCategories
+}
+
 /// Collects the anonymous numbers for `share`. Reads the same sources as `status`; sends nothing.
 func shareReports(hours: Double) -> (reports: [[String: Any]], errors: [String: String]) {
     let now = Date().timeIntervalSince1970
@@ -292,7 +305,7 @@ func shareReports(hours: Double) -> (reports: [[String: Any]], errors: [String: 
     let uses = ContributionReport.windowUses(items: windows, tokensSince: { provider, start in
         events.filter { $0.provider == provider && $0.timestamp >= start }.reduce(into: TokenBreakdown()) { $0.add($1.usage) }
     }, model: { modelTracker.current[$0]?.model })
-    return (ContributionReport.build(speed: speed, windows: uses, now: now), errors)
+    return (ContributionReport.build(speed: speed, windows: uses, now: now, include: shareKinds()), errors)
 }
 
 func describeReport(_ r: [String: Any]) -> String {
@@ -341,7 +354,7 @@ USAGE
   quotapilot config [show]                   Show router mode and task rules
   quotapilot config mode <auto|preferCodex|preferClaude>
   quotapilot config rule <web|review|plan|implement> <auto|codex|claude>
-  quotapilot share [--hours N] [--json] [--yes] | --forget
+  quotapilot share [--hours N] [--only speed,promptCache,quota,limitEvents] [--json] [--yes] | --forget
                                              Preview anonymous speed and quota numbers and, only if
                                              you confirm, send them anonymously to AI Quota Watch.
                                              `share --yes` in cron shares daily.

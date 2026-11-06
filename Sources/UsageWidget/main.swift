@@ -656,6 +656,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
         menu.items.last?.state = settings.updateChecksEnabled ? .on : .off
         add(l.text("autoShare"), #selector(toggleAutoShare))
         menu.items.last?.state = settings.autoShareEnabled ? .on : .off
+        // What the daily share may contain, each kind on its own switch.
+        let kinds = NSMenu()
+        for category in ShareCategory.allCases {
+            let item = NSMenuItem(title: l.text("shareKind." + category.rawValue), action: #selector(toggleShareCategory(_:)), keyEquivalent: "")
+            item.target = self; item.representedObject = category.rawValue
+            item.state = settings.sharedCategories.contains(category) ? .on : .off
+            kinds.addItem(item)
+        }
+        let kindsItem = NSMenuItem(title: l.text("shareKinds"), action: nil, keyEquivalent: ""); kindsItem.submenu = kinds
+        menu.addItem(kindsItem)
         add(l.text("forgetShared"), #selector(forgetSharedData))
         menu.addItem(.separator())
         add(l.text("quit"), #selector(quit))
@@ -2336,6 +2346,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
         settings.autoShareEnabled = true; saveSettings(); autoShareIfDue()
     }
 
+    @objc private func toggleShareCategory(_ sender: NSMenuItem) {
+        guard let raw = sender.representedObject as? String, let category = ShareCategory(rawValue: raw) else { return }
+        var kinds = settings.sharedCategories
+        if kinds.contains(category) { kinds.remove(category) } else { kinds.insert(category) }
+        settings.sharedCategories = kinds; saveSettings(); setupStatus()
+    }
+
     /// Right to erasure: turns daily sharing off and asks the collector to delete everything this Mac sent.
     @objc private func forgetSharedData() {
         let alert = NSAlert()
@@ -2365,7 +2382,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
         let uses = ContributionReport.windowUses(items: items, tokensSince: { provider, start in
             ledger.summary(since: start, now: now)[provider] ?? TokenBreakdown()
         }, model: { tracker.current[$0]?.model })
-        let reports = ContributionReport.build(speed: recentSpeed, windows: uses, now: now)
+        let reports = ContributionReport.build(speed: recentSpeed, windows: uses, now: now, include: settings.sharedCategories)
         guard !reports.isEmpty else { return }
         defaults.set(now, forKey: "lastAutoShare")  // one attempt a day, even if it fails
         DispatchQueue.global(qos: .utility).async { [weak self] in

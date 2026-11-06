@@ -29,6 +29,22 @@ Nothing is shared unless you run `quotapilot share` and confirm, or turn on **Sh
 - **What becomes public:** only aggregates. A model, plan or provider row (including the hour-of-day chart of limit events) appears only once at least 3 different, established people report it, each person counts once (the median of their own reports), and reporters sending from the same network on the same day count as one. Raw reports are never published.
 - **Deleting what you shared:** `quotapilot share --forget`, the menu bar's **Delete my shared stats…**, or **Delete everything this browser sent** on the website asks the collector to delete every report from that computer or browser at once (daily sharing turns off). Public stats drop them at the next rebuild, within 6 hours. Otherwise reports expire after 31 days.
 
+## How long shared data is kept
+
+| Data | Where | Kept |
+|---|---|---|
+| Random install id | Only on your computer (`install-id`) or in your browser's local storage | Until you delete it; it is never stored on the server |
+| Anonymous reports (the fields listed above) under a keyed hash of the install id | Collector | 31 days, or until you delete them |
+| First-seen day of that hash | Collector | 31 days after it was first seen, or until you delete it |
+| Network hash in each report (a daily-salted hash of the /24 or /48 network) | Inside the report | With the report |
+| Rate-limit counters (keyed hashes of IP + day or install hash + day) | Collector | 1–2 days |
+| Visit records (keyed hash of IP + day, no cookies) | Collector | 8 days |
+| Daily visit totals (views, visitors) | Collector | 400 days |
+| Published statistics (`community.json`, aggregates only) | Public | Rebuilt every 6 hours from the last 7 days (limit events: 30 days) |
+| IP addresses | Never stored; Cloudflare handles connections under its own policy | — |
+
+Choose what to share in the menu bar (**What to share**: speed, prompt and cache tokens, plan quota, limit events) or with `quotapilot share --only speed,quota`.
+
 ## AI Quota Watch website
 
 The website counts visits without cookies: each visit is stored with a daily-salted hash of the IP address and browser user agent that expires after 8 days, and only daily totals (views, visitors) are kept after that, for up to 400 days. Reports sent from the website's form follow the collector rules above.

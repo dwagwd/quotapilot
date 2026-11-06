@@ -92,7 +92,8 @@ public enum ContributionReport {
         return known.contains(raw) ? raw : nil
     }
 
-    public static func build(speed: [OutputSpeedSample], windows: [WindowUse], now: Double) -> [[String: Any]] {
+    public static func build(speed: [OutputSpeedSample], windows: [WindowUse], now: Double,
+                             include: Set<ShareCategory> = Set(ShareCategory.allCases)) -> [[String: Any]] {
         var reports: [[String: Any]] = []
         let date = hourISO(now)
 
@@ -102,7 +103,7 @@ public enum ContributionReport {
             guard let model = siteModelID(s.model) else { return nil }
             return (model + "|" + (effortName(s.effort) ?? ""), s)
         }
-        for (key, pairs) in Dictionary(grouping: keyed, by: \.0).sorted(by: { $0.key < $1.key }) {
+        for (key, pairs) in Dictionary(grouping: keyed, by: \.0).sorted(by: { $0.key < $1.key }) where include.contains(.speed) {
             let samples = pairs.map(\.1)
             guard samples.count >= minimumCallsPerModel, let summary = OutputSpeedSummary(samples), summary.seconds > 0 else { continue }
             let parts = key.split(separator: "|", omittingEmptySubsequences: false)
@@ -114,7 +115,7 @@ public enum ContributionReport {
             // Prompt side, for the site's input/output and prompt-cache statistics. Totals only.
             let input = samples.reduce(0) { $0 + $1.inputTokens }, cacheRead = samples.reduce(0) { $0 + $1.cacheReadTokens }
             let cacheWrite = samples.reduce(0) { $0 + $1.cacheWriteTokens }
-            if input + cacheRead + cacheWrite > 0 {
+            if include.contains(.promptCache), input + cacheRead + cacheWrite > 0 {
                 report["inputTokens"] = input.rounded(); report["cacheReadTokens"] = cacheRead.rounded(); report["cacheWriteTokens"] = cacheWrite.rounded()
             }
             reports.append(report)
@@ -128,14 +129,14 @@ public enum ContributionReport {
             let window: String
             switch use.windowMinutes { case 300: window = "5h"; case 10080: window = "weekly"; default: continue }
             let tokens = use.tokensSinceStart.input + use.tokensSinceStart.cacheWrite + use.tokensSinceStart.output
-            if use.usedPercent >= 1, tokens >= 1000, let plan = planName(use.plan) {
+            if include.contains(.quota), use.usedPercent >= 1, tokens >= 1000, let plan = planName(use.plan) {
                 var report: [String: Any] = ["type": "quota", "provider": provider, "plan": plan, "window": window,
                                              "percentUsed": (use.usedPercent * 10).rounded() / 10, "tokensUsed": tokens.rounded(),
                                              "date": date, "via": "quotapilot"]
                 if let model = siteModelID(use.model) { report["model"] = model }
                 reports.append(report)
             }
-            if use.limitReached, limitEvents.insert(provider).inserted {
+            if include.contains(.limitEvents), use.limitReached, limitEvents.insert(provider).inserted {
                 reports.append(["type": "event", "provider": provider, "plan": planName(use.plan) ?? "", "kind": "hit_limit", "date": date, "via": "quotapilot"])
             }
         }
@@ -145,4 +146,16 @@ public enum ContributionReport {
         }
         return reports
     }
+}
+
+/// What a share may contain; each kind can be turned off on its own.
+public enum ShareCategory: String, CaseIterable, Codable {
+    /// Output speed, reasoning tokens, call counts and time per model and effort.
+    case speed
+    /// Prompt-side totals: new input, cache reads and cache writes (part of each speed report).
+    case promptCache
+    /// Share of a 5-hour or weekly window used, with the tokens spent in it.
+    case quota
+    /// That a plan limit was reached, with the hour.
+    case limitEvents
 }

@@ -78,4 +78,22 @@ final class ContributionReportTests: XCTestCase {
         XCTAssertEqual(reports.map { $0["type"] as? String }, ["event"])
         XCTAssertEqual(reports[0]["plan"] as? String, "Max 5x")
     }
+
+    func testEachKindCanBeLeftOut() {
+        let samples = (0..<3).map { i -> OutputSpeedSample in
+            var s = OutputSpeedSample(provider: "claude", timestamp: Double(i), outputTokens: 500, reasoningTokens: 0, seconds: 10, key: "claude|k\(i)", model: "claude-opus-5-5")
+            s.inputTokens = 10; s.cacheReadTokens = 4000
+            return s
+        }
+        let all = ContributionReport.build(speed: samples, windows: [], now: 0)
+        XCTAssertNotNil(all.first?["cacheReadTokens"])
+        let noCache = ContributionReport.build(speed: samples, windows: [], now: 0, include: [.speed])
+        XCTAssertEqual(noCache.count, 1)
+        XCTAssertNil(noCache[0]["cacheReadTokens"])
+        XCTAssertTrue(ContributionReport.build(speed: samples, windows: [], now: 0, include: [.quota]).isEmpty)
+        var settings = WidgetSettings()
+        XCTAssertEqual(settings.sharedCategories, Set(ShareCategory.allCases), "everything until the user narrows it")
+        settings.sharedCategories = [.speed]
+        XCTAssertEqual(settings.shareCategories, ["speed"])
+    }
 }

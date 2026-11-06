@@ -711,6 +711,26 @@
   }
   function localNow() { const d = new Date(); d.setMinutes(d.getMinutes() - d.getTimezoneOffset()); return d.toISOString().slice(0, 16); }
 
+  // Cloudflare Turnstile: the script loads only when the report preview opens, never on page load.
+  let tsWidget = null, tsLoading = null;
+  function loadTurnstile() {
+    if (window.turnstile) return Promise.resolve();
+    if (tsLoading) return tsLoading;
+    tsLoading = new Promise((resolve, reject) => {
+      const s = document.createElement("script");
+      s.src = "https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit";
+      s.async = true;
+      s.onload = () => (window.turnstile ? resolve() : reject(new Error("turnstile")));
+      s.onerror = () => { s.remove(); reject(new Error("turnstile")); };
+      document.head.appendChild(s);
+    }).catch((e) => { tsLoading = null; throw e; });
+    return tsLoading;
+  }
+  function cleanupTurnstile() {
+    if (tsWidget != null && window.turnstile) { try { window.turnstile.remove(tsWidget); } catch (e) { /* already gone */ } }
+    tsWidget = null;
+  }
+
   function renderReportForm() {
     $("#repType").innerHTML = REP_TYPES.map((k) => `<button type="button" role="tab" aria-selected="${state.repType === k}" class="${state.repType === k ? "on" : ""}" data-type="${k}">${t("rep.type." + k)}</button>`).join("");
     const f = {
@@ -782,33 +802,79 @@
       install = (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random().toString(16).slice(2)).replace(/[^A-Za-z0-9-]/g, "");
       try { localStorage.setItem("aqw-install", install); } catch (e) { /* ignore */ }
     }
+    const siteKey = community.turnstileSiteKey || "";
+    let token = null;
     // On failure the report is kept so the user can retry.
     const failed = (message) => {
       out.innerHTML = `<p class="rep-err" role="alert">${esc(message)}</p>
         <p><button type="button" class="btn" id="repRetry">${t("rep.retry")}</button></p>
         <pre>${esc(json)}</pre>`;
-      $("#repRetry").addEventListener("click", send);
+      // A Turnstile token works once, so a retry goes back to the preview for a fresh check.
+      $("#repRetry").addEventListener("click", siteKey ? preview : send);
     };
     const send = () => {
+      const payload = { install, reports: [res.r] };
+      if (siteKey) payload.turnstile = token;
+      token = null;
+      cleanupTurnstile();
       out.innerHTML = `<p>${t("rep.sending")}</p>`;
-      fetch(community.collector + "/v1/report", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ install, reports: [res.r] }) })
-        .then((r) => r.json().catch(() => ({})).then((body) => ({ ok: r.ok, body })))
-        .then(({ ok, body }) => { if (ok) { out.innerHTML = `<p>${t("rep.thanks")}</p>`; try { localStorage.setItem("aqw-sent", "1"); } catch (e) { /* ignore */ } $("#repForget").hidden = false; } else failed(body.error || t("rep.failed")); })
+      fetch(community.collector + "/v1/report", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) })
+        .then((r) => r.json().catch(() => ({})).then((body) => ({ ok: r.ok, status: r.status, body })))
+        .then(({ ok, status, body }) => { if (ok) { out.innerHTML = `<p>${t("rep.thanks")}</p>`; try { localStorage.setItem("aqw-sent", "1"); } catch (e) { /* ignore */ } $("#repForget").hidden = false; } else failed(status === 403 && siteKey ? t("rep.tsFailed") : body.error || t("rep.failed")); })
         .catch(() => failed(t("rep.failed")));
     };
     // Nothing leaves the browser until the person has seen the exact payload and pressed Send.
-    out.innerHTML = `<p><strong>${t("rep.previewTitle")}</strong></p>
+    // With a Turnstile site key, the check script loads only now and Send stays off until a token arrives.
+    const preview = () => {
+      cleanupTurnstile();
+      token = null;
+      out.hidden = false;
+      out.innerHTML = `<p><strong>${t("rep.previewTitle")}</strong></p>
       <p class="fine">${t("rep.previewNote")}</p>
-      <pre>${esc(JSON.stringify({ install, reports: [res.r] }, null, 2))}</pre>
-      <div class="rep-actions"><button type="button" class="btn" id="repSend">${t("rep.send")}</button><button type="button" class="btn ghost" id="repCancel">${t("rep.cancel")}</button></div>`;
-    $("#repSend").addEventListener("click", send);
-    $("#repCancel").addEventListener("click", () => { out.hidden = true; out.innerHTML = ""; });
+      <pre>${esc(JSON.stringify({ install, reports: [res.r] }, null, 2))}</pre>` +
+        (siteKey ? `<p class="fine">${t("rep.tsNote")}</p><div id="repTurnstile"></div><p class="fine" id="repTsMsg" role="status"></p>` : "") +
+        `<div class="rep-actions"><button type="button" class="btn" id="repSend">${t("rep.send")}</button><button type="button" class="btn ghost" id="repCancel">${t("rep.cancel")}</button></div>`;
+      const sendBtn = $("#repSend"), msg = $("#repTsMsg");
+      sendBtn.disabled = !!siteKey;
+      sendBtn.addEventListener("click", send);
+      $("#repCancel").addEventListener("click", () => { cleanupTurnstile(); out.hidden = true; out.innerHTML = ""; });
+      if (!siteKey) return;
+      const problem = (key) => {
+        token = null;
+        sendBtn.disabled = true;
+        msg.className = "rep-err";
+        msg.innerHTML = `${esc(t(key))} <button type="button" class="linklike" id="repTsRetry">${t("rep.retry")}</button>`;
+        $("#repTsRetry").addEventListener("click", startTurnstile);
+      };
+      const startTurnstile = () => {
+        cleanupTurnstile();
+        token = null;
+        sendBtn.disabled = true;
+        msg.className = "fine";
+        msg.textContent = t("rep.tsWait");
+        loadTurnstile().then(() => {
+          if (!msg.isConnected) return; // the preview was closed meanwhile
+          // Managed mode (set on the widget in the Cloudflare dashboard); the language follows the page.
+          tsWidget = window.turnstile.render($("#repTurnstile"), {
+            sitekey: siteKey,
+            theme: "auto",
+            language: state.lang === "zh" ? "zh-TW" : "en",
+            callback: (tok) => { token = tok; sendBtn.disabled = false; msg.className = "fine"; msg.textContent = ""; },
+            "expired-callback": () => problem("rep.tsExpired"),
+            "timeout-callback": () => problem("rep.tsExpired"),
+            "error-callback": () => problem("rep.tsError")
+          });
+        }).catch(() => { if (msg.isConnected) problem("rep.tsLoadFail"); });
+      };
+      startTurnstile();
+    };
+    preview();
   }
 
   function initCommunity() {
     $("#repType").addEventListener("click", (e) => {
       const b = e.target.closest("button[data-type]"); if (!b) return;
-      state.repType = b.dataset.type; $("#repOut").hidden = true; renderReportForm();
+      state.repType = b.dataset.type; cleanupTurnstile(); $("#repOut").hidden = true; renderReportForm();
     });
     $("#repForm").addEventListener("submit", onReportSubmit);
     // Right to erasure for the web form: the browser's random id asks the collector to delete its reports,

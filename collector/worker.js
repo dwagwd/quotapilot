@@ -28,8 +28,24 @@ export const LIMITS = { bodyBytes: 20000, reports: 30, perInstallPerDay: 3, perI
 // walks them only until this day.
 export const LEGACY_KEYS_UNTIL = "2026-12-08";
 const ALLOWED_ORIGINS = ["https://aiquotawatch.pages.dev", "https://dwagwd.github.io", "http://127.0.0.1:8765", "http://localhost:8765"];
-// The allowed origins that are websites (not a local dev server): only requests from these may be labelled via "site".
+// The allowed origins that are websites (not a local dev server): only requests that ask to be "site" from these (or that
+// claim via "site") are checked with Turnstile, and a verified token's hostname must be one of them.
 const SITE_ORIGINS = ALLOWED_ORIGINS.filter((o) => !["localhost", "127.0.0.1"].includes(new URL(o).hostname));
+const SITE_HOSTS = SITE_ORIGINS.map((o) => new URL(o).hostname);
+const SITEVERIFY_URL = "https://challenges.cloudflare.com/turnstile/v0/siteverify";
+
+// Checks a Cloudflare Turnstile token once (5 s timeout). Anything unexpected counts as not verified. The token is never stored.
+async function verifyTurnstile(secret, token, ip) {
+  if (typeof token !== "string" || !token || token.length > 2048) return false;
+  const form = new URLSearchParams({ secret, response: token });
+  if (ip) form.set("remoteip", ip);
+  try {
+    const res = await fetch(SITEVERIFY_URL, { method: "POST", body: form, signal: AbortSignal.timeout(5000) });
+    if (!res.ok) return false;
+    const out = await res.json();
+    return out?.success === true && SITE_HOSTS.includes(out.hostname);
+  } catch { return false; }
+}
 
 
 async function hmac(secret, text) {
@@ -87,6 +103,15 @@ async function report(request, env) {
   const recent = (r) => !r.date || (Date.parse(r.date) <= nowMs + 3600e3 && Date.parse(r.date) >= nowMs - 8 * 864e5);
   const reports = (Array.isArray(body.reports) ? body.reports : []).slice(0, LIMITS.reports).map(sanitize).filter(Boolean).filter(recent);
   if (!reports.length) return json(request, 400, { error: "no valid reports" });
+  // "site" is a claim the collector checks, not something a header can grant. A request asks to be "site" when its body says
+  // so or it comes from a website Origin; with TURNSTILE_SECRET set it must then carry a token that verifies, or it is refused
+  // here, before any counter or report is written. Without the secret nothing is ever labelled "site".
+  const asksSite = SITE_ORIGINS.includes(request.headers.get("Origin") || "") || (Array.isArray(body.reports) && body.reports.some((r) => r?.via === "site"));
+  let verified = false;
+  if (env.TURNSTILE_SECRET && asksSite) {
+    verified = await verifyTurnstile(env.TURNSTILE_SECRET, body.turnstile, request.headers.get("CF-Connecting-IP"));
+    if (!verified) return json(request, 403, { error: "verification failed" });
+  }
 
   const day = new Date().toISOString().slice(0, 10);
   const reporter = "anon-" + (await hmac(env.SALT, "install:" + install)).slice(0, 16);
@@ -124,10 +149,9 @@ async function report(request, env) {
   }
   const ipGroup = (await hmac(env.SALT, "ipgrp:" + ipPrefix(ip) + ":" + day)).slice(0, 8);
   const now = hourOf(new Date().toISOString());
-  // `via` is client-chosen, so it is decided here: "site" only for requests from one of our websites (by Origin),
-  // and a client-sent "site" from anywhere else becomes "quotapilot".
-  const fromSite = SITE_ORIGINS.includes(request.headers.get("Origin") || "");
-  const stored = reports.map((r) => ({ ...r, via: fromSite ? "site" : (r.via && r.via !== "site" ? r.via : "quotapilot"),
+  // `via` is client-chosen, so it is decided here: "site" only when the Turnstile token verified above; a client-sent
+  // "site" without that becomes "quotapilot".
+  const stored = reports.map((r) => ({ ...r, via: verified ? "site" : (r.via && r.via !== "site" ? r.via : "quotapilot"),
     date: r.date || now, reporter, reporterFirstSeen: firstSeen || day, receivedDay: day, ipGroup }));
   await env.REPORTS.put(dayKey, String(acceptedToday + 1), { expirationTtl: 86400 });
   // The reporter id leads the key so /v1/forget can find this install's reports with a prefix list.

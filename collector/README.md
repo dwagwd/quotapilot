@@ -23,8 +23,15 @@ imports `worker.js`; bindings in `site/wrangler.toml`). It receives `quotapilot 
   real reporters. Beyond a cap it answers HTTP 429 `{error: "collector is full for today", full: true}` before
   writing anything, so clients can detect it without matching the message. Free plan arithmetic (1,000 writes a day):
   15 x 6 + 40 x 3 + forget 5 x 96 + visit cap 150 + slack 160 = 1000 (worst case; deletes count as writes).
-- `via` on a stored report is decided by the collector: `site` only when the request's `Origin` is one of the
-  allowed website origins (not localhost); a client-sent `site` from anywhere else is stored as `quotapilot`.
+- `via` on a stored report is decided by the collector, and an `Origin` header alone never grants `site`. It is `site`
+  only when the optional secret `TURNSTILE_SECRET` is set and the body's `turnstile` token (from the website form's
+  Cloudflare Turnstile widget) verifies: `POST https://challenges.cloudflare.com/turnstile/v0/siteverify` with `secret`,
+  `response` and `remoteip` (CF-Connecting-IP), 5 s timeout, answer `success` with a `hostname` that is one of the website
+  origins. The check runs only for requests that ask to be `site` (a report with `via: "site"`, or an allowed website
+  Origin). If it fails or the token is missing, the answer is 403 `{error: "verification failed"}` and nothing is stored
+  and no counter is touched. Without `TURNSTILE_SECRET` the behaviour is otherwise unchanged but nothing is ever labelled
+  `site` (it becomes `quotapilot`). QuotaPilot app requests (no Origin, `via: "quotapilot"`) never call siteverify.
+  The token is checked once and discarded. The public site key goes in `site/assets/config.js` (`community.turnstileSiteKey`).
 - Fields the collector adds to each stored report, so the stats can't be faked by minting install ids:
   - `reporterFirstSeen`: the day this reporter id was first seen. The record behind it (`rs:<reporter>`) holds only
     that day and expires 31 days after it was written, so an idle reporter is forgotten and later starts as new.
@@ -47,7 +54,7 @@ imports `worker.js`; bindings in `site/wrangler.toml`). It receives `quotapilot 
 - `GET /v1/export` (Bearer `EXPORT_TOKEN`): every stored report, pulled by `.github/workflows/community-data.yml`.
 
 Deploys with the site (`.github/workflows/site-pages.yml`). Secrets: `SALT` and `EXPORT_TOKEN` on the Pages
-project, and the matching `COLLECTOR_TOKEN` Actions secret. Tests: `node --test test/worker.test.mjs`.
+project (optionally `TURNSTILE_SECRET`, see `via` above), and the matching `COLLECTOR_TOKEN` Actions secret. Tests: `node --test test/worker.test.mjs`.
 
 ## Abuse limits and accuracy
 

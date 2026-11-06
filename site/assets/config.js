@@ -15,7 +15,10 @@ window.SITE_CONFIG = {
   },
   community: {
     // Anonymous collector (collector/ in the repo). Reports from the site form go here first.
-    collector: "https://aiquotawatch.pages.dev/api"
+    collector: "https://aiquotawatch.pages.dev/api",
+    // Cloudflare Turnstile public site key for the report form. Empty = Turnstile off (the collector then never labels reports "site").
+    // The script from challenges.cloudflare.com loads only when someone opens the report preview.
+    turnstileSiteKey: ""
   },
   officialPricing: {
     chatgpt: "https://chatgpt.com/pricing",

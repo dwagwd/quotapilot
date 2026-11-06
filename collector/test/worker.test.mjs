@@ -418,18 +418,76 @@ test("each reporter class has its own daily cap, refused with 429 {full:true} be
   assert.equal((await worker.fetch(post({ install, reports: [good] }), e)).status, 429);
 });
 
-test("via is decided by the request's Origin, not by the client", async () => {
-  const viaFor = async (via, origin) => {
-    const e = env();
-    assert.equal((await worker.fetch(post({ install, reports: [{ ...good, via }] }, "1.2.3.4", origin), e)).status, 200);
-    return storedRows(e)[0].via;
+const siteEnv = () => ({ ...env(), TURNSTILE_SECRET: "ts-secret" });
+// Runs fn with a mocked global fetch standing in for Turnstile's siteverify; `reply` is a body or a function that throws.
+async function withSiteverify(reply, fn) {
+  const real = globalThis.fetch;
+  const calls = [];
+  globalThis.fetch = async (url, init) => {
+    calls.push({ url: String(url), method: init?.method, form: new URLSearchParams(String(init?.body)) });
+    if (typeof reply === "function") return reply();
+    return new Response(JSON.stringify(reply));
   };
-  assert.equal(await viaFor("quotapilot", "https://aiquotawatch.pages.dev"), "site");
-  assert.equal(await viaFor("quotapilot", "https://dwagwd.github.io"), "site");
-  assert.equal(await viaFor("site", undefined), "quotapilot");
-  assert.equal(await viaFor("site", "http://localhost:8765"), "quotapilot");
-  assert.equal(await viaFor("site", "http://127.0.0.1:8765"), "quotapilot");
-  assert.equal(await viaFor("site", "https://evil.example"), "quotapilot");
+  try { await fn(calls); } finally { globalThis.fetch = real; }
+}
+const siteOrigin = "https://aiquotawatch.pages.dev";
+
+test("a valid Turnstile token makes the report via site, and the token is never stored", async () => {
+  await withSiteverify({ success: true, hostname: "aiquotawatch.pages.dev" }, async (calls) => {
+    const e = siteEnv();
+    const res = await worker.fetch(post({ install, turnstile: "tok-1", reports: [{ ...good, via: "quotapilot" }] }, "1.2.3.4", siteOrigin), e);
+    assert.equal(res.status, 200);
+    assert.equal(storedRows(e)[0].via, "site");
+    assert.equal(calls.length, 1);
+    assert.equal(calls[0].url, "https://challenges.cloudflare.com/turnstile/v0/siteverify");
+    assert.equal(calls[0].method, "POST");
+    assert.equal(calls[0].form.get("secret"), "ts-secret");
+    assert.equal(calls[0].form.get("response"), "tok-1");
+    assert.equal(calls[0].form.get("remoteip"), "1.2.3.4");
+    assert.ok(![...e.REPORTS.m.keys()].join(" ").includes("tok-1") && ![...e.REPORTS.m.values()].join(" ").includes("tok-1"));
+    // A body that claims via site without an Origin is checked too, and labelled site once the token verifies.
+    const e2 = siteEnv();
+    assert.equal((await worker.fetch(post({ install, turnstile: "tok-2", reports: [{ ...good, via: "site" }] }), e2)).status, 200);
+    assert.equal(storedRows(e2)[0].via, "site");
+    assert.equal(calls.length, 2);
+  });
+});
+
+test("a failed, wrong-host, missing or unreachable Turnstile check is refused with 403 and nothing is written", async () => {
+  const refused = async (reply, body, expectCalls) => {
+    await withSiteverify(reply, async (calls) => {
+      const e = siteEnv();
+      const res = await worker.fetch(post(body, "1.2.3.4", siteOrigin), e);
+      assert.equal(res.status, 403);
+      assert.deepEqual(await res.json(), { error: "verification failed" });
+      assert.equal(e.REPORTS.m.size, 0, "no report and no counter written");
+      assert.equal(calls.length, expectCalls);
+    });
+  };
+  const reports = [{ ...good, via: "site" }];
+  await refused({ success: false, "error-codes": ["invalid-input-response"] }, { install, turnstile: "bad", reports }, 1);
+  await refused({ success: true, hostname: "evil.example" }, { install, turnstile: "other-host", reports }, 1);
+  await refused({ success: true, hostname: "aiquotawatch.pages.dev" }, { install, reports }, 0);
+  await refused(() => { throw new Error("network down"); }, { install, turnstile: "x", reports }, 1);
+});
+
+test("without TURNSTILE_SECRET nothing is labelled site, and siteverify is never called", async () => {
+  await withSiteverify({ success: true, hostname: "aiquotawatch.pages.dev" }, async (calls) => {
+    const e = env();
+    assert.equal((await worker.fetch(post({ install, turnstile: "tok", reports: [{ ...good, via: "site" }] }, "1.2.3.4", siteOrigin), e)).status, 200);
+    assert.equal(storedRows(e)[0].via, "quotapilot");
+    assert.equal(calls.length, 0);
+  });
+});
+
+test("QuotaPilot app requests never call siteverify and keep their via, with or without a secret", async () => {
+  await withSiteverify({ success: true, hostname: "aiquotawatch.pages.dev" }, async (calls) => {
+    for (const e of [siteEnv(), env()]) {
+      assert.equal((await worker.fetch(post({ install, reports: [{ ...good, via: "quotapilot" }] }), e)).status, 200);
+      assert.equal(storedRows(e)[0].via, "quotapilot");
+    }
+    assert.equal(calls.length, 0);
+  });
 });
 
 test("visits are served from rollups and the cached today counter without KV list calls", async () => {

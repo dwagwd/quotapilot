@@ -42,11 +42,6 @@ Every post links back to the matching section of the site. No investment or trad
    node site/scripts/x-post.mjs --send
    ```
 
-5. Optional: `com.aiquotawatch.x-post.plist` runs `--send` every 30 minutes. Install only once posting is approved:
-
-   ```bash
-   cp marketing/x/com.aiquotawatch.x-post.plist ~/Library/LaunchAgents/
-   launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.aiquotawatch.x-post.plist
-   ```
+5. Optional: run `--send` on a schedule (launchd or cron) once posting is approved. Keep that job file outside the repo, since it contains local paths.
 
 Posts go out when the reset ledger or change log gets a new entry, so the daily data update is what drives the account.

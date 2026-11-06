@@ -3,23 +3,33 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <!-- Ad networks need their hosts added here when they are connected. -->
+  <!-- Same policy as _headers (kept in sync; frame-ancestors only works as a header). Ad networks need their hosts added in both places. -->
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://challenges.cloudflare.com; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' https://aiquotawatch.pages.dev https://challenges.cloudflare.com; frame-src https://challenges.cloudflare.com; font-src 'self'; object-src 'none'; base-uri 'self'; form-action 'none'">
   <meta name="referrer" content="strict-origin-when-cross-origin">
-  <title>AI Quota Watch</title>
-  <meta name="description" content="Track usage limits, plan changes, API prices, intelligence scores and speed for ChatGPT, Claude, Grok and Gemini. Every number cites its source and date.">
+  <meta name="color-scheme" content="light dark">
+  <title>AI Quota Watch: ChatGPT, Claude, Gemini and Grok usage limits, resets and real speeds · free QuotaPilot app for macOS</title>
+  <meta name="description" content="Hand-checked usage limits, plan changes, reset history and community-measured speed for ChatGPT, Claude, Gemini and Grok. Every number links to its source. Free, open-source QuotaPilot app for macOS.">
   <meta property="og:type" content="website">
-  <meta property="og:title" content="AI Quota Watch">
-  <meta property="og:description" content="Usage limits, resets, effort-by-effort intelligence and real usage for ChatGPT, Claude, Grok and Gemini. Every number cites its source.">
+  <meta property="og:site_name" content="AI Quota Watch">
+  <meta property="og:title" content="How much AI do you actually get? Plan limits, resets and real speeds">
+  <meta property="og:description" content="Hand-checked usage limits, plan changes, reset history and community-measured speed for ChatGPT, Claude, Gemini and Grok. Every number links to its source. Free, open-source QuotaPilot app for macOS.">
   <meta property="og:url" content="https://aiquotawatch.pages.dev/">
   <meta property="og:image" content="https://aiquotawatch.pages.dev/assets/og.png">
   <meta property="og:image:width" content="1200">
   <meta property="og:image:height" content="630">
   <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="How much AI do you actually get? Plan limits, resets and real speeds">
+  <meta name="twitter:description" content="Hand-checked usage limits, plan changes, reset history and community-measured speed for ChatGPT, Claude, Gemini and Grok. Every number links to its source.">
   <meta name="twitter:image" content="https://aiquotawatch.pages.dev/assets/og.png">
   <link rel="canonical" href="https://aiquotawatch.pages.dev/">
-  <link rel="stylesheet" href="assets/style.css">
+  <link rel="alternate" hreflang="en" href="https://aiquotawatch.pages.dev/">
+  <link rel="alternate" hreflang="x-default" href="https://aiquotawatch.pages.dev/">
+  <!-- JSON-LD data blocks are never executed, so script-src 'self' does not apply to them. -->
+  <script type="application/ld+json">{"@context":"https://schema.org","@type":"WebSite","name":"AI Quota Watch","url":"https://aiquotawatch.pages.dev/","inLanguage":["en","zh-Hant"]}</script>
+  <script type="application/ld+json">{"@context":"https://schema.org","@type":"SoftwareApplication","name":"QuotaPilot","operatingSystem":"macOS 13+","applicationCategory":"DeveloperApplication","offers":{"@type":"Offer","price":0,"priceCurrency":"USD"},"license":"https://opensource.org/licenses/MIT","downloadUrl":"https://github.com/dwagwd/quotapilot","url":"https://aiquotawatch.pages.dev/#install"}</script>
   <script src="assets/config.js"></script>
+  <script src="assets/theme.js"></script>
+  <link rel="stylesheet" href="assets/style.css">
 </head>
 <body>
   <header class="topbar">
@@ -28,61 +38,75 @@
         <span class="brand-mark" aria-hidden="true"></span>
         <span>AI Quota Watch</span>
       </a>
-      <nav class="nav">
+      <nav class="nav" aria-label="Sections">
         <a href="#plans" data-i18n="nav.plans">Plans</a>
-        <a href="#changes" data-i18n="nav.changes">Changes</a>
-        <a href="#resets" data-i18n="nav.resets">Resets</a>
-        <a href="#calculator" data-i18n="nav.calc">Calculator</a>
-        <a href="#radar" data-i18n="nav.radar">Radar</a>
-        <a href="#effort" data-i18n="nav.effort">Effort</a>
         <a href="#community" data-i18n="nav.community">Community</a>
-        <a href="#quotapilot" data-i18n="nav.quotapilot">QuotaPilot</a>
+        <a href="#resets" data-i18n="nav.resets">Resets</a>
+        <a href="#calculator" data-i18n="nav.tools">Tools</a>
         <a href="#sources" data-i18n="nav.sources">Sources</a>
       </nav>
-      <button class="lang-toggle" id="langToggle" type="button" aria-label="Switch language">中文</button>
+      <div class="topbar-actions">
+        <a class="btn btn-primary btn-sm" id="navInstall" href="#install" data-i18n="nav.install">Install</a>
+        <a class="sponsor-chip" id="navSponsor" href="https://github.com/sponsors/dwagwd" target="_blank" rel="noopener" data-sponsor hidden>
+          <svg class="ico" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" focusable="false"><path fill="currentColor" d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>
+          <span class="chip-text" data-i18n="sponsor.label" data-sponsor-label>Sponsor</span>
+        </a>
+        <button class="icon-btn theme-toggle" id="themeToggle" type="button" data-mode="auto" aria-label="Theme: Auto" title="Theme: Auto">
+          <svg class="ico ico-auto" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 3a9 9 0 0 1 0 18z" fill="currentColor"/></svg>
+          <svg class="ico ico-sun" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
+          <svg class="ico ico-moon" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>
+        </button>
+        <button class="lang-toggle" id="langToggle" type="button" data-lang-toggle aria-label="Switch language">中文</button>
+      </div>
     </div>
   </header>
 
-  <div class="live" id="live" aria-live="polite">
-    <div class="wrap live-inner" id="liveInner"></div>
-  </div>
-
   <main class="wrap">
-    <section class="hero">
-      <h1 data-i18n="hero.title">How much AI do you actually get?</h1>
-      <p class="lede" data-i18n="hero.lede">Usage limits, plan changes, API prices, intelligence scores and speed for ChatGPT, Claude, Grok and Gemini, in one place. Every number links to where it came from and when we checked it.</p>
-      <div class="hero-cta">
-        <a class="btn" href="#calculator" data-i18n="hero.ctaPick">Find a model for your workload</a>
-        <a class="btn ghost" href="#plans" data-i18n="hero.ctaPlans">Compare plan limits</a>
-        <a class="btn ghost" href="#quotapilot" data-i18n="hero.ctaQp">Get QuotaPilot for macOS (free, open source)</a>
+    <section id="hero" class="hero">
+      <div class="hero-grid">
+        <div class="hero-text">
+          <p class="kicker" data-i18n="hero.kicker">Independent · open source · no account</p>
+          <h1 data-i18n="hero.title">How much AI do you actually get?</h1>
+          <p class="lede" data-i18n="hero.lede">Usage limits, resets and real speeds for ChatGPT, Claude, Gemini and Grok. Checked by hand, measured by the people who use them. Free macOS app, no account, nothing leaves your Mac without your say-so.</p>
+          <p class="hero-for" data-i18n="hero.for">For developers and heavy users on Plus, Pro, Max, Codex and Claude Code plans.</p>
+          <div class="hero-cta">
+            <a class="btn btn-primary btn-lg" id="heroInstall" href="#install" data-i18n="hero.ctaQp">Get QuotaPilot for macOS — free, open source</a>
+            <a class="btn ghost" href="#plans" data-i18n="hero.ctaPlans">Compare plan limits</a>
+          </div>
+          <a class="sponsor-link" id="heroSponsor" href="https://github.com/sponsors/dwagwd" target="_blank" rel="noopener" data-sponsor hidden>
+            <svg class="ico" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" focusable="false"><path fill="currentColor" d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>
+            <span data-i18n="sponsor.hero">Support this project</span>
+          </a>
+        </div>
+
+        <aside id="install" class="install" aria-labelledby="installTitle">
+          <span id="quotapilot" class="anchor-alias"></span>
+          <h2 id="installTitle" data-i18n="install.title">Install with Homebrew</h2>
+          <div class="install-cmd">
+            <pre id="installCmd" tabindex="0" data-install-cmd><code>brew tap dwagwd/quotapilot https://github.com/dwagwd/quotapilot
+brew install dwagwd/quotapilot/quotapilot</code></pre>
+            <button type="button" class="btn btn-copy" id="installCopy" data-copy-target="installCmd" data-copy-status="installCopied" data-i18n="install.copy">Copy</button>
+            <span class="sr-only" id="installCopied" aria-live="polite"></span>
+          </div>
+          <p class="install-req" data-i18n="install.req">Builds from source on your Mac, about 2 minutes. Needs the Xcode Command Line Tools and macOS 13 or later.</p>
+          <p class="install-req" data-i18n="install.prereq">No Command Line Tools yet? Run xcode-select --install first.</p>
+          <p class="install-links"><a href="https://github.com/dwagwd/quotapilot#install" rel="noopener" target="_blank" data-install-link="notes"><span data-i18n="install.notes">Install notes</span> ↗</a> · <a href="https://github.com/dwagwd/quotapilot" rel="noopener" target="_blank" data-install-link="source"><span data-i18n="install.source">Source on GitHub</span> ↗</a></p>
+        </aside>
+
+        <ul class="trust">
+          <li data-i18n="hero.trust1">Every number links to its source and the date we checked it</li>
+          <li data-i18n="hero.trust2">Community stats always show how many people (n) and when</li>
+          <li data-i18n="hero.trust3">MIT licence, and a privacy policy you can read in two minutes</li>
+        </ul>
       </div>
-      <div class="stamp"><span data-i18n="hero.reviewed">Data last reviewed</span> <strong id="reviewed">—</strong></div>
     </section>
 
-    <section class="section qp-section">
-      <div class="tool-cta" id="quotapilot">
-        <div>
-          <h3 data-i18n="tool.title">Share real numbers with QuotaPilot</h3>
-          <p data-i18n="tool.sub">QuotaPilot is a free, open-source quota monitor for Codex, Claude Code, Gemini CLI and Grok CLI. It reads your local usage and shares nothing by default. Run the share command to see exactly which anonymous numbers it would send, and send them only if you agree.</p>
-          <ul class="tool-points">
-            <li data-i18n="tool.p1">Measured speed per model from your own sessions</li>
-            <li data-i18n="tool.p2">Quota used vs. tokens spent, so we can estimate what each plan really holds</li>
-            <li data-i18n="tool.p3">No prompts, file paths, project names or account ids</li>
-          </ul>
-        </div>
-        <div class="tool-cmd">
-          <pre><span class="c"># macOS</span>
-brew tap dwagwd/quotapilot https://github.com/dwagwd/quotapilot
-brew install dwagwd/quotapilot/quotapilot
-<span class="c"># preview, then confirm</span>
-quotapilot share</pre>
-          <p class="fine" data-i18n="tool.build">Builds from source on your Mac: about 2 minutes, needs the Xcode Command Line Tools (xcode-select --install) and macOS 13+.</p>
-          <a class="btn" href="https://github.com/dwagwd/quotapilot" target="_blank" rel="noopener" data-i18n="tool.cta">QuotaPilot on GitHub</a>
-        </div>
-      </div>
-    </section>
+    <div class="live" id="glance">
+      <div class="live-inner" id="liveInner"></div>
+    </div>
 
-    <div class="ad-slot" data-slot="top-banner" aria-hidden="true"><span data-i18n="ad.label">Ad space (not connected)</span></div>
+    <!-- Shown only when SITE_CONFIG.ads.enabled is true and a network is connected. -->
+    <div class="ad-slot" id="adTop" data-slot="top-banner" hidden></div>
 
     <section id="plans" class="section">
       <div class="section-head">
@@ -95,6 +119,61 @@ quotapilot share</pre>
         <span data-i18n="conf.perField">Price, usage multiple and limits are labelled separately.</span>
       </div>
       <div class="provider-grid" id="providerGrid"></div>
+    </section>
+
+    <section id="community" class="section">
+      <div class="section-head">
+        <h2 data-i18n="com.title">Community radar</h2>
+        <p data-i18n="com.sub">Real measurements from people who use these plans every day: speed, how good a model feels, how much a plan really holds, and when limits hit or reset. Rows appear once at least 3 people report the same model or plan in the last 7 days.</p>
+      </div>
+      <div class="sample-banner" id="sampleBanner" hidden data-i18n="com.sampleBanner">Example data for preview only. These are generated numbers, not real reports.</div>
+      <div class="com-totals" id="comTotals"></div>
+      <article class="invite" id="comInvite" hidden></article>
+      <div class="com-grid" id="comGrid">
+        <article class="com-card stat-card" id="comSpeedCard">
+          <header class="stat-head"><h3 data-i18n="com.speedTitle">Measured speed</h3></header>
+          <p class="com-note stat-note" data-i18n="com.speedNote">Median output tokens/s from real sessions, bar shows the middle 50%.</p>
+          <div class="stat-body" id="comSpeed"></div>
+          <footer class="stat-meta" id="comSpeedMeta"></footer>
+        </article>
+        <article class="com-card stat-card" id="comRatingCard">
+          <header class="stat-head"><h3 data-i18n="com.ratingTitle">How it feels</h3></header>
+          <p class="com-note stat-note" data-i18n="com.ratingNote">Average score out of 10. A warning shows when 30% or more of reports say the model got worse.</p>
+          <div class="stat-body" id="comRating"></div>
+          <footer class="stat-meta" id="comRatingMeta"></footer>
+        </article>
+        <article class="com-card stat-card" id="comQuotaCard">
+          <header class="stat-head">
+            <h3 data-i18n="com.quotaTitle">Plan quota</h3>
+            <span class="badge lower" data-i18n="stat.lower" data-i18n-title="stat.lowerHelp" title="At least this much. Use on other devices and the web app is not counted, so the real window is larger.">lower bound</span>
+          </header>
+          <p class="com-note stat-note" data-i18n="com.quotaNote">Lower bound. Tokens counted on the sharer's Mac ÷ share of the account-wide limit used. Use elsewhere (web app, other devices) is missing, so the real window is larger. $ assumes API list prices.</p>
+          <div class="stat-body" id="comQuota"></div>
+          <footer class="stat-meta" id="comQuotaMeta"></footer>
+        </article>
+        <article class="com-card stat-card" id="comMixCard">
+          <header class="stat-head"><h3 data-i18n="com.mixTitle">Prompt, output and cache</h3></header>
+          <p class="com-note stat-note" data-i18n="com.mixNote">Prompt tokens sent per output token, and the share of the prompt read from the prompt cache.</p>
+          <div class="stat-body" id="comMix"></div>
+          <footer class="stat-meta" id="comMixMeta"></footer>
+        </article>
+        <article class="com-card stat-card" id="comEventsCard">
+          <header class="stat-head"><h3 data-i18n="com.eventTitle">When limits hit and reset</h3></header>
+          <p class="com-note stat-note" data-i18n="com.eventNote">Reports in the last 30 days by hour of day, in your time zone.</p>
+          <div class="stat-body" id="comEvents"></div>
+          <footer class="stat-meta" id="comEventsMeta"></footer>
+        </article>
+      </div>
+      <div class="report" id="report">
+        <div class="report-head">
+          <h3 data-i18n="rep.title">Report a data point</h3>
+          <p data-i18n="rep.sub">Takes under a minute. Reports are anonymous: no account, and each browser counts at most a few times a day.</p>
+        </div>
+        <div class="seg" id="repType" role="tablist"></div>
+        <form id="repForm" class="rep-form" novalidate></form>
+        <div class="rep-out" id="repOut" hidden></div>
+        <p class="fine rep-forget" id="repForget" hidden><span data-i18n="rep.forgetNote">This browser has sent reports.</span> <button type="button" class="linklike" id="repForgetBtn" data-i18n="rep.forget">Delete everything this browser sent</button></p>
+      </div>
     </section>
 
     <section id="changes" class="section">
@@ -124,15 +203,13 @@ quotapilot share</pre>
       <p class="fine" id="rsTrackers"></p>
     </section>
 
-    <div class="ad-slot" data-slot="mid-content" aria-hidden="true"><span data-i18n="ad.label">Ad space (not connected)</span></div>
-
     <section id="calculator" class="section">
       <div class="section-head">
         <h2 data-i18n="calc.title">Model calculator</h2>
         <p data-i18n="calc.sub">Enter your workload to compare monthly API cost, response time, intelligence and value. Click a column to sort.</p>
       </div>
       <div class="calc">
-        <form class="calc-inputs" id="calcForm" onsubmit="return false">
+        <form class="calc-inputs" id="calcForm">
           <label><span data-i18n="calc.in">Input tokens per request</span><input type="number" id="inTok" min="0" step="100" value="2000"></label>
           <label><span data-i18n="calc.out">Output tokens per request</span><input type="number" id="outTok" min="0" step="100" value="800"></label>
           <label><span data-i18n="calc.req">Requests per day</span><input type="number" id="reqDay" min="0" step="1" value="100"></label>
@@ -174,8 +251,6 @@ quotapilot share</pre>
       </div>
     </section>
 
-
-
     <section id="radar" class="section">
       <div class="section-head">
         <h2 data-i18n="radar.title">Model radar</h2>
@@ -192,8 +267,9 @@ quotapilot share</pre>
       <div class="table-scroll">
         <table class="models radar-table" id="radarTable"><thead></thead><tbody></tbody></table>
       </div>
-      <p class="fine" data-i18n="radar.notes">Scoring: Intelligence and Speed are divided by the top value. Cost efficiency and Budget reach use a log scale, so 100 is the cheapest model and 0 the most expensive. Budget reach = budget ÷ API cost per request with your calculator workload. A model without a verified API price scores 0 on Budget reach and shows n/a.</p>
+      <p class="fine" data-i18n="radar.notes">Scoring: Intelligence and Speed are divided by the top value. Cost efficiency and Budget reach use a log scale, so 100 is the cheapest model and 0 the most expensive.</p>
     </section>
+
     <section id="effort" class="section">
       <div class="section-head">
         <h2 data-i18n="ef.title">Effort ladder</h2>
@@ -208,33 +284,20 @@ quotapilot share</pre>
       <p class="fine" id="efNote"></p>
     </section>
 
-    <section id="community" class="section">
-      <div class="section-head">
-        <h2 data-i18n="com.title">Community radar</h2>
-        <p data-i18n="com.sub">Real measurements from people who use these plans every day: speed, how good a model feels, how much a plan really holds, and when limits hit or reset. Rows appear once at least 3 people report the same model or plan in the last 7 days.</p>
-      </div>
-      <div class="sample-banner" id="sampleBanner" hidden data-i18n="com.sampleBanner">Example data for preview only. These are generated numbers, not real reports.</div>
-      <div class="com-totals" id="comTotals"></div>
-      <div class="com-grid">
-        <article class="com-card"><h3 data-i18n="com.speedTitle">Measured speed</h3><p class="com-note" data-i18n="com.speedNote">Median output tokens/s from real sessions, bar shows the middle 50%.</p><div id="comSpeed"></div></article>
-        <article class="com-card"><h3 data-i18n="com.ratingTitle">How it feels</h3><p class="com-note" data-i18n="com.ratingNote">Average score out of 10. A warning shows when 30% or more of reports say the model got worse.</p><div id="comRating"></div></article>
-        <article class="com-card"><h3 data-i18n="com.quotaTitle">Plan quota, lower bound</h3><p class="com-note" data-i18n="com.quotaNote">Lower bound. Tokens counted on the sharer's Mac ÷ share of the account-wide limit used. Use elsewhere (web app, other devices) is missing, so the real window is larger. $ assumes API list prices.</p><div id="comQuota"></div></article>
-        <article class="com-card"><h3 data-i18n="com.mixTitle">Prompt, output and cache</h3><p class="com-note" data-i18n="com.mixNote">Prompt tokens sent per output token, and the share of the prompt read from the prompt cache. Coding agents resend the whole conversation each turn, so a high cache share is what keeps them affordable.</p><div id="comMix"></div></article>
-        <article class="com-card"><h3 data-i18n="com.eventTitle">When limits hit and reset</h3><p class="com-note" data-i18n="com.eventNote">Reports in the last 30 days by hour of day, in your time zone.</p><div id="comEvents"></div></article>
-      </div>
-      <div class="report" id="report">
-        <div class="report-head">
-          <h3 data-i18n="rep.title">Report a data point</h3>
-          <p data-i18n="rep.sub">Takes under a minute. Reports are anonymous: no account, and each browser counts at most a few times a day.</p>
+    <section id="sponsor" class="section" data-sponsor hidden>
+      <div class="sponsor-card" id="sponsorCard">
+        <div class="sponsor-text">
+          <h2>
+            <svg class="ico" viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" focusable="false"><path fill="currentColor" d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>
+            <span data-i18n="sponsor.title">Support this project</span>
+          </h2>
+          <p data-i18n="sponsor.sub">AI Quota Watch has no ads and no paywall. Sponsors keep the sources checked and the app free.</p>
         </div>
-        <div class="seg" id="repType" role="tablist"></div>
-        <form id="repForm" class="rep-form" novalidate></form>
-        <div class="rep-out" id="repOut" hidden></div>
-        <p class="fine rep-forget" id="repForget" hidden><span data-i18n="rep.forgetNote">This browser has sent reports.</span> <button type="button" class="linklike" id="repForgetBtn" data-i18n="rep.forget">Delete everything this browser sent</button></p>
+        <a class="btn sponsor-btn" href="https://github.com/sponsors/dwagwd" target="_blank" rel="noopener" data-sponsor hidden data-i18n="sponsor.cta">Sponsor on GitHub</a>
       </div>
     </section>
 
-    <section class="section partners">
+    <section id="partners" class="section partners">
       <div class="section-head">
         <h2 data-i18n="partners.title">Get a plan</h2>
         <p data-i18n="partners.sub">Links go to each vendor's official pricing page.</p>
@@ -248,20 +311,50 @@ quotapilot share</pre>
         <h2 data-i18n="sources.title">Sources and method</h2>
         <p data-i18n="sources.sub">We re-check every source by hand and update the date next to it. If an official page cannot be read, we mark the number as Reported.</p>
       </div>
+      <div class="method-box">
+        <h3 data-i18n="method.title">How the community numbers are made</h3>
+        <ul class="method-links">
+          <li><a href="https://github.com/dwagwd/quotapilot/blob/main/collector/README.md" target="_blank" rel="noopener"><span data-i18n="method.collector">Collector and data retention (README)</span> ↗</a></li>
+          <li><a href="https://github.com/dwagwd/quotapilot/blob/main/PRIVACY.md" target="_blank" rel="noopener"><span data-i18n="method.privacy">Privacy policy</span> ↗</a></li>
+          <li><a href="https://github.com/dwagwd/quotapilot/blob/main/site/scripts/aggregate.mjs" target="_blank" rel="noopener"><span data-i18n="method.aggregate">Aggregation code (aggregate.mjs)</span> ↗</a></li>
+        </ul>
+        <p class="method-dates"><span data-i18n="glance.reviewed">Sources checked</span> <strong id="reviewed">—</strong> · <span data-i18n="glance.compiled">Community data compiled</span> <strong id="comCompiled">—</strong></p>
+      </div>
       <ul class="sources" id="sourceList"></ul>
       <p class="fine" data-i18n="sources.disclaimer">Not affiliated with OpenAI, Anthropic, Google or xAI. Limits change without notice; check your account's usage page before you rely on a number. Nothing here is financial advice.</p>
     </section>
   </main>
 
-  <div class="ad-slot sticky-foot" data-slot="footer" aria-hidden="true"><span data-i18n="ad.label">Ad space (not connected)</span></div>
-
   <footer class="footer">
-    <div class="wrap"><span>AI Quota Watch</span> · <span data-i18n="footer.text">Independent tracker. Data as of</span> <span id="footReviewed">—</span>
-      <span class="visits" id="visits"></span>
-      <nav class="footer-links"><a href="#quotapilot" data-i18n="foot.quotapilot">Get QuotaPilot</a> · <a href="plans/index.html" data-i18n="foot.plans">Plans by product</a> · <a href="resets/codex.html" data-i18n="foot.resets">Codex reset history</a> · <a href="effort/index.html" data-i18n="foot.effort">Effort levels by model</a></nav></div>
+    <div class="wrap footer-inner">
+      <p class="foot-row"><strong>AI Quota Watch</strong> · <span data-i18n="foot.text">Independent tracker, not affiliated with OpenAI, Anthropic, Google or xAI. Data as of</span> <span id="footReviewed">—</span>.</p>
+      <nav class="footer-links" aria-label="About">
+        <a href="https://github.com/dwagwd/quotapilot/blob/main/PRIVACY.md" target="_blank" rel="noopener" data-i18n="foot.privacy">Privacy</a>
+        <a href="#sources" data-i18n="foot.method">How the numbers are made</a>
+        <a href="https://github.com/dwagwd/quotapilot" target="_blank" rel="noopener" data-i18n="foot.source">Source on GitHub</a>
+        <a id="footSponsor" class="foot-sponsor" href="https://github.com/sponsors/dwagwd" target="_blank" rel="noopener" data-sponsor hidden>♥ <span data-i18n="foot.sponsor" data-sponsor-label>Sponsor</span></a>
+      </nav>
+      <nav class="footer-links" aria-label="Pages">
+        <a href="plans/" data-i18n="foot.plans">Plans by product</a>
+        <a href="resets/codex" data-i18n="foot.resets">Codex reset history</a>
+        <a href="effort/" data-i18n="foot.effort">Effort levels by model</a>
+      </nav>
+      <div class="foot-controls">
+        <label class="foot-theme"><span id="themeSelectLabel" data-i18n="theme.label">Theme</span>
+          <select id="themeSelect">
+            <option value="auto">Auto</option>
+            <option value="light">Light</option>
+            <option value="dark">Dark</option>
+          </select>
+        </label>
+        <span class="foot-lang"><span data-i18n="foot.language">Language</span> <button class="lang-toggle" id="footLang" type="button" data-lang-toggle>中文</button></span>
+      </div>
+    </div>
   </footer>
 
   <script src="assets/i18n.js"></script>
+  <script src="assets/community-state.js"></script>
+  <script src="assets/theme-toggle.js"></script>
   <script src="assets/app.js"></script>
   <script src="assets/hit.js"></script>
 </body>

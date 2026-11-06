@@ -1,0 +1,112 @@
+import { test } from "node:test";
+import assert from "node:assert/strict";
+import { readFileSync, mkdtempSync, rmSync, existsSync } from "node:fs";
+import { execFileSync } from "node:child_process";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { fileURLToPath } from "node:url";
+
+const read = (p) => readFileSync(new URL(p, import.meta.url), "utf8");
+const html = read("../index.html");
+const cfg = (() => { const w = {}; new Function("window", read("../assets/config.js"))(w); return w.SITE_CONFIG; })();
+
+// Checks shared by the home page and the generated pages: nothing the CSP (script-src 'self') would block.
+function assertCspSafe(doc, name) {
+  for (const m of doc.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script>/gi)) {
+    const attrs = m[1];
+    if (/\bsrc="/.test(attrs)) { assert.equal(m[2].trim(), "", `${name}: script with src has no body`); continue; }
+    assert.match(attrs, /type="application\/ld\+json"/, `${name}: inline <script> must be JSON-LD data`);
+    assert.doesNotThrow(() => JSON.parse(m[2]), `${name}: JSON-LD parses`);
+  }
+  assert.doesNotMatch(doc, /<style[\s>]/i, `${name}: no <style> block`);
+  assert.doesNotMatch(doc, /\son[a-z]+\s*=\s*["']/i, `${name}: no inline event handlers`);
+  assert.doesNotMatch(doc, /\sstyle\s*=\s*["']/i, `${name}: no style attributes in static HTML`);
+  assert.doesNotMatch(doc, /javascript:/i, `${name}: no javascript: URLs`);
+}
+
+test("index.html has no inline script, style or event handler", () => assertCspSafe(html, "index.html"));
+
+test("index.html carries the SEO basics", () => {
+  const title = html.match(/<title>([^<]*)<\/title>/)[1];
+  assert.ok(title.length >= 50 && title.length <= 120, `title length ${title.length}`);
+  assert.equal(html.match(/rel="canonical"/g).length, 1);
+  assert.match(html, /<meta name="description" content="[^"]{80,}">/);
+  assert.match(html, /<meta name="color-scheme" content="light dark">/);
+  assert.match(html, /property="og:image"/);
+  assert.match(html, /"@type":"WebSite"/);
+  assert.match(html, /"@type":"SoftwareApplication"/);
+  // no zh home page exists yet, so no zh hreflang is claimed
+  assert.doesNotMatch(html, /hreflang="zh/);
+});
+
+test("theme.js loads in <head> before the stylesheet (no flash of the wrong theme)", () => {
+  const head = html.split("</head>")[0];
+  const theme = head.indexOf('src="assets/theme.js"'), css = head.indexOf('href="assets/style.css"');
+  assert.ok(theme > 0 && css > theme);
+  assert.ok(head.indexOf('src="assets/config.js"') < theme);
+  assert.match(html, /<script src="assets\/theme-toggle\.js"><\/script>/);
+  assert.match(html, /<script src="assets\/community-state\.js"><\/script>\s*<script src="assets\/theme-toggle\.js"><\/script>\s*<script src="assets\/app\.js"><\/script>/);
+});
+
+test("no ad placeholders: no 'Ad space' text and every ad slot starts hidden", () => {
+  assert.doesNotMatch(html, /Ad space/i);
+  for (const m of html.matchAll(/<[a-z]+\b[^>]*class="[^"]*\bad-slot\b[^"]*"[^>]*>/g)) assert.match(m[0], /\shidden\b/, m[0]);
+});
+
+test("every sponsor element starts hidden until config.js provides a URL", () => {
+  const els = [...html.matchAll(/<[a-z]+\b[^>]*\sdata-sponsor(?=[\s>])[^>]*>/g)].map((m) => m[0]);
+  for (const id of ["navSponsor", "heroSponsor", "sponsor", "footSponsor"]) assert.ok(els.some((e) => e.includes(`id="${id}"`)), id);
+  for (const e of els) assert.match(e, /\shidden\b/, e);
+  for (const e of els.filter((x) => x.startsWith("<a"))) assert.match(e, /rel="noopener"/, e);
+});
+
+test("sections follow the redesign order", () => {
+  const order = ["hero", "glance", "plans", "community", "changes", "resets", "calculator", "radar", "effort", "sponsor", "partners", "sources"];
+  const pos = order.map((id) => html.indexOf(`id="${id}"`));
+  pos.forEach((p, i) => assert.ok(p > 0, order[i]));
+  for (let i = 1; i < pos.length; i++) assert.ok(pos[i] > pos[i - 1], `${order[i]} after ${order[i - 1]}`);
+});
+
+test("nav, install box and footer have the elements app.js needs", () => {
+  for (const id of ["navInstall", "themeToggle", "langToggle", "install", "quotapilot", "installCmd", "installCopy", "installCopied",
+    "comInvite", "comGrid", "comQuotaMeta", "reviewed", "comCompiled", "footReviewed", "themeSelect", "footLang", "adTop"]) {
+    assert.match(html, new RegExp(`id="${id}"`), id);
+  }
+  assert.match(html, /<a href="#calculator" data-i18n="nav.tools">/);
+  assert.doesNotMatch(html, /id="visits"/);
+  assert.doesNotMatch(html, /class="stamp"/);
+  assert.doesNotMatch(html, /onsubmit/);
+  // footer links use pretty paths (no .html redirects)
+  assert.match(html, /href="plans\/"/);
+  assert.match(html, /href="resets\/codex"/);
+  assert.match(html, /href="effort\/"/);
+  assert.doesNotMatch(html, /href="[^"#:]*\.html"/);
+});
+
+test("generated pages: same CSP rules, theme scripts, sponsor from config and pretty links", () => {
+  const out = mkdtempSync(join(tmpdir(), "aqw-pages-"));
+  try {
+    const script = fileURLToPath(new URL("../scripts/build-pages.mjs", import.meta.url));
+    execFileSync(process.execPath, [script, out, "--base", "https://example.test/"], { stdio: "pipe" });
+    for (const f of ["plans/claude.html", "plans/index.html", "resets/codex.html", "effort/index.html", "zh/plans/claude.html"]) {
+      const p = join(out, f);
+      assert.ok(existsSync(p), f);
+      const doc = readFileSync(p, "utf8");
+      assertCspSafe(doc, f);
+      assert.match(doc, /<meta name="color-scheme" content="light dark">/, f);
+      const head = doc.split("</head>")[0];
+      assert.ok(head.indexOf("assets/theme.js") > 0 && head.indexOf("assets/theme.js") < head.indexOf("assets/style.css"), f);
+      assert.match(doc, /assets\/theme-toggle\.js/, f);
+      assert.match(doc, /id="themeToggle"/, f);
+      assert.doesNotMatch(doc, /class="ad-slot"/, f);
+      assert.doesNotMatch(doc, /href="(?!https?:)[^"]*\.html"/, `${f}: internal links are pretty`);
+      assert.match(doc, /#install"/, `${f}: links to the install box`);
+      if (cfg.sponsor.url) assert.ok(doc.includes(`href="${cfg.sponsor.url}"`), `${f}: sponsor link from config`);
+    }
+    const sitemap = readFileSync(join(out, "sitemap.xml"), "utf8");
+    assert.match(sitemap, /<loc>https:\/\/example\.test\/<\/loc>/);
+    assert.doesNotMatch(sitemap, /\.html</);
+  } finally {
+    rmSync(out, { recursive: true, force: true });
+  }
+});

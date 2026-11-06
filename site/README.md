@@ -39,12 +39,16 @@ Visitors report speed, ratings, quota used and limit/reset events with the form 
 
 See `docs/codexradar-learnings.md` for which ideas came from studying codexradar.com.
 
-## Monetization (not connected)
+## Sponsor, install box, ads (`assets/config.js`)
 
-`assets/config.js` holds the switches:
-
-- `ads.enabled` / `ads.showPlaceholders`: three ad slots (`top-banner`, `mid-content`, `footer`) render as dashed placeholders. Set `showPlaceholders: false` before deploying if no ad network is connected.
+- `sponsor.url`: GitHub Sponsors (or any `https://`) link used by the nav chip, the hero link, the support card, the footer and the community invite, and by the generated pages (read at build time). Empty, or anything that is not `https://`, hides every sponsor element. `sponsor.label` overrides the "Sponsor" text; empty = translated default. `.github/FUNDING.yml` drives the GitHub "Sponsor" button on the repo.
+- `install.commands` / `install.notesUrl` / `install.sourceUrl`: the Homebrew box in the hero and the community invite. index.html carries the same commands as a no-JS fallback (a test keeps them in sync). Copy joins the lines with ` && `.
+- `ads.enabled`: there are no placeholder boxes any more. One hidden slot (`#adTop`) appears only when this is `true`; add the network's hosts to the CSP in `_headers` and the meta tag in `index.html` first.
 - `affiliates.<provider>`: put an affiliate URL here to replace the official pricing link in "Get a plan". The disclosure line appears automatically and links get `rel="sponsored"`.
+
+## Theme
+
+Light/dark follows the system. The nav button (auto → light → dark) and the footer select store the choice in `localStorage["aqw-theme"]`; `assets/theme.js` applies it in `<head>` before the stylesheet so there is no flash of the wrong theme. Colours are CSS variables in `assets/style.css`; the dark values appear twice there (system preference and forced dark) and must be kept in sync.
 
 ## Deploy (later)
 

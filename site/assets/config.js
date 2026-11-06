@@ -1,11 +1,22 @@
-// Monetization config. Nothing is connected yet.
+// Site config: sponsor link, install box, ads and affiliate links. Change values here, not in the HTML.
 // To turn on ads later: set ads.enabled = true, add the network's script in index.html,
-// and add its hosts to the Content-Security-Policy meta tag there (scripts are limited to this site).
+// and add its hosts to the Content-Security-Policy in _headers and the meta tag in index.html (scripts are limited to this site).
 // To use affiliate links: put the tracking URL in affiliates.<provider>; empty = official pricing page.
 window.SITE_CONFIG = {
+  // Sponsor link shown in the nav, hero, support card, footer and the community invite.
+  // Empty url hides every sponsor element. Only https:// URLs are used. Empty label = the translated default ("Sponsor").
+  sponsor: { url: "https://github.com/sponsors/dwagwd", label: "" },
+  // Homebrew install box (hero and community invite). The Copy button joins the lines with " && ".
+  install: {
+    commands: [
+      "brew tap dwagwd/quotapilot https://github.com/dwagwd/quotapilot",
+      "brew install dwagwd/quotapilot/quotapilot"
+    ],
+    notesUrl: "https://github.com/dwagwd/quotapilot#install",
+    sourceUrl: "https://github.com/dwagwd/quotapilot"
+  },
   ads: {
-    enabled: false,       // false = slots stay as dashed placeholders in dev, hidden in production
-    showPlaceholders: false // true shows dashed boxes where ads will go (for layout previews)
+    enabled: false // false = no ad slot is shown anywhere
   },
   affiliates: {
     chatgpt: "",

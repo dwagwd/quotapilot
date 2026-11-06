@@ -12,6 +12,8 @@
     radar: ["claude-opus-5-5", "gpt-6-1-sol", "gemini-4-carbon", "grok-4-7"]
   };
   const SLOT_COLORS = ["#3b82f6", "#e4572e", "#17a398", "#a259d9"];
+  const S = window.AQW_STATE; // pure helpers from community-state.js
+  const CFG = window.SITE_CONFIG || {};
 
   const $ = (sel) => document.querySelector(sel);
   const t = (key) => (I18N[state.lang] && I18N[state.lang][key]) || I18N.en[key] || key;
@@ -35,17 +37,84 @@
       try { const saved = localStorage.getItem("aqw-lang"); if (saved) lang = saved; } catch (e) { /* storage blocked */ }
     }
     state.lang = lang;
-    $("#langToggle").addEventListener("click", () => {
+    // The nav button and the footer button both switch the language.
+    document.querySelectorAll("[data-lang-toggle]").forEach((b) => b.addEventListener("click", () => {
       state.lang = state.lang === "en" ? "zh" : "en";
       try { localStorage.setItem("aqw-lang", state.lang); } catch (e) { /* ignore */ }
       renderAll();
-    });
+    }));
   }
 
   function applyStatic() {
     document.documentElement.lang = state.lang === "zh" ? "zh-Hant" : "en";
     document.querySelectorAll("[data-i18n]").forEach((el) => { el.textContent = t(el.dataset.i18n); });
-    $("#langToggle").textContent = state.lang === "en" ? "中文" : "English";
+    document.querySelectorAll("[data-i18n-title]").forEach((el) => { el.title = t(el.dataset.i18nTitle); });
+    document.querySelectorAll("[data-lang-toggle]").forEach((b) => { b.textContent = state.lang === "en" ? "中文" : "English"; });
+    // Theme labels follow the page language (theme-toggle.js reads I18N and <html lang>).
+    if (window.AQW_THEME) window.AQW_THEME.refresh();
+  }
+
+  // ---------- theme ----------
+  // theme.js applies the saved choice in <head>; theme-toggle.js owns the controls and storage.
+  const themeMode = () => (window.AQW_THEME ? window.AQW_THEME.get() : "auto");
+
+  // ---------- config-driven pieces: sponsor link, install box, copy buttons ----------
+  // Every [data-sponsor] element stays hidden unless SITE_CONFIG.sponsor.url is a valid https:// URL.
+  function applySponsor() {
+    const href = S.sponsorHref(CFG);
+    const label = CFG.sponsor && typeof CFG.sponsor.label === "string" ? CFG.sponsor.label.trim() : "";
+    document.querySelectorAll("[data-sponsor]").forEach((el) => {
+      el.hidden = !href;
+      if (href && el.tagName === "A") el.href = href;
+    });
+    if (label) document.querySelectorAll("[data-sponsor-label]").forEach((el) => { el.textContent = label; });
+  }
+
+  function installCommands() {
+    const cmds = CFG.install && Array.isArray(CFG.install.commands) ? CFG.install.commands.filter((c) => typeof c === "string" && c.trim()) : [];
+    return cmds.length ? cmds.map((c) => c.trim()) : null;
+  }
+  // The static HTML carries the default commands and links; config overrides them when set.
+  function applyInstall() {
+    const cmds = installCommands();
+    if (cmds) document.querySelectorAll("[data-install-cmd] code").forEach((el) => { el.textContent = cmds.join("\n"); });
+    const links = { notes: S.safeHttps(CFG.install && CFG.install.notesUrl), source: S.safeHttps(CFG.install && CFG.install.sourceUrl) };
+    document.querySelectorAll("[data-install-link]").forEach((a) => { const h = links[a.dataset.installLink]; if (h) a.href = h; });
+  }
+
+  // One delegated handler covers the hero box and the invite card (which is re-rendered).
+  // Copies the commands as one line joined with " && "; without clipboard access, selects the text instead.
+  function initCopyButtons() {
+    document.addEventListener("click", (e) => {
+      const btn = e.target.closest("[data-copy-target]");
+      if (!btn) return;
+      const pre = document.getElementById(btn.dataset.copyTarget);
+      if (!pre) return;
+      const status = btn.dataset.copyStatus ? document.getElementById(btn.dataset.copyStatus) : null;
+      const text = S.joinCommands(pre.textContent);
+      const done = (key) => {
+        btn.textContent = t(key);
+        if (status) status.textContent = t(key);
+        clearTimeout(btn._copyTimer);
+        btn._copyTimer = setTimeout(() => { btn.textContent = t("install.copy"); if (status) status.textContent = ""; }, key === "install.copied" ? 1500 : 4000);
+      };
+      const manual = () => {
+        try { window.getSelection().selectAllChildren(pre); } catch (err) { /* ignore */ }
+        done("install.copyManual");
+      };
+      if (navigator.clipboard && window.isSecureContext) navigator.clipboard.writeText(text).then(() => done("install.copied"), manual);
+      else manual();
+    });
+    // The hero button jumps to the install box; move keyboard focus there too.
+    const hero = $("#heroInstall"), cmd = $("#installCmd");
+    if (hero && cmd) hero.addEventListener("click", () => { try { cmd.focus({ preventScroll: true }); } catch (err) { cmd.focus(); } });
+  }
+
+  // Newest hand-check date across all data files.
+  function reviewedMax() {
+    return [state.plans && state.plans.lastReviewed, state.changes && state.changes.lastReviewed, state.resets && state.resets.lastReviewed,
+      state.models && state.models.lastReviewed, state.efforts && state.efforts.source && state.efforts.source.checked]
+      .filter((d) => typeof d === "string" && d).sort().pop() || "—";
   }
 
   // ---------- plans ----------
@@ -323,6 +392,8 @@
       renderCalc();
     });
     $("#calcForm").addEventListener("input", renderCalc);
+    // Enter in a number field must not submit (an inline onsubmit would be blocked by the CSP).
+    $("#calcForm").addEventListener("submit", (e) => e.preventDefault());
     // The last number is a suggested quality bar for that kind of work; people can move the slider.
     const presets = { chat: [1500, 600, 50, 30, 30], code: [30000, 3000, 200, 22, 50], bulk: [8000, 400, 2000, 30, 25] };
     document.querySelectorAll("[data-preset]").forEach((b) => b.addEventListener("click", () => {
@@ -524,14 +595,11 @@
 
   // ---------- live strip ----------
   state.loadedAt = new Date();
-  // The visitor count is a sum of daily visitors; a tiny number on the first screen looks bad and says little.
-  const VISITS_MIN = 500;
-  function visitsShown() { return !!(state.visits && state.visits.visitors >= VISITS_MIN); }
+  // "At a glance": live proof only. No visitor count and no community "fastest" (that belongs in its card, next to n).
   function renderLive() {
     const now = new Date();
     const st = resetStats(now, "chatgpt");
     const upcoming = state.changes.changes.filter((c) => c.upcoming && new Date(c.date) > now).sort((a, b) => a.date.localeCompare(b.date))[0];
-    const fastest = state.community.speed[0];
     const item = (label, value, extra) => `<span class="live-item"><span class="live-label">${label}</span><strong>${value}</strong>${extra ? `<small>${extra}</small>` : ""}</span>`;
     // Three different clocks, kept apart so "loaded just now" is never read as "measured just now":
     // when we last checked the vendor sources by hand, when community reports were last aggregated,
@@ -541,11 +609,9 @@
       `<span class="live-tag">${t("live.tag")}</span>` +
       item(t("live.lastReset"), `<span data-since="${esc(st.last.at)}">${fmtSince(now - new Date(st.last.at), true)}</span>`, t("rs.kind." + st.last.kind)) +
       item(t("live.resets30"), st.in30.length) +
-      (fastest ? item(t("live.fastest"), `${esc(modelName(fastest.model))} ${fastest.median}`, "tok/s" + (state.community.sample ? " · " + t("live.example") : "")) : "") +
       (upcoming ? item(t("live.next"), `<span data-until="${esc(upcoming.date)}T00:00:00Z">${fmtSince(new Date(upcoming.date + "T00:00:00Z") - now, false)}</span>`, esc(loc(upcoming.text).slice(0, 26)) + "…") : "") +
-      (visitsShown() ? item(t("live.visits"), state.visits.visitors.toLocaleString("en-US"), t("live.views").replace("{n}", state.visits.views.toLocaleString("en-US"))) : "") +
-      item(t("live.checked"), esc(state.plans.lastReviewed), t("live.checkedNote")) +
-      (comAt && !isNaN(comAt) ? item(t("live.collected"), esc(fmtLocal(comAt.toISOString())), state.community.sample ? t("live.example") : "") : "") +
+      item(t("live.checked"), esc(reviewedMax()), t("live.checkedNote")) +
+      (comAt && !isNaN(comAt) ? item(t("live.collected"), esc(S.fmtUtc(state.community.generated)) + " UTC", state.community.sample ? t("live.example") : "") : "") +
       item(t("live.loaded"), `<span data-ago="${state.loadedAt.toISOString()}">${t("live.justNow")}</span>`, t("live.loadedNote"));
   }
   function tick() {
@@ -647,19 +713,68 @@
   state.repType = "speed";
   const modelName = (id) => { const m = state.models.models.find((x) => x.id === id); return m ? m.name.replace(/\s*\(.*\)$/, "") : id; };
   const fmtTokens = (v) => v >= 1e9 ? (v / 1e9).toFixed(1) + "B" : v >= 1e6 ? (v / 1e6).toFixed(1) + "M" : v >= 1e3 ? Math.round(v / 1e3) + "k" : String(v);
-  const emptyNote = () => `<p class="com-empty">${t("com.empty").replace("{n}", state.community.minSamples)}</p>`;
+  const minPeople = () => state.community.minSamples || 3;
+  // One-line invite inside a card that has no rows while other cards do.
+  const emptyNote = () => `<p class="stat-empty"><a href="#install">${esc(t("empty.inline").replace("{n}", minPeople()))}</a></p>`;
+  // Card footer: n meaning, window, compiled date (marked when older than 48 h) and the method link.
+  function metaHtml(opts) {
+    const m = S.statMeta(Object.assign({ generated: state.community.generated }, opts), t);
+    return m.parts.map((p) => `<span>${esc(p)}</span>`).join(" · ") +
+      ` · <span class="${m.stale ? "stale" : ""}">${esc(m.compiled)}${m.stale ? ` (${esc(t("stat.staleNote"))})` : ""}</span>` +
+      ` · <a href="#sources">${esc(t("stat.method"))} ↗</a>`;
+  }
+  function installBox(id) {
+    const cmds = installCommands() || [($("#installCmd") || {}).textContent || ""];
+    return `<div class="install-cmd"><pre id="${id}Cmd" tabindex="0"><code>${esc(cmds.join("\n"))}</code></pre>
+      <button type="button" class="btn btn-copy" data-copy-target="${id}Cmd" data-copy-status="${id}Copied">${esc(t("install.copy"))}</button>
+      <span class="sr-only" id="${id}Copied" aria-live="polite"></span></div>`;
+  }
+  // Shown instead of the card grid while no row has reached the threshold: no empty charts, no "0 reports".
+  function renderInvite(c) {
+    const n = minPeople(), date = S.fmtUtc(c.generated);
+    const s2 = esc(t("empty.s2")).replace("quotapilot share", "<code>quotapilot share</code>");
+    $("#comInvite").innerHTML = `
+      <h3>${esc(t("empty.title").replace("{n}", n))}</h3>
+      <p>${esc(t("empty.sub").replace("{n}", n).replace("{d}", c.windowDays || 7))}</p>
+      <ol class="invite-steps">
+        <li><span>${esc(t("empty.s1"))}</span>${installBox("invite")}</li>
+        <li><span>${s2}</span></li>
+        <li><span>${esc(t("empty.s3"))}</span></li>
+      </ol>
+      <div class="invite-actions">
+        <a class="btn btn-primary" href="#install">${esc(t("empty.cta"))}</a>
+        <a href="#report">${esc(t("empty.alt"))} ↓</a>
+      </div>
+      <p class="invite-sponsor"><a id="inviteSponsor" href="#" target="_blank" rel="noopener" data-sponsor hidden>♥ ${esc(t("empty.sponsor"))}</a></p>
+      <p class="stat-meta"><span class="${S.isStale(c.generated) ? "stale" : ""}">${esc(t("empty.meta").replace("{date}", date || "—"))}</span> · <a href="#sources">${esc(t("stat.method"))} ↗</a></p>`;
+  }
 
   function renderCommunity() {
     const c = state.community;
     $("#sampleBanner").hidden = !c.sample;
-    // Totals only make sense next to published rows; with none, invite people to be among the first senders.
-    const published = c.speed.length + c.ratings.length + c.quota.length + (c.tokenMix || []).length;
-    $("#comTotals").innerHTML = (published
-      ? `<span><strong>${c.totals.reports}</strong> ${t("com.reports").replace("{d}", c.windowDays)}</span>
-      <span><strong>${c.totals.reporters}</strong> ${t("com.reporters")}</span>`
-      : `<span>${t("com.beFirst")} <a href="#quotapilot">${t("com.beFirstLink")} →</a></span>`) + `
-      <span>${t("com.updated")} ${esc(c.generated.slice(0, 16).replace("T", " "))} UTC</span>
+    $("#comCompiled").textContent = c.generated ? S.fmtUtc(c.generated) + " UTC" : "—";
+    // Totals only make sense next to published rows; with none, the invite card replaces the grid.
+    const published = S.publishedCount(c);
+    $("#comInvite").hidden = published > 0;
+    $("#comGrid").hidden = published === 0;
+    $("#comTotals").hidden = published === 0;
+    if (!published) {
+      renderInvite(c);
+      applySponsor();
+      return;
+    }
+    $("#comInvite").innerHTML = "";
+    const reporters = c.totals.reporters;
+    $("#comTotals").innerHTML = `<span><strong>${esc(c.totals.reports)}</strong> ${t("com.reports").replace("{d}", c.windowDays)}</span>
+      <span><strong>${esc(reporters)}</strong> ${t(reporters === 1 ? "com.reporters1" : "com.reportersN")}</span>
+      <span>${t("com.updated")} ${esc(S.fmtUtc(c.generated))} UTC</span>
       <a href="#report">${t("rep.title")} →</a>`;
+    const rowsMeta = metaHtml({ days: c.windowDays, perRow: true });
+    const setMeta = (id, has, html) => { const el = $(id); el.innerHTML = has ? html : ""; el.hidden = !has; };
+    setMeta("#comSpeedMeta", c.speed.length, rowsMeta);
+    setMeta("#comRatingMeta", c.ratings.length, rowsMeta);
+    setMeta("#comQuotaMeta", c.quota.length, rowsMeta);
+    setMeta("#comMixMeta", (c.tokenMix || []).length, rowsMeta);
 
     const maxSp = Math.max(1, ...c.speed.map((r) => r.p75 || r.median));
     $("#comSpeed").innerHTML = c.speed.length ? `<ul class="com-list">${c.speed.map((r) => {
@@ -674,17 +789,19 @@
         <span class="score-bar"><i style="width:${r.avg * 10}%"></i></span>
         <span class="com-val">${r.avg}<small>/10 · n=${r.n}</small></span></li>`).join("")}</ul>` : emptyNote();
 
+    // data-label lets phones show each cell as "label: value" when the table stacks.
+    const dl = (key) => `data-label="${esc(t(key))}"`;
     $("#comQuota").innerHTML = c.quota.length ? `<table class="com-table"><thead><tr><th>${t("com.plan")}</th><th>${t("com.window")}</th><th class="num">${t("com.tokens")}</th><th class="num">${t("com.usd")}</th></tr></thead><tbody>${c.quota.map((q) => `
-      <tr><td><span class="dot" style="background:${providerById(q.provider).color}"></span>${esc(providerById(q.provider).name)} ${esc(q.plan)}</td>
-      <td>${q.window === "5h" ? t("com.w5h") : t("com.wweek")}</td>
-      <td class="num">≥${fmtTokens(q.medianTokens)}<small>${fmtTokens(q.p25Tokens)}–${fmtTokens(q.p75Tokens)} · n=${q.n}</small></td>
-      <td class="num">${q.medianUsd != null ? money(q.medianUsd, 0) : t("calc.na")}</td></tr>`).join("")}</tbody></table>` : emptyNote();
+      <tr><td ${dl("com.plan")}><span class="dot" style="background:${providerById(q.provider).color}"></span>${esc(providerById(q.provider).name)} ${esc(q.plan)}</td>
+      <td ${dl("com.window")}>${q.window === "5h" ? t("com.w5h") : t("com.wweek")}</td>
+      <td class="num" ${dl("com.tokens")} title="${esc(t("stat.lowerHelp"))}">≥${fmtTokens(q.medianTokens)}<small>${fmtTokens(q.p25Tokens)}–${fmtTokens(q.p75Tokens)} · n=${q.n}</small></td>
+      <td class="num" ${dl("com.usd")}>${q.medianUsd != null ? money(q.medianUsd, 0) : t("calc.na")}</td></tr>`).join("")}</tbody></table>` : emptyNote();
 
     const mix = c.tokenMix || [];
     $("#comMix").innerHTML = mix.length ? `<table class="com-table"><thead><tr><th>${t("col.model")}</th><th class="num">${t("com.mixRatio")}</th><th class="num">${t("com.mixCache")}</th></tr></thead><tbody>${mix.map((r) => `
-      <tr><td>${esc(modelName(r.model))}</td>
-      <td class="num">${r.inputPerOutput}:1<small>${r.inputPerOutputP25}–${r.inputPerOutputP75} · n=${r.n}</small></td>
-      <td class="num">${Math.round(r.cacheHit * 100)}%<small>${t("com.mixWrite").replace("{p}", Math.round(r.cacheWriteShare * 100))}</small></td></tr>`).join("")}</tbody></table>` : emptyNote();
+      <tr><td ${dl("col.model")}>${esc(modelName(r.model))}</td>
+      <td class="num" ${dl("com.mixRatio")}>${r.inputPerOutput}:1<small>${r.inputPerOutputP25}–${r.inputPerOutputP75} · n=${r.n}</small></td>
+      <td class="num" ${dl("com.mixCache")}>${Math.round(r.cacheHit * 100)}%<small>${t("com.mixWrite").replace("{p}", Math.round(r.cacheWriteShare * 100))}</small></td></tr>`).join("")}</tbody></table>` : emptyNote();
 
     // shift UTC hours into the viewer's local time
     const off = -new Date().getTimezoneOffset() / 60;
@@ -693,6 +810,7 @@
     Object.entries(c.events.byHourUtc).filter(([prov]) => providerById(prov)).forEach(([prov, arr]) => arr.forEach((n, h) => {
       const lh = (((h + Math.round(off)) % 24) + 24) % 24; hours[lh][prov] = (hours[lh][prov] || 0) + n; total += n;
     }));
+    setMeta("#comEventsMeta", total > 0, metaHtml({ days: c.eventWindowDays || 30 }));
     if (!total) { $("#comEvents").innerHTML = emptyNote(); return; }
     const maxH = Math.max(...hours.map((o) => Object.values(o).reduce((a, b) => a + b, 0)), 1);
     const order = state.plans.providers.map((p) => p.id).filter((p) => c.events.byHourUtc[p]);
@@ -857,7 +975,7 @@
           // Managed mode (set on the widget in the Cloudflare dashboard); the language follows the page.
           tsWidget = window.turnstile.render($("#repTurnstile"), {
             sitekey: siteKey,
-            theme: "auto",
+            theme: themeMode(),
             language: state.lang === "zh" ? "zh-TW" : "en",
             callback: (tok) => { token = tok; sendBtn.disabled = false; msg.className = "fine"; msg.textContent = ""; },
             "expired-callback": () => problem("rep.tsExpired"),
@@ -907,8 +1025,9 @@
         <span class="partner-cta">${t("partners.cta")} →</span></a>`;
     }).join("");
     $("#affDisclosure").hidden = !anyAffiliate;
-    const showSlots = cfg.ads && (cfg.ads.enabled || cfg.ads.showPlaceholders);
-    document.querySelectorAll(".ad-slot").forEach((el) => { el.hidden = !showSlots; });
+    // No placeholder boxes: the single ad slot appears only once an ad network is actually configured.
+    const adTop = $("#adTop");
+    if (adTop) adTop.hidden = !(cfg.ads && cfg.ads.enabled === true);
   }
 
   function renderSources() {
@@ -924,8 +1043,8 @@
 
   function renderAll() {
     applyStatic();
-    $("#reviewed").textContent = state.plans.lastReviewed;
-    $("#footReviewed").textContent = state.plans.lastReviewed;
+    $("#reviewed").textContent = reviewedMax();
+    $("#footReviewed").textContent = reviewedMax();
     renderPlans();
     renderChanges();
     renderResets();
@@ -934,14 +1053,16 @@
     renderEffort();
     renderCommunity();
     renderLive();
-    renderVisitsFoot();
     renderReportForm();
     renderPartners();
     renderSources();
+    applySponsor();
   }
 
-  function startAutoRefresh(get, demo) {
+  function startAutoRefresh(demo) {
     if (window.__AQW_DATA) return;
+    // Refreshes bypass the HTTP cache so a new community.json shows up within a minute.
+    const get = (f) => fetch(f, { cache: "no-cache" }).then((r) => { if (!r.ok) throw new Error(f + " " + r.status); return r.json(); });
     setInterval(async () => {
       if (document.hidden) return;
       try {
@@ -952,30 +1073,15 @@
     }, 60000);
   }
 
-  function renderVisitsFoot() {
-    const el = $("#visits");
-    if (!el) return;
-    if (!visitsShown()) { el.textContent = ""; return; }
-    const v = state.visits, plus = v.capped ? "+" : "";
-    el.textContent = t("foot.visits").replace("{v}", v.visitors.toLocaleString("en-US") + plus).replace("{n}", v.views.toLocaleString("en-US") + plus);
-  }
-
-  // 7-day visitors from the collector (cookieless counter). The page works without it.
-  function loadVisits() {
-    const base = (window.SITE_CONFIG.community || {}).collector;
-    if (!base || window.__AQW_DATA) return;
-    fetch(base + "/v1/visits").then((r) => (r.ok ? r.json() : null)).then((v) => {
-      if (!v) return;
-      state.visits = v;
-      renderVisitsFoot();
-      renderLive();
-    }).catch(() => {});
-  }
+  // The visitor counter (hit.js + collector /v1/visits) is kept for a future /stats page; the home page never shows it.
 
   async function load() {
     initLang();
     applyStatic();
-    const get = (f) => fetch(f, { cache: "no-cache" }).then((r) => { if (!r.ok) throw new Error(f + " " + r.status); return r.json(); });
+    applySponsor();
+    applyInstall();
+    initCopyButtons();
+    const get = (f) => fetch(f).then((r) => { if (!r.ok) throw new Error(f + " " + r.status); return r.json(); });
     const demo = new URLSearchParams(location.search).get("demo") === "1" || window.__AQW_DEMO === true;
     try {
       [state.plans, state.models, state.changes, state.community, state.resets, state.efforts] = await Promise.all([get("data/plans.json"), get("data/models.json"), get("data/changes.json"), get(demo ? "data/community.sample.json" : "data/community.json"), get("data/resets.json"), get("data/efforts.json")]);
@@ -983,7 +1089,6 @@
       document.querySelector("main").insertAdjacentHTML("afterbegin", `<p class="error">Could not load data (${esc(e.message)}). Serve the folder over HTTP, e.g. <code>python3 -m http.server</code>.</p>`);
       return;
     }
-    loadVisits();
     initCalc();
     initRadar();
     initCommunity();
@@ -994,7 +1099,7 @@
     // Jump again once the page has its real height; scroll-margin-top keeps the heading clear of the top bar.
     const target = location.hash.length > 1 && document.getElementById(decodeURIComponent(location.hash.slice(1)));
     if (target) requestAnimationFrame(() => target.scrollIntoView({ block: "start" }));
-    startAutoRefresh(get, demo);
+    startAutoRefresh(demo);
   }
 
   load();

@@ -36,7 +36,9 @@ export function clean(r, models) {
   const date = new Date(r.date);
   if (isNaN(date)) return null;
   const model = models.find((m) => m.id === r.model);
-  const base = { type: r.type, date: date.toISOString(), provider: (r.type === "quota" || r.type === "event") && r.provider ? r.provider : model ? model.provider : r.provider, model: r.model || null, reporter: r.reporter || "anon" };
+  const dayOf = (v) => (typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : null);
+  const base = { type: r.type, date: date.toISOString(), provider: (r.type === "quota" || r.type === "event") && r.provider ? r.provider : model ? model.provider : r.provider, model: r.model || null, reporter: r.reporter || "anon",
+    firstSeen: dayOf(r.reporterFirstSeen), receivedDay: dayOf(r.receivedDay), ipGroup: typeof r.ipGroup === "string" && /^[0-9a-f]{8}$/.test(r.ipGroup) ? r.ipGroup : null };
   if (!PROVIDERS.includes(base.provider)) return null;
   const num = (v, lo, hi) => { const n = Number(v); return Number.isFinite(n) && n >= lo && n <= hi ? n : null; };
   if (r.type === "speed") {
@@ -81,6 +83,45 @@ const groupBy = (arr, keyFn) => arr.reduce((m, x) => { const k = keyFn(x); (m[k]
 
 export const MAX_PER_REPORTER_PER_DAY = 60;
 
+// Reporter age. The collector stamps each report with reporterFirstSeen (the day its reporter id was first seen)
+// and receivedDay (the day the collector got it). A reporter counts only once it is established:
+//   - it sent a report on a later day than its first-seen day (first seen before the report's day), or
+//   - it sent reports on at least two distinct days (covers a first-seen record that expired and restarted).
+// Both use the collector's own days, never the client-supplied report date, which a client could backdate or
+// forward-date. Established status applies to all of that reporter's reports, so a real new user's first-day
+// reports start counting as soon as they report again on another day. Reports without reporterFirstSeen (older
+// collector data, GitHub issue reports) are counted as before, so existing published stats stay.
+export function establishedReporters(reports) {
+  const info = new Map();
+  for (const r of reports) {
+    const id = r.reporter || "anon";
+    const i = info.get(id) || { legacy: false, aged: false, days: new Set() };
+    const received = r.receivedDay || r.date.slice(0, 10);
+    if (!r.firstSeen) i.legacy = true;
+    else if (r.firstSeen < received) i.aged = true;
+    i.days.add(received);
+    info.set(id, i);
+  }
+  return new Set([...info].filter(([, i]) => i.legacy || i.aged || i.days.size >= 2).map(([id]) => id));
+}
+
+// Network diversity. ipGroup is a daily-rotating hash of the reporter's /24 (IPv4) or /48 (IPv6) network, so it
+// already identifies one network on one day. Within one stats row, reporters that share an ipGroup are joined
+// into one unit (transitively, union-find), and each unit counts once toward MIN_SAMPLES and gives one value, so
+// many install ids sent from one network on one day weigh as one person. Reports without ipGroup (older data,
+// issue reports) form their own unit per reporter, exactly as before.
+export function reporterUnits(rs) {
+  const parent = new Map();
+  const find = (x) => { if (!parent.has(x)) parent.set(x, x); while (parent.get(x) !== x) { parent.set(x, parent.get(parent.get(x))); x = parent.get(x); } return x; };
+  const union = (a, b) => { const ra = find(a), rb = find(b); if (ra !== rb) parent.set(ra, rb); };
+  for (const r of rs) {
+    const who = "p:" + (r.reporter || "anon");
+    find(who);
+    if (r.ipGroup) union(who, "g:" + r.ipGroup);
+  }
+  return Object.values(groupBy(rs, (r) => find("p:" + (r.reporter || "anon"))));
+}
+
 export function aggregate(raw, models, now = new Date(), blocked = []) {
   const blockedSet = new Set(blocked.map((b) => String(b).toLowerCase()));
   const perDay = new Map();
@@ -94,23 +135,26 @@ export function aggregate(raw, models, now = new Date(), blocked = []) {
   const all = dedupe(raw.map((r) => clean(r, models)).filter(Boolean));
   const recent = all.filter((r) => new Date(r.date) >= since && new Date(r.date) <= now);
   const rejected = raw.length - raw.map((r) => clean(r, models)).filter(Boolean).length;
+  // Only established reporters feed the stats rows (see establishedReporters); totals still show every report.
+  const established = establishedReporters(all);
+  const counted = recent.filter((r) => established.has(r.reporter || "anon"));
 
-  // Publication needs MIN_SAMPLES distinct people, not MIN_SAMPLES reports: each reporter contributes one value
-  // per row (the median of their own reports), and `reports` keeps the raw count. Reports without a reporter id
-  // ("anon") cannot be told apart, so together they count as a single reporter.
-  const byReporter = (rs) => Object.values(groupBy(rs, (r) => r.reporter || "anon"));
+  // Publication needs MIN_SAMPLES distinct people, not MIN_SAMPLES reports: each person (reporter unit, see
+  // reporterUnits) contributes one value per row (the median of their own reports), and `reports` keeps the raw
+  // count. Reports without a reporter id ("anon") cannot be told apart, so together they count as one reporter.
+  const byReporter = reporterUnits;
   const perPerson = (rs, value) => byReporter(rs).map((mine) => {
     const v = mine.map(value).filter((x) => x != null && Number.isFinite(x)).sort((a, b) => a - b);
     return v.length ? quantile(v, 0.5) : null;
   }).filter((v) => v != null);
   const people = (rs) => byReporter(rs).length;
 
-  const speed = Object.entries(groupBy(recent.filter((r) => r.type === "speed"), (r) => r.model))
+  const speed = Object.entries(groupBy(counted.filter((r) => r.type === "speed"),(r) => r.model))
     .map(([model, rs]) => ({ model, ...stats(perPerson(rs, (r) => r.tps)), reporters: people(rs), reports: rs.length, clients: [...new Set(rs.map((r) => r.client).filter(Boolean))].slice(0, 5) }))
     .filter((s) => s.reporters >= MIN_SAMPLES && s.n >= MIN_SAMPLES).sort((a, b) => b.median - a.median);
 
   // Real usage per model and reasoning effort (reports that name an effort).
-  const effortUsage = Object.entries(groupBy(recent.filter((r) => r.type === "speed" && r.effort), (r) => r.model + "|" + r.effort))
+  const effortUsage = Object.entries(groupBy(counted.filter((r) => r.type === "speed" && r.effort), (r) => r.model + "|" + r.effort))
     .map(([k, rs]) => {
       const [model, effort] = k.split("|");
       const share = perPerson(rs, (r) => r.reasoningShare);
@@ -119,7 +163,7 @@ export function aggregate(raw, models, now = new Date(), blocked = []) {
     })
     .filter((s) => s.n >= MIN_SAMPLES).sort((a, b) => a.model.localeCompare(b.model) || EFFORTS.indexOf(a.effort) - EFFORTS.indexOf(b.effort));
 
-  const ratings = Object.entries(groupBy(recent.filter((r) => r.type === "rating"), (r) => r.model))
+  const ratings = Object.entries(groupBy(counted.filter((r) => r.type === "rating"), (r) => r.model))
     .map(([model, rs]) => {
       const scores = byReporter(rs).map((mine) => mine.reduce((a, r) => a + r.score, 0) / mine.length);
       const degraded = byReporter(rs).map((mine) => mine.filter((r) => r.degraded).length / mine.length);
@@ -129,7 +173,7 @@ export function aggregate(raw, models, now = new Date(), blocked = []) {
     })
     .filter((s) => s.n >= MIN_SAMPLES).sort((a, b) => b.avg - a.avg);
 
-  const quota = Object.entries(groupBy(recent.filter((r) => r.type === "quota"), (r) => [r.provider, r.plan, r.window].join("|")))
+  const quota = Object.entries(groupBy(counted.filter((r) => r.type === "quota"), (r) => [r.provider, r.plan, r.window].join("|")))
     .map(([k, rs]) => {
       const [provider, plan, window] = k.split("|");
       const tok = stats(perPerson(rs, (r) => r.estTokens)), usd = stats(perPerson(rs, (r) => r.estUsd));

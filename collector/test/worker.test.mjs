@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import worker, { sanitize, LIMITS, visitStats, VISIT_WRITE_CAP, HIT_KEEP_DAYS, ROLLUP_KEEP_DAYS } from "../worker.js";
+import worker, { sanitize, ipPrefix, LIMITS, visitStats, VISIT_WRITE_CAP, HIT_KEEP_DAYS, ROLLUP_KEEP_DAYS } from "../worker.js";
 
 function kv() {
   const m = new Map();
@@ -54,6 +54,64 @@ test("rejects bad input and enforces daily limits", async () => {
   assert.deepEqual(codes.slice(-1), [429]);
 });
 
+const installN = (n) => "aaaaaaaa-0000-4000-8000-" + String(n).padStart(12, "0");
+const storedRows = (e) => [...e.REPORTS.m.entries()].filter(([k]) => k.startsWith("r:")).flatMap(([, v]) => JSON.parse(v));
+
+test("one IP can introduce only a few new reporters a day; known reporters are still accepted", async () => {
+  const e = env();
+  const codes = [];
+  for (let i = 1; i <= LIMITS.newReportersPerIpPerDay + 1; i++) codes.push((await worker.fetch(post({ install: installN(i), reports: [good] }, "1.2.3.4"), e)).status);
+  assert.deepEqual(codes, [...Array(LIMITS.newReportersPerIpPerDay).fill(200), 429]);
+  // A reporter this IP already introduced, and one first seen elsewhere, are both still accepted from it.
+  assert.equal((await worker.fetch(post({ install: installN(1), reports: [good] }, "1.2.3.4"), e)).status, 200);
+  assert.equal((await worker.fetch(post({ install: installN(9), reports: [good] }, "5.5.5.5"), e)).status, 200);
+  assert.equal((await worker.fetch(post({ install: installN(9), reports: [good] }, "1.2.3.4"), e)).status, 200);
+  // Another IP can still introduce new reporters.
+  assert.equal((await worker.fetch(post({ install: installN(3), reports: [good] }, "6.6.6.6"), e)).status, 200);
+  // Only hashed, short-lived keys: no IP in any key or value, and the new-reporter counter expires within 2 days.
+  const dump = [...e.REPORTS.m.keys()].join(" ") + [...e.REPORTS.m.values()].join(" ");
+  assert.ok(!dump.includes("1.2.3.4") && !dump.includes("5.5.5.5"));
+  const newKeys = [...e.REPORTS.ttl.entries()].filter(([k]) => k.startsWith("rl:new:"));
+  assert.ok(newKeys.length >= 2 && newKeys.every(([k, t]) => /^rl:new:[0-9a-f]{32}$/.test(k) && t <= 2 * 86400));
+});
+
+test("known reporters cost no extra KV writes", async () => {
+  const e = env();
+  await worker.fetch(post({ install, reports: [good] }), e);
+  let writes = 0; const put = e.REPORTS.put.bind(e.REPORTS); e.REPORTS.put = async (k, v, o) => { writes++; return put(k, v, o); };
+  await worker.fetch(post({ install, reports: [good] }), e);
+  assert.equal(writes, 3); // IP counter, install counter, the report itself
+});
+
+test("reports carry a stable reporterFirstSeen and an ipGroup that does not contain the IP", async () => {
+  const e = env();
+  const today = new Date().toISOString().slice(0, 10);
+  await worker.fetch(post({ install, reports: [good] }, "203.0.113.7"), e);
+  // A later submission keeps the first-seen day even if the record says it was first seen earlier.
+  e.REPORTS.m.set([...e.REPORTS.m.keys()].find((k) => k.startsWith("rs:")), "2000-01-01");
+  await worker.fetch(post({ install, reports: [{ ...good, reporterFirstSeen: "1999-01-01", ipGroup: "deadbeef" }] }, "203.0.113.99"), e);
+  const rows = storedRows(e).sort((a, b) => (a.reporterFirstSeen < b.reporterFirstSeen ? 1 : -1));
+  assert.equal(rows[0].reporterFirstSeen, today);
+  assert.equal(rows[1].reporterFirstSeen, "2000-01-01", "the stored first-seen day wins; client-sent values are ignored");
+  assert.ok(rows.every((r) => r.receivedDay === today));
+  assert.ok(rows.every((r) => /^[0-9a-f]{8}$/.test(r.ipGroup)));
+  assert.equal(rows[0].ipGroup, rows[1].ipGroup, "same /24 on the same day shares a group");
+  await worker.fetch(post({ install: installN(5), reports: [good] }, "198.51.100.7"), e);
+  assert.notEqual(storedRows(e).find((r) => r.reporter !== rows[0].reporter).ipGroup, rows[0].ipGroup);
+  const text = [...e.REPORTS.m.values()].join(" ");
+  assert.ok(!text.includes("203.0.113") && !text.includes("198.51.100"));
+  assert.equal(e.REPORTS.ttl.get([...e.REPORTS.m.keys()].find((k) => k.startsWith("rs:"))), LIMITS.keepDays * 86400);
+});
+
+test("ipPrefix uses /24 for IPv4 and /48 for IPv6", () => {
+  assert.equal(ipPrefix("203.0.113.7"), ipPrefix("203.0.113.250"));
+  assert.notEqual(ipPrefix("203.0.113.7"), ipPrefix("203.0.114.7"));
+  assert.equal(ipPrefix("::ffff:203.0.113.7"), ipPrefix("203.0.113.9"));
+  assert.equal(ipPrefix("2001:db8:abcd:1::1"), ipPrefix("2001:0db8:abcd:ffff:1:2:3:4"));
+  assert.equal(ipPrefix("2001:db8::1"), "v6:2001:db8:0");
+  assert.notEqual(ipPrefix("2001:db8:abcd::1"), ipPrefix("2001:db8:abce::1"));
+});
+
 test("export needs the token and returns everything", async () => {
   const e = env();
   await worker.fetch(post({ install, reports: [good, good] }), e);
@@ -89,6 +147,14 @@ test("counts views and unique visitors for 7 days without storing who visited", 
   assert.ok(!stored.includes("1.1.1.1") && !stored.includes("2.2.2.2"));
   const res = await worker.fetch(new Request("https://aiquotawatch.pages.dev/api/v1/visits"), e);
   assert.equal((await res.json()).views, 3);
+});
+
+test("changing only the user agent does not add visitors", async () => {
+  const e = env();
+  for (const ua of ["A", "B", "curl/8", "Mozilla/5.0 x"]) await worker.fetch(new Request("https://x/api/v1/hit", { method: "POST", headers: { "CF-Connecting-IP": "1.1.1.1", "User-Agent": ua } }), e);
+  const stats = await visitStats(e);
+  assert.equal(stats.views, 4);
+  assert.equal(stats.visitors, 1);
 });
 
 test("visit counting stops writing at the daily cap", async () => {

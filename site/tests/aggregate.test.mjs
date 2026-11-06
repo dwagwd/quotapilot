@@ -112,6 +112,52 @@ test("one person reporting on several days cannot meet the three-people threshol
   assert.equal(res.effortUsage.length, 0);
 });
 
+const ymd = (d) => day(d).slice(0, 10);
+// A collector report as stored by the worker: received `d` days ago, reporter first seen `firstSeenAgo` days ago.
+const fromCollector = (reporter, ipGroup, { d = 1, firstSeenAgo = 5, tokens = 1000 } = {}) => ({
+  type: "speed", model: "gpt-6-1-sol", outputTokens: tokens, seconds: 10, date: day(d), reporter,
+  reporterFirstSeen: ymd(firstSeenAgo), receivedDay: ymd(d), ipGroup
+});
+
+test("many reporters from one network on one day count as one person", () => {
+  const fakes = [1, 2, 3, 4, 5].map((i) => fromCollector("anon-fake" + i, "aaaaaaaa", { tokens: 5000 }));
+  assert.equal(aggregate(fakes, models, now).speed.length, 0, "five install ids on one network cannot publish");
+  const raw = [...fakes, fromCollector("anon-real1", "bbbbbbbb"), fromCollector("anon-real2", "cccccccc")];
+  const [row] = aggregate(raw, models, now).speed;
+  assert.equal(row.reporters, 3);
+  assert.equal(row.n, 3);
+  assert.equal(row.median, 100, "the five fakes weigh as one value");
+  // Sharing a network on one day links reporters even if they report from elsewhere on other days.
+  const linked = [fromCollector("anon-x", "aaaaaaaa"), fromCollector("anon-y", "aaaaaaaa"), fromCollector("anon-y", "dddddddd", { d: 2 }), fromCollector("anon-z", "eeeeeeee")];
+  assert.equal(aggregate(linked, models, now).speed.length, 0);
+});
+
+test("brand-new reporters only count once they report on a later day", () => {
+  const fresh = [1, 2, 3].map((i) => fromCollector("anon-new" + i, "0000000" + i, { firstSeenAgo: 1 }));
+  assert.equal(aggregate(fresh, models, now).speed.length, 0, "first seen the same day as their only report");
+  // One of them reports again the next day: all of their reports now count.
+  const later = [...fresh, fromCollector("anon-new1", "00000009", { d: 0, firstSeenAgo: 1 })];
+  assert.equal(aggregate(later, models, new Date(now.getTime() + 864e5 / 4)).speed.length, 0, "still only one established reporter");
+  const aged = fresh.map((r) => ({ ...r, reporterFirstSeen: ymd(3) }));
+  assert.equal(aggregate(aged, models, now).speed[0].reporters, 3);
+  // Two distinct received days also establish a reporter (its first-seen record may have expired and restarted).
+  const twoDays = [1, 2, 3].flatMap((i) => [fromCollector("anon-r" + i, "1000000" + i, { d: 1, firstSeenAgo: 1 }), { ...fromCollector("anon-r" + i, "2000000" + i, { d: 2, firstSeenAgo: 2 }) }]);
+  assert.equal(aggregate(twoDays, models, now).speed[0].reporters, 3);
+  // The client-supplied date cannot fake age: only the collector's days are compared.
+  const backdated = [1, 2, 3].map((i) => ({ ...fromCollector("anon-b" + i, "3000000" + i, { firstSeenAgo: 1 }), date: day(3) }));
+  assert.equal(aggregate(backdated, models, now).speed.length, 0);
+});
+
+test("legacy reports without the new fields still count", () => {
+  const raw = [
+    { type: "speed", model: "gpt-6-1-sol", outputTokens: 1000, seconds: 10, date: day(1), reporter: "anon-old1" },
+    { type: "speed", model: "gpt-6-1-sol", outputTokens: 1000, seconds: 10, date: day(1), reporter: "anon-old2" },
+    fromCollector("anon-new", "abcdef01")
+  ];
+  const [row] = aggregate(raw, models, now).speed;
+  assert.equal(row.reporters, 3);
+});
+
 test("each person counts once per row, and report count is kept separately", () => {
   const raw = [
     ...[1, 2, 3, 4, 5].map((i) => ({ type: "speed", model: "gpt-6-1-sol", outputTokens: 5000, seconds: 10, date: day(i), reporter: "heavy" })),

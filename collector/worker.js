@@ -3,6 +3,10 @@
 // GET  /v1/export  (Bearer EXPORT_TOKEN) -> every stored report, for the GitHub Action that builds the stats.
 // No IP address, GitHub account or install id is stored: the reporter id is HMAC(SALT, install id), and
 // rate limits use HMAC(SALT, ip + day) counters that expire after a day.
+// Each stored report also carries reporterFirstSeen (the day this reporter id was first seen; the record expires
+// keepDays after that), receivedDay (the day the collector received it) and ipGroup (8 hex characters of
+// HMAC(SALT, /24 or /48 network + day), so it changes every day and cannot be turned back into an address).
+// The aggregation step uses them to discount brand-new reporters and reporters sharing a network on the same day.
 
 const FIELDS = {
   type: "string", model: "string", provider: "string", plan: "string", window: "string", kind: "string", effort: "string",
@@ -11,7 +15,7 @@ const FIELDS = {
   percentUsed: "number", tokensUsed: "number", inputShare: "number", degraded: "boolean"
 };
 const TYPES = ["speed", "rating", "quota", "event"];
-export const LIMITS = { bodyBytes: 20000, reports: 30, perInstallPerDay: 3, perIpPerDay: 20, keepDays: 35 };
+export const LIMITS = { bodyBytes: 20000, reports: 30, perInstallPerDay: 3, perIpPerDay: 20, newReportersPerIpPerDay: 2, keepDays: 35 };
 const ALLOWED_ORIGINS = ["https://aiquotawatch.pages.dev", "https://dwagwd.github.io", "http://127.0.0.1:8765", "http://localhost:8765"];
 
 export function sanitize(report) {
@@ -30,6 +34,19 @@ async function hmac(secret, text) {
   const key = await crypto.subtle.importKey("raw", new TextEncoder().encode(secret), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
   const sig = await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(text));
   return [...new Uint8Array(sig)].map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+// The coarse network an address belongs to: the /24 for IPv4, the /48 for IPv6. Only ever used inside an HMAC.
+export function ipPrefix(ip) {
+  const s = String(ip || "").trim().toLowerCase();
+  const v4 = s.match(/^(?:::ffff:)?(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.\d{1,3}$/);
+  if (v4) return "v4:" + v4.slice(1, 4).map(Number).join(".");
+  if (!s.includes(":") || !/^[0-9a-f:]+$/.test(s)) return "other:" + s;
+  const [head, tail] = s.split("::");
+  const a = head ? head.split(":") : [];
+  const b = tail !== undefined && tail ? tail.split(":") : [];
+  const parts = tail !== undefined ? [...a, ...Array(Math.max(0, 8 - a.length - b.length)).fill("0"), ...b] : a;
+  return "v6:" + parts.slice(0, 3).map((p) => (parseInt(p || "0", 16) || 0).toString(16)).join(":");
 }
 
 function cors(request) {
@@ -69,18 +86,36 @@ async function report(request, env) {
   const ip = request.headers.get("CF-Connecting-IP") || "unknown";
   const ipKey = "rl:ip:" + (await hmac(env.SALT, "ip:" + ip + ":" + day)).slice(0, 32);
   const installKey = "rl:in:" + day + ":" + reporter;
+  // A reporter is new when it has no first-seen record. Each IP address may introduce only a few new reporters a
+  // day, so minting install ids cannot cheaply produce "distinct reporters". Reporters already on record are never
+  // capped here, so people behind a shared address keep working. Both keys are only written when a reporter is
+  // new, so ordinary submissions cost no extra KV writes.
+  const seenKey = "rs:" + reporter;
+  const firstSeen = await env.REPORTS.get(seenKey);
+  const newKey = "rl:new:" + (await hmac(env.SALT, "ip-new:" + ip + ":" + day)).slice(0, 32);
+  let introduced = 0;
+  if (!firstSeen) {
+    introduced = Number(await env.REPORTS.get(newKey)) || 0;
+    if (introduced >= LIMITS.newReportersPerIpPerDay) return json(request, 429, { error: "too many new installs from this network today" });
+  }
   if (!(await bump(env.REPORTS, ipKey, LIMITS.perIpPerDay)) || !(await bump(env.REPORTS, installKey, LIMITS.perInstallPerDay))) {
     return json(request, 429, { error: "daily limit reached" });
   }
+  if (!firstSeen) {
+    await env.REPORTS.put(seenKey, day, { expirationTtl: LIMITS.keepDays * 86400 });
+    await env.REPORTS.put(newKey, String(introduced + 1), { expirationTtl: 2 * 86400 });
+  }
+  const ipGroup = (await hmac(env.SALT, "ipgrp:" + ipPrefix(ip) + ":" + day)).slice(0, 8);
   const now = new Date().toISOString();
-  const stored = reports.map((r) => ({ ...r, date: typeof r.date === "string" && !isNaN(Date.parse(r.date)) ? r.date : now, reporter }));
+  const stored = reports.map((r) => ({ ...r, date: typeof r.date === "string" && !isNaN(Date.parse(r.date)) ? r.date : now, reporter,
+    reporterFirstSeen: firstSeen || day, receivedDay: day, ipGroup }));
   await env.REPORTS.put("r:" + day + ":" + crypto.randomUUID(), JSON.stringify(stored), { expirationTtl: LIMITS.keepDays * 86400 });
   return json(request, 200, { ok: true, accepted: stored.length });
 }
 
 // Visitor counting without cookies. Each visit is its own short-lived key,
 //   hit:<day>:<visitor>:<random>   (expires after HIT_KEEP_DAYS)
-// where <visitor> is a 12-character HMAC(SALT, ip + user agent + day). Nothing is read, changed and written
+// where <visitor> is a 12-character HMAC(SALT, ip + day). Nothing is read, changed and written
 // back, so concurrent visits cannot overwrite each other's counts. Once a day is over, its totals are rolled up
 // into visits:<day> = {views, visitors, capped} (no visitor hashes) and kept for ROLLUP_KEEP_DAYS.
 // Writes are capped per day so counting cannot use up the free-plan KV write budget that anonymous reports need
@@ -119,7 +154,8 @@ async function hit(request, env) {
   const day = new Date().toISOString().slice(0, 10);
   if ((await todayViews(env.REPORTS, day)) >= VISIT_WRITE_CAP) return json(request, 200, { ok: true, capped: true });
   const ip = request.headers.get("CF-Connecting-IP") || "unknown";
-  const visitor = (await hmac(env.SALT, "visit:" + ip + ":" + (request.headers.get("User-Agent") || "") + ":" + day)).slice(0, 12);
+  // The user agent is left out on purpose: it is chosen by the client, so varying it could inflate visitors.
+  const visitor = (await hmac(env.SALT, "visit:" + ip + ":" + day)).slice(0, 12);
   await env.REPORTS.put("hit:" + day + ":" + visitor + ":" + crypto.randomUUID(), "", { expirationTtl: HIT_KEEP_DAYS * 86400 });
   return json(request, 200, { ok: true });
 }

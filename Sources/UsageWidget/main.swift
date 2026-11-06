@@ -530,6 +530,32 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
             items += ["claude", "antigravity", "cursor"].flatMap { bridgeSnapshots[$0]?.limits.windows() ?? [] }
         }
         if !items.contains(where: { $0.id == selectedID }) { selectedID = items.first?.id }
+        recordLimitSightings(now: Date().timeIntervalSince1970)
+    }
+    /// First-seen times live in a JSON file in the shared state directory, so `quotapilot share` reads them too.
+    private lazy var limitSightings: [String: Double] = loadLimitSightings()
+    private func loadLimitSightings() -> [String: Double] {
+        let url = LimitSightings.fileURL(in: Portable.stateDirectory())
+        var map = LimitSightings.load(from: url)
+        // One-time move from the old UserDefaults entry.
+        if let old = defaults.dictionary(forKey: "limitSince") as? [String: Double] {
+            map = LimitSightings.merge(map, with: old.filter { $0.value.isFinite })
+            if LimitSightings.save(map, to: url) { defaults.removeObject(forKey: "limitSince") }
+        }
+        return map
+    }
+    /// Remembers when each window was first seen at its limit; forgets windows that have reset.
+    private func recordLimitSightings(now: Double) {
+        let before = limitSightings
+        var map = LimitSightings.prune(before, now: now)
+        for item in items where item.limitReached {
+            guard let reset = item.window.resetsAt, reset > now else { continue }
+            map = LimitSightings.record(map, windowID: item.id, resetsAt: reset, now: now)
+        }
+        if map != before {
+            limitSightings = map
+            LimitSightings.save(map, to: LimitSightings.fileURL(in: Portable.stateDirectory()))
+        }
     }
     private func reloadBridges() {
         guard settings.options.bridges else { return }
@@ -2266,23 +2292,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
         if !manual {
             guard settings.updateChecksEnabled, now - defaults.double(forKey: "lastUpdateCheck") >= AppUpdate.checkInterval else { return }
         }
+        // Without a team id no signed downloads exist: skip releases/latest and the ZIP download entirely.
+        if AppUpdate.teamID.isEmpty {
+            defaults.set(now, forKey: "lastUpdateCheck")
+            checkTagsForUpdate(manual: manual)
+            return
+        }
         // Automatic checks also download the update in the background, so installing later is instant.
         updater.check(prefetch: settings.updateChecksEnabled) { [weak self] release in
             guard let self else { return }
             self.defaults.set(now, forKey: "lastUpdateCheck")
             // No signed download: QuotaPilot is built from source, so a newer tag means `brew upgrade`.
             if release == nil {
-                self.updater.checkTags { [weak self] version in
-                    guard let self else { return }
-                    if let version {
-                        let title = String(format: self.l.text("updateAvailable"), version)
-                        if manual { self.inform(title, self.l.text("updateBrew")) }
-                        else if self.defaults.string(forKey: "updateNotified") != version {
-                            self.defaults.set(version, forKey: "updateNotified")
-                            self.notifyUpdate(title, self.l.text("updateBrew"))
-                        }
-                    } else if manual { self.inform(self.l.text("upToDate"), self.updater.currentVersion) }
-                }
+                self.checkTagsForUpdate(manual: manual)
                 return
             }
             if manual {
@@ -2291,6 +2313,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
                 self.defaults.set(release.version, forKey: "updateNotified")
                 self.notifyUpdate(String(format: self.l.text("updateAvailable"), release.version), self.l.text("updateHowTo"))
             }
+        }
+    }
+
+    /// Built from source: a newer tag means `brew upgrade`. Notifies once per version; manual checks always answer.
+    private func checkTagsForUpdate(manual: Bool) {
+        updater.checkTags { [weak self] version in
+            guard let self else { return }
+            if let version {
+                let title = String(format: self.l.text("updateAvailable"), version)
+                if manual { self.inform(title, self.l.text("updateBrew")) }
+                else if self.defaults.string(forKey: "updateNotified") != version {
+                    self.defaults.set(version, forKey: "updateNotified")
+                    self.notifyUpdate(title, self.l.text("updateBrew"))
+                }
+            } else if manual { self.inform(self.l.text("upToDate"), self.updater.currentVersion) }
         }
     }
 
@@ -2377,11 +2414,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
     /// sent to the anonymous collector (no GitHub account involved).
     private func autoShareIfDue() {
         let now = Date().timeIntervalSince1970
-        guard settings.autoShareEnabled, now - defaults.double(forKey: "lastAutoShare") >= 86400 - 600 else { return }
-        let ledger = agentLedger, tracker = modelTracker
+        guard settings.autoShareEnabled, AutoShareSchedule.isDue(lastAttempt: defaults.double(forKey: "lastAutoShare"), now: now) else { return }
+        let ledger = agentLedger, tracker = modelTracker, seen = limitSightings
         let uses = ContributionReport.windowUses(items: items, tokensSince: { provider, start in
             ledger.summary(since: start, now: now)[provider] ?? TokenBreakdown()
-        }, model: { tracker.current[$0]?.model })
+        }, model: { tracker.current[$0]?.model }, limitSince: { id, reset in
+            reset.flatMap { LimitSightings.lookup(seen, windowID: id, resetsAt: $0) }
+        })
         let reports = ContributionReport.build(speed: recentSpeed, windows: uses, now: now, include: settings.sharedCategories)
         guard !reports.isEmpty else { return }
         defaults.set(now, forKey: "lastAutoShare")  // one attempt a day, even if it fails
@@ -2390,7 +2429,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
             DispatchQueue.main.async {
                 switch result {
                 case .success(let count): self?.defaults.set(count, forKey: "lastAutoShareCount"); self?.defaults.removeObject(forKey: "lastAutoShareError")
-                case .failure(let error): self?.defaults.set(error.localizedDescription, forKey: "lastAutoShareError")
+                case .failure(let error):
+                    self?.defaults.set(error.localizedDescription, forKey: "lastAutoShareError")
+                    // A full collector says nothing about this Mac's numbers: retry in about 3 hours, not tomorrow.
+                    if let failure = error as? ShareFailure, AutoShareSchedule.isCollectorFull(failure) {
+                        self?.defaults.set(AutoShareSchedule.retryStamp(after: now), forKey: "lastAutoShare")
+                    }
                 }
             }
         }

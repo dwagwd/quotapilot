@@ -13,7 +13,7 @@ It never starts model turns on its own unless you turn on **Auto-continue**, and
 
 ## What leaves the computer
 
-- **Update checks (on by default):** once a day the app asks `api.github.com` for the latest QuotaPilot release, without account data. When a newer version exists, it is **downloaded in the background** to the app's cache folder so that installing later is instant. It is **installed only after you choose Install update…**, and only if the digest, code signature, signing team and notarization check out. Turning off **Check for updates automatically** stops both the check and the background download.
+- **Update checks (on by default):** once a day the app reads the repository's version tags from `api.github.com`, without account data. Builds made by Homebrew or from source have no Developer ID team, so they only read version tags and tell you to run `brew upgrade quotapilot` when a newer version exists; nothing is downloaded. The download-and-verify path runs only in a build signed with a Developer ID team, and no such build is published. Turning off **Check for updates automatically** stops the check.
 - **Claude and Codex usage requests:** described above; they go only to Anthropic and (through Codex) OpenAI.
 - **Anonymous sharing:** only if you run `quotapilot share` or turn on **Share anonymous stats daily**. See below.
 - Nothing else: no telemetry or analytics service.
@@ -24,7 +24,7 @@ Nothing is shared unless you run `quotapilot share` and confirm, or turn on **Sh
 
 - **Default destination: the AI Quota Watch collector** (`collector/`, served at `https://aiquotawatch.pages.dev/api`). No GitHub account is used. The request carries a random id created on this computer (`install-id` in the data folder); the collector stores only a keyed hash of it, never the id itself or your IP address, and deletes reports after 31 days. The daily option uses the same anonymous path.
 - **No named sharing:** reports are never filed as GitHub issues or linked to any account; the anonymous collector is the only destination.
-- **Contents:** model ids, reasoning effort labels, plan names, totals per model and effort (output and reasoning tokens, new input tokens, tokens read from and written to the prompt cache, call count and call time), quota percentage and tokens used per 5-hour or weekly window, and whether a limit was reached, with the time rounded to the hour. Reports can cover Codex, Claude Code, Gemini CLI and Grok CLI. They contain no prompts, file paths, project names, account ids or credentials.
+- **Contents:** model ids, reasoning effort labels, plan names, totals per model and effort (output and reasoning tokens, new input tokens, tokens read from and written to the prompt cache, call count and call time), quota percentage and tokens used per 5-hour or weekly window, and whether a limit was reached. Limit events carry the hour QuotaPilot first saw the limit reached (rounded to the hour) and the reset hour (also rounded to the hour), not the time of sharing. Reports can cover Codex, Claude Code, Gemini CLI and Grok CLI. They contain no prompts, file paths, project names, account ids or credentials.
 - **Only what the statistics need:** the collector keeps a fixed list of fields (`collector/schema.js`). Text fields accept only known values (plan names, model ids, effort and app labels), never free text; numbers must be in range; times are cut to the hour. Anything else in a report is dropped before it is stored.
 - **What becomes public:** only aggregates. A model, plan or provider row (including the hour-of-day chart of limit events) appears only once at least 3 different, established people report it, each person counts once (the median of their own reports), and reporters sending from the same network on the same day count as one. Raw reports are never published.
 - **Deleting what you shared:** `quotapilot share --forget`, the menu bar's **Delete my shared stats…**, or **Delete everything this browser sent** on the website asks the collector to delete every report from that computer or browser at once (daily sharing turns off). Public stats drop them at the next rebuild, within 6 hours. Otherwise reports expire after 31 days.
@@ -43,11 +43,13 @@ Nothing is shared unless you run `quotapilot share` and confirm, or turn on **Sh
 | Published statistics (`community.json`, aggregates only) | Public | Rebuilt every 6 hours from the last 7 days (limit events: 30 days) |
 | IP addresses | Never stored; Cloudflare handles connections under its own policy | — |
 
+Each report is stored under a key built from the anonymous reporter hash, so deleting an install's reports normally completes immediately: nothing waits for expiry. Under heavy load a deletion can be refused for the rest of the day (the collector limits how many deletions it accepts a day); the app or website then retries later.
+
 Choose what to share in the menu bar (**What to share**: speed, prompt and cache tokens, plan quota, limit events) or with `quotapilot share --only speed,quota`.
 
 ## AI Quota Watch website
 
-The website counts visits without cookies: each visit is stored with a daily-salted hash of the IP address and browser user agent that expires after 8 days, and only daily totals (views, visitors) are kept after that, for up to 400 days. Reports sent from the website's form follow the collector rules above.
+The website counts visits without cookies: each visit is stored as a hash of the IP address and the day only (no user agent) that is kept for 8 days, and only daily totals (views, visitors) are kept after that, for up to 400 days. The site shows the visitor figure only at 500 or more a week. It is a sum of daily visitors: because no identifier is kept across days, the same person visiting on two days counts twice. Visit counting stops at a daily write cap, so busy days undercount. Reports sent from the website's form follow the collector rules above.
 
 ## Stored locally
 

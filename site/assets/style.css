@@ -54,7 +54,7 @@ a:hover { text-decoration: underline; }
 /* sections */
 .section { padding: 36px 0 12px; }
 /* keep anchor targets below the sticky top bar (56px + breathing room) */
-section[id], [id].report { scroll-margin-top: 72px; }
+section[id], [id].report, [id].tool-cta { scroll-margin-top: 72px; }
 .section-head { max-width: 760px; margin-bottom: 18px; }
 .section-head h2 { font-size: 24px; letter-spacing: -0.015em; margin: 0 0 6px; }
 .section-head p { margin: 0; color: var(--muted); }
@@ -175,7 +175,7 @@ table.models { width: 100%; border-collapse: collapse; font-size: 14px; min-widt
   .nav { order: 3; width: 100%; margin-left: 0; gap: 16px; overflow-x: auto; scrollbar-width: none; white-space: nowrap; padding-bottom: 2px; }
   .nav::-webkit-scrollbar { display: none; }
   .lang-toggle { margin-left: auto; }
-  section[id], [id].report { scroll-margin-top: 104px; }
+  section[id], [id].report, [id].tool-cta { scroll-margin-top: 104px; }
 }
 .calc > *, .provider-grid > *, .kpis > * { min-width: 0; }
 body { overflow-x: hidden; }
@@ -213,6 +213,7 @@ body { overflow-x: hidden; }
 .com-totals { display: flex; flex-wrap: wrap; gap: 6px 20px; align-items: baseline; font-size: 13px; color: var(--muted); margin-bottom: 14px; }
 .com-totals strong { color: var(--text); font-size: 18px; font-variant-numeric: tabular-nums; }
 .com-totals a { margin-left: auto; font-weight: 600; }
+.com-totals span a { margin-left: 0; }
 .com-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 16px; }
 .com-grid > * { min-width: 0; }
 .com-card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px 18px; }
@@ -323,6 +324,8 @@ i.banked, .lg.banked { background: var(--banked); }
 .tool-cmd { display: grid; gap: 12px; justify-items: start; min-width: 0; }
 .tool-cmd pre { margin: 0; width: 100%; overflow-x: auto; background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px; font-size: 13px; line-height: 1.6; }
 .tool-cmd .c { color: var(--muted); }
+.tool-cmd .fine { font-size: 12px; margin: 0; }
+.qp-section { padding-top: 12px; }
 @media (max-width: 760px) { .tool-cta { grid-template-columns: 1fr; } }
 
 /* effort ladder */

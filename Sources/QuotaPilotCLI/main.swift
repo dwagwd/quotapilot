@@ -302,9 +302,13 @@ func shareReports(hours: Double) -> (reports: [[String: Any]], errors: [String: 
     let events = scanner.scan(windowStart: max(earliest, now - 8 * 86400), now: now)
     for model in scanner.lastModelEvents { modelTracker.observe(model) }
     let speed = scanner.lastSpeedSamples.filter { $0.timestamp >= now - hours * 3600 }
+    // First-seen times of limits the menu bar app recorded (the CLI cannot see them itself).
+    let seen = LimitSightings.load(from: LimitSightings.fileURL(in: stateDirectory))
     let uses = ContributionReport.windowUses(items: windows, tokensSince: { provider, start in
         events.filter { $0.provider == provider && $0.timestamp >= start }.reduce(into: TokenBreakdown()) { $0.add($1.usage) }
-    }, model: { modelTracker.current[$0]?.model })
+    }, model: { modelTracker.current[$0]?.model }, limitSince: { id, reset in
+        reset.flatMap { LimitSightings.lookup(seen, windowID: id, resetsAt: $0) }
+    })
     return (ContributionReport.build(speed: speed, windows: uses, now: now, include: shareKinds()), errors)
 }
 

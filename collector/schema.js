@@ -42,5 +42,8 @@ export function sanitize(report) {
   }
   const date = hourOf(report.date);
   if (date) out.date = date;
+  // Events may say when the quota window resets; cut to the hour like date.
+  const resetAt = typeof report.resetAt === "string" ? hourOf(report.resetAt) : undefined;
+  if (resetAt) out.resetAt = resetAt;
   return out.type ? out : null;
 }

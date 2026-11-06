@@ -524,6 +524,9 @@
 
   // ---------- live strip ----------
   state.loadedAt = new Date();
+  // The visitor count is a sum of daily visitors; a tiny number on the first screen looks bad and says little.
+  const VISITS_MIN = 500;
+  function visitsShown() { return !!(state.visits && state.visits.visitors >= VISITS_MIN); }
   function renderLive() {
     const now = new Date();
     const st = resetStats(now, "chatgpt");
@@ -538,9 +541,9 @@
       `<span class="live-tag">${t("live.tag")}</span>` +
       item(t("live.lastReset"), `<span data-since="${esc(st.last.at)}">${fmtSince(now - new Date(st.last.at), true)}</span>`, t("rs.kind." + st.last.kind)) +
       item(t("live.resets30"), st.in30.length) +
-      (fastest ? item(t("live.fastest"), `${esc(modelName(fastest.model))} ${fastest.median}`, "tok/s" + (state.community.sample ? " · " + t("live.example") : "")) : item(t("live.fastest"), "—", t("live.noReports"))) +
+      (fastest ? item(t("live.fastest"), `${esc(modelName(fastest.model))} ${fastest.median}`, "tok/s" + (state.community.sample ? " · " + t("live.example") : "")) : "") +
       (upcoming ? item(t("live.next"), `<span data-until="${esc(upcoming.date)}T00:00:00Z">${fmtSince(new Date(upcoming.date + "T00:00:00Z") - now, false)}</span>`, esc(loc(upcoming.text).slice(0, 26)) + "…") : "") +
-      (state.visits ? item(t("live.visits"), state.visits.visitors.toLocaleString("en-US"), t("live.views").replace("{n}", state.visits.views.toLocaleString("en-US"))) : "") +
+      (visitsShown() ? item(t("live.visits"), state.visits.visitors.toLocaleString("en-US"), t("live.views").replace("{n}", state.visits.views.toLocaleString("en-US"))) : "") +
       item(t("live.checked"), esc(state.plans.lastReviewed), t("live.checkedNote")) +
       (comAt && !isNaN(comAt) ? item(t("live.collected"), esc(fmtLocal(comAt.toISOString())), state.community.sample ? t("live.example") : "") : "") +
       item(t("live.loaded"), `<span data-ago="${state.loadedAt.toISOString()}">${t("live.justNow")}</span>`, t("live.loadedNote"));
@@ -649,9 +652,12 @@
   function renderCommunity() {
     const c = state.community;
     $("#sampleBanner").hidden = !c.sample;
-    $("#comTotals").innerHTML = `
-      <span><strong>${c.totals.reports}</strong> ${t("com.reports").replace("{d}", c.windowDays)}</span>
-      <span><strong>${c.totals.reporters}</strong> ${t("com.reporters")}</span>
+    // Totals only make sense next to published rows; with none, invite people to be among the first senders.
+    const published = c.speed.length + c.ratings.length + c.quota.length + (c.tokenMix || []).length;
+    $("#comTotals").innerHTML = (published
+      ? `<span><strong>${c.totals.reports}</strong> ${t("com.reports").replace("{d}", c.windowDays)}</span>
+      <span><strong>${c.totals.reporters}</strong> ${t("com.reporters")}</span>`
+      : `<span>${t("com.beFirst")} <a href="#quotapilot">${t("com.beFirstLink")} →</a></span>`) + `
       <span>${t("com.updated")} ${esc(c.generated.slice(0, 16).replace("T", " "))} UTC</span>
       <a href="#report">${t("rep.title")} →</a>`;
 
@@ -671,7 +677,7 @@
     $("#comQuota").innerHTML = c.quota.length ? `<table class="com-table"><thead><tr><th>${t("com.plan")}</th><th>${t("com.window")}</th><th class="num">${t("com.tokens")}</th><th class="num">${t("com.usd")}</th></tr></thead><tbody>${c.quota.map((q) => `
       <tr><td><span class="dot" style="background:${providerById(q.provider).color}"></span>${esc(providerById(q.provider).name)} ${esc(q.plan)}</td>
       <td>${q.window === "5h" ? t("com.w5h") : t("com.wweek")}</td>
-      <td class="num">${fmtTokens(q.medianTokens)}<small>${fmtTokens(q.p25Tokens)}–${fmtTokens(q.p75Tokens)} · n=${q.n}</small></td>
+      <td class="num">≥${fmtTokens(q.medianTokens)}<small>${fmtTokens(q.p25Tokens)}–${fmtTokens(q.p75Tokens)} · n=${q.n}</small></td>
       <td class="num">${q.medianUsd != null ? money(q.medianUsd, 0) : t("calc.na")}</td></tr>`).join("")}</tbody></table>` : emptyNote();
 
     const mix = c.tokenMix || [];
@@ -862,6 +868,7 @@
     renderEffort();
     renderCommunity();
     renderLive();
+    renderVisitsFoot();
     renderReportForm();
     renderPartners();
     renderSources();
@@ -879,6 +886,14 @@
     }, 60000);
   }
 
+  function renderVisitsFoot() {
+    const el = $("#visits");
+    if (!el) return;
+    if (!visitsShown()) { el.textContent = ""; return; }
+    const v = state.visits, plus = v.capped ? "+" : "";
+    el.textContent = t("foot.visits").replace("{v}", v.visitors.toLocaleString("en-US") + plus).replace("{n}", v.views.toLocaleString("en-US") + plus);
+  }
+
   // 7-day visitors from the collector (cookieless counter). The page works without it.
   function loadVisits() {
     const base = (window.SITE_CONFIG.community || {}).collector;
@@ -886,9 +901,7 @@
     fetch(base + "/v1/visits").then((r) => (r.ok ? r.json() : null)).then((v) => {
       if (!v) return;
       state.visits = v;
-      const el = $("#visits");
-      const plus = v.capped ? "+" : "";
-      if (el) el.textContent = t("foot.visits").replace("{v}", v.visitors.toLocaleString("en-US") + plus).replace("{n}", v.views.toLocaleString("en-US") + plus);
+      renderVisitsFoot();
       renderLive();
     }).catch(() => {});
   }

@@ -36,6 +36,7 @@
         <a href="#radar" data-i18n="nav.radar">Radar</a>
         <a href="#effort" data-i18n="nav.effort">Effort</a>
         <a href="#community" data-i18n="nav.community">Community</a>
+        <a href="#quotapilot" data-i18n="nav.quotapilot">QuotaPilot</a>
         <a href="#sources" data-i18n="nav.sources">Sources</a>
       </nav>
       <button class="lang-toggle" id="langToggle" type="button" aria-label="Switch language">中文</button>
@@ -53,8 +54,32 @@
       <div class="hero-cta">
         <a class="btn" href="#calculator" data-i18n="hero.ctaPick">Find a model for your workload</a>
         <a class="btn ghost" href="#plans" data-i18n="hero.ctaPlans">Compare plan limits</a>
+        <a class="btn ghost" href="#quotapilot" data-i18n="hero.ctaQp">Get QuotaPilot for macOS (free, open source)</a>
       </div>
       <div class="stamp"><span data-i18n="hero.reviewed">Data last reviewed</span> <strong id="reviewed">—</strong></div>
+    </section>
+
+    <section class="section qp-section">
+      <div class="tool-cta" id="quotapilot">
+        <div>
+          <h3 data-i18n="tool.title">Share real numbers with QuotaPilot</h3>
+          <p data-i18n="tool.sub">QuotaPilot is a free, open-source quota monitor for Codex, Claude Code, Gemini CLI and Grok CLI. It reads your local usage and shares nothing by default. Run the share command to see exactly which anonymous numbers it would send, and send them only if you agree.</p>
+          <ul class="tool-points">
+            <li data-i18n="tool.p1">Measured speed per model from your own sessions</li>
+            <li data-i18n="tool.p2">Quota used vs. tokens spent, so we can estimate what each plan really holds</li>
+            <li data-i18n="tool.p3">No prompts, file paths, project names or account ids</li>
+          </ul>
+        </div>
+        <div class="tool-cmd">
+          <pre><span class="c"># macOS</span>
+brew tap dwagwd/quotapilot https://github.com/dwagwd/quotapilot
+brew install dwagwd/quotapilot/quotapilot
+<span class="c"># preview, then confirm</span>
+quotapilot share</pre>
+          <p class="fine" data-i18n="tool.build">Builds from source on your Mac: about 2 minutes, needs the Xcode Command Line Tools (xcode-select --install) and macOS 13+.</p>
+          <a class="btn" href="https://github.com/dwagwd/quotapilot" target="_blank" rel="noopener" data-i18n="tool.cta">QuotaPilot on GitHub</a>
+        </div>
+      </div>
     </section>
 
     <div class="ad-slot" data-slot="top-banner" aria-hidden="true"><span data-i18n="ad.label">Ad space (not connected)</span></div>
@@ -193,28 +218,9 @@
       <div class="com-grid">
         <article class="com-card"><h3 data-i18n="com.speedTitle">Measured speed</h3><p class="com-note" data-i18n="com.speedNote">Median output tokens/s from real sessions, bar shows the middle 50%.</p><div id="comSpeed"></div></article>
         <article class="com-card"><h3 data-i18n="com.ratingTitle">How it feels</h3><p class="com-note" data-i18n="com.ratingNote">Average score out of 10. A warning shows when 30% or more of reports say the model got worse.</p><div id="comRating"></div></article>
-        <article class="com-card"><h3 data-i18n="com.quotaTitle">Measured plan quota</h3><p class="com-note" data-i18n="com.quotaNote">Estimated tokens per window: tokens used ÷ share of the limit used. $ is the same tokens at API list price.</p><div id="comQuota"></div></article>
+        <article class="com-card"><h3 data-i18n="com.quotaTitle">Plan quota, lower bound</h3><p class="com-note" data-i18n="com.quotaNote">Lower bound. Tokens counted on the sharer's Mac ÷ share of the account-wide limit used. Use elsewhere (web app, other devices) is missing, so the real window is larger. $ assumes API list prices.</p><div id="comQuota"></div></article>
         <article class="com-card"><h3 data-i18n="com.mixTitle">Prompt, output and cache</h3><p class="com-note" data-i18n="com.mixNote">Prompt tokens sent per output token, and the share of the prompt read from the prompt cache. Coding agents resend the whole conversation each turn, so a high cache share is what keeps them affordable.</p><div id="comMix"></div></article>
         <article class="com-card"><h3 data-i18n="com.eventTitle">When limits hit and reset</h3><p class="com-note" data-i18n="com.eventNote">Reports in the last 30 days by hour of day, in your time zone.</p><div id="comEvents"></div></article>
-      </div>
-      <div class="tool-cta">
-        <div>
-          <h3 data-i18n="tool.title">Share real numbers with QuotaPilot</h3>
-          <p data-i18n="tool.sub">QuotaPilot is a free, open-source quota monitor for Codex, Claude Code, Gemini CLI and Grok CLI. It reads your local usage and shares nothing by default. Run the share command to see exactly which anonymous numbers it would send, and send them only if you agree.</p>
-          <ul class="tool-points">
-            <li data-i18n="tool.p1">Measured speed per model from your own sessions</li>
-            <li data-i18n="tool.p2">Quota used vs. tokens spent, so we can estimate what each plan really holds</li>
-            <li data-i18n="tool.p3">No prompts, file paths, project names or account ids</li>
-          </ul>
-        </div>
-        <div class="tool-cmd">
-          <pre><span class="c"># macOS</span>
-brew tap dwagwd/quotapilot https://github.com/dwagwd/quotapilot
-brew install dwagwd/quotapilot/quotapilot
-<span class="c"># preview, then confirm</span>
-quotapilot share</pre>
-          <a class="btn" href="https://github.com/dwagwd/quotapilot" target="_blank" rel="noopener" data-i18n="tool.cta">QuotaPilot on GitHub</a>
-        </div>
       </div>
       <div class="report" id="report">
         <div class="report-head">
@@ -252,7 +258,7 @@ quotapilot share</pre>
   <footer class="footer">
     <div class="wrap"><span>AI Quota Watch</span> · <span data-i18n="footer.text">Independent tracker. Data as of</span> <span id="footReviewed">—</span>
       <span class="visits" id="visits"></span>
-      <nav class="footer-links"><a href="plans/index.html" data-i18n="foot.plans">Plans by product</a> · <a href="resets/codex.html" data-i18n="foot.resets">Codex reset history</a> · <a href="effort/index.html" data-i18n="foot.effort">Effort levels by model</a></nav></div>
+      <nav class="footer-links"><a href="#quotapilot" data-i18n="foot.quotapilot">Get QuotaPilot</a> · <a href="plans/index.html" data-i18n="foot.plans">Plans by product</a> · <a href="resets/codex.html" data-i18n="foot.resets">Codex reset history</a> · <a href="effort/index.html" data-i18n="foot.effort">Effort levels by model</a></nav></div>
   </footer>
 
   <script src="assets/i18n.js"></script>

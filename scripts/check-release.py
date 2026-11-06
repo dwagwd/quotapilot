@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 """Static release hygiene checks; never prints matching secret values."""
 import json
+import os
 import re
+import subprocess
 from release_files import ROOT, FILES, public_files
 
 required = list(FILES) + [".codex-plugin/plugin.json", ".github/workflows/ci.yml"]
@@ -28,4 +30,58 @@ cli_path = re.search(r'bin\.install_symlink prefix/"QuotaPilot\.app/(Contents/[^
 assert cli_path, "Formula does not link the quotapilot command"
 assert f'"$APP/{cli_path.group(1)}"' in build, "build.sh does not place the CLI where the formula links it"
 assert f'tag: "v{version}"' in formula, "Formula does not build the current VERSION"
+# The tag alone can be moved; the formula must also pin the commit.
+PLACEHOLDER_REVISION = "0" * 40
+revision = re.search(r'revision: "([0-9a-f]{40})"', formula)
+assert revision, "Formula has no 40-character revision: next to tag:"
+revision = revision.group(1)
+
+
+def tag_commit(tag):
+    """Return (state, commit): state is 'ok', 'missing' (tag absent) or 'nogit' (git or repository unavailable)."""
+    try:
+        inside = subprocess.run(["git", "rev-parse", "--git-dir"], cwd=ROOT, capture_output=True, text=True)
+        if inside.returncode != 0:
+            return "nogit", None
+        found = subprocess.run(["git", "rev-parse", "--verify", "--quiet", f"refs/tags/{tag}^{{commit}}"], cwd=ROOT, capture_output=True, text=True)
+    except FileNotFoundError:
+        return "nogit", None
+    if found.returncode != 0:
+        return "missing", None
+    return "ok", found.stdout.strip()
+
+
+def remote_tag_commit(tag):
+    """Ask origin for the tag: returns ('ok', commit), ('missing', None) or ('unreachable', None)."""
+    try:
+        found = subprocess.run(["git", "ls-remote", "--tags", "origin", f"refs/tags/{tag}^{{}}", f"refs/tags/{tag}"],
+                               cwd=ROOT, capture_output=True, text=True, timeout=60,
+                               env={**os.environ, "GIT_TERMINAL_PROMPT": "0"})
+    except (FileNotFoundError, subprocess.TimeoutExpired):
+        return "unreachable", None
+    if found.returncode != 0:
+        return "unreachable", None
+    refs = {}
+    for line in found.stdout.splitlines():
+        parts = line.split()
+        if len(parts) == 2:
+            refs[parts[1]] = parts[0]
+    # The peeled ref is the commit of an annotated tag; a lightweight tag only has the plain ref.
+    commit = refs.get(f"refs/tags/{tag}^{{}}") or refs.get(f"refs/tags/{tag}")
+    return ("ok", commit) if commit else ("missing", None)
+
+
+state, commit = tag_commit(f"v{version}")
+if state == "nogit":
+    print("Notice: git is unavailable here; skipped the formula revision check.")
+else:
+    if state == "missing":
+        state, commit = remote_tag_commit(f"v{version}")
+    if state == "ok":
+        assert revision != PLACEHOLDER_REVISION, f"Tag v{version} exists; run scripts/pin-formula.sh v{version} and commit the result"
+        assert revision == commit, f"Formula revision {revision} differs from v{version} commit {commit}"
+    elif state == "unreachable":
+        print(f"Notice: tag v{version} is not present locally and origin could not be queried; cannot verify the formula revision.")
+    elif revision != PLACEHOLDER_REVISION:
+        print(f"Notice: tag v{version} does not exist locally or on origin; cannot verify the formula revision.")
 print(f"Release hygiene passed ({len(public_files())} source files, version {version}).")

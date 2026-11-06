@@ -80,6 +80,31 @@ public enum AppUpdate {
     }
 }
 
+/// Why the anonymous collector refused or failed a report: the HTTP status plus the `error` text and `full` flag from its JSON body.
+public struct ShareFailure: Error, Equatable, LocalizedError, CustomNSError {
+    public let status: Int
+    public let message: String
+    /// The collector's `full` flag: it has reached its daily limit.
+    public let collectorFull: Bool
+
+    public init(status: Int, message: String, collectorFull: Bool) {
+        self.status = status; self.message = message; self.collectorFull = collectorFull
+    }
+
+    /// Builds the failure from a response status, its (optional) JSON body and a transport error text.
+    public init(status: Int, body: Data?, transportError: String? = nil) {
+        let object = body.flatMap { try? JSONSerialization.jsonObject(with: $0) as? [String: Any] }
+        self.init(status: status,
+                  message: (object?["error"] as? String) ?? transportError ?? "HTTP \(status)",
+                  collectorFull: (object?["full"] as? Bool) == true)
+    }
+
+    public var errorDescription: String? { message }
+    public static var errorDomain: String { "ShareSubmitter" }
+    public var errorCode: Int { status }
+    public var errorUserInfo: [String: Any] { [NSLocalizedDescriptionKey: message] }
+}
+
 /// Sends `quotapilot share` reports without a browser by filing the issue with the GitHub CLI (`gh`),
 /// which the user has already signed in to. Nothing is sent unless the user turned sharing on.
 public enum ShareSubmitter {
@@ -119,8 +144,7 @@ public enum ShareSubmitter {
             if status == 200, let data, let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
                 result = .success((object["accepted"] as? Int) ?? 0)
             } else {
-                let message = data.flatMap { try? JSONSerialization.jsonObject(with: $0) as? [String: Any] }?["error"] as? String
-                result = .failure(NSError(domain: "ShareSubmitter", code: status, userInfo: [NSLocalizedDescriptionKey: message ?? error?.localizedDescription ?? "HTTP \(status)"]))
+                result = .failure(ShareFailure(status: status, body: data, transportError: error?.localizedDescription))
             }
             done.signal()
         }.resume()

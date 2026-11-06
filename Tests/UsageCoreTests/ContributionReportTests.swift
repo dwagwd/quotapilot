@@ -69,14 +69,40 @@ final class ContributionReportTests: XCTestCase {
         XCTAssertEqual(ContributionReport.build(speed: many, windows: [], now: 0).count, ContributionReport.maximumReports)
     }
 
-    func testLimitReachedBecomesAnEvent() {
+    func testLimitReachedBecomesAnEventDatedWhenItHit() {
         let use = ContributionReport.WindowUse(provider: "claude", plan: "max_5x", windowMinutes: 10080, usedPercent: 100, limitReached: true,
-                                               tokensSinceStart: TokenBreakdown(), model: nil)
-        let reports = ContributionReport.build(speed: [], windows: [use], now: 0)
-        var weekly = use; weekly.windowMinutes = 300
-        XCTAssertEqual(ContributionReport.build(speed: [], windows: [use, weekly], now: 0).filter { $0["type"] as? String == "event" }.count, 1)
+                                               tokensSinceStart: TokenBreakdown(), model: nil, limitSince: 7_300, resetAt: 20_000)
+        let reports = ContributionReport.build(speed: [], windows: [use], now: 999_999)
         XCTAssertEqual(reports.map { $0["type"] as? String }, ["event"])
         XCTAssertEqual(reports[0]["plan"] as? String, "Max 5x")
+        XCTAssertEqual(reports[0]["date"] as? String, "1970-01-01T02:00:00Z")
+        XCTAssertEqual(reports[0]["resetAt"] as? String, "1970-01-01T05:00:00Z")
+        var duplicate = use; duplicate.usedPercent = 99
+        XCTAssertEqual(ContributionReport.build(speed: [], windows: [use, duplicate], now: 0).filter { $0["type"] as? String == "event" }.count, 1)
+    }
+
+    func testNoEventWithoutLimitSince() {
+        let use = ContributionReport.WindowUse(provider: "claude", plan: "max_5x", windowMinutes: 10080, usedPercent: 100, limitReached: true,
+                                               tokensSinceStart: TokenBreakdown(), model: nil, resetAt: 20_000)
+        XCTAssertTrue(ContributionReport.build(speed: [], windows: [use], now: 0).isEmpty)
+    }
+
+    func testQuotaReportCarriesInputShare() {
+        let use = ContributionReport.WindowUse(provider: "codex", plan: "pro", windowMinutes: 10080, usedPercent: 20, limitReached: false,
+                                               tokensSinceStart: TokenBreakdown(input: 70_000, cacheRead: 5_000_000, cacheWrite: 5_000, output: 25_000), model: nil)
+        let reports = ContributionReport.build(speed: [], windows: [use], now: 0)
+        XCTAssertEqual(reports.count, 1)
+        XCTAssertEqual(reports[0]["inputShare"] as? Double, 0.75)
+    }
+
+    func testFiveHourQuotaBelowTenPercentIsSkippedButWeeklyKept() {
+        let tokens = TokenBreakdown(input: 100_000, cacheRead: 0, cacheWrite: 0, output: 20_000)
+        let fiveHour = ContributionReport.WindowUse(provider: "codex", plan: "pro", windowMinutes: 300, usedPercent: 5, limitReached: false,
+                                                    tokensSinceStart: tokens, model: nil)
+        var weekly = fiveHour; weekly.windowMinutes = 10080
+        XCTAssertTrue(ContributionReport.build(speed: [], windows: [fiveHour], now: 0).isEmpty)
+        let reports = ContributionReport.build(speed: [], windows: [fiveHour, weekly], now: 0)
+        XCTAssertEqual(reports.map { $0["window"] as? String }, ["weekly"])
     }
 
     func testEachKindCanBeLeftOut() {

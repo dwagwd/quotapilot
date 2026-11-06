@@ -209,3 +209,82 @@ test("a feels-worse warning needs five people and three of them saying so", () =
   const few = aggregate([rate("a", true), rate("b", true), rate("c", true)], models, now);
   assert.equal(few.ratings[0].alert, false, "three people make a row, not a warning");
 });
+
+const hit = (who, date, resetAt) => ({ type: "event", provider: "chatgpt", plan: "Plus", kind: "hit_limit", date, ...(resetAt ? { resetAt } : {}), reporter: who });
+const eventTotal = (out) => out.events.byHourUtc.chatgpt.reduce((a, b) => a + b, 0);
+
+test("one limit episode lasting several days counts once, and counts are people", () => {
+  const reset = "2026-11-03T10:00:00Z";
+  const raw = [
+    hit("a", "2026-10-30T10:00:00Z", reset), hit("a", "2026-10-31T10:00:00Z", reset), hit("a", "2026-11-01T10:00:00Z", reset),
+    hit("b", "2026-11-01T09:00:00Z", "2026-11-03T09:00:00Z"),
+    hit("c", "2026-11-01T08:00:00Z"), hit("c", "2026-11-01T08:00:00Z")
+  ];
+  const out = aggregate(raw, models, now);
+  assert.equal(eventTotal(out), 3, "a's three days are one episode, c's repeat is the same hour");
+  assert.deepEqual(out.events.counts, [{ provider: "chatgpt", kind: "hit_limit", n: 3 }]);
+  // A second, different episode adds an event but not a person.
+  const more = aggregate([...raw, hit("a", "2026-10-28T10:00:00Z", "2026-10-29T10:00:00Z")], models, now);
+  assert.equal(eventTotal(more), 4);
+  assert.equal(more.events.counts[0].n, 3, "n is the number of people, not reports");
+});
+
+test("resetAt is accepted only within eight days after the event hour", () => {
+  const base = { type: "event", provider: "chatgpt", kind: "hit_limit", date: "2026-10-30T10:00:00Z" };
+  assert.equal(clean({ ...base, resetAt: "2026-10-30T15:00:00Z" }, models).resetAt, "2026-10-30T15:00:00.000Z");
+  assert.equal(clean({ ...base, resetAt: "2026-10-30T09:00:00Z" }, models).resetAt, null, "before the event");
+  assert.equal(clean({ ...base, resetAt: "2026-11-08T10:00:01Z" }, models).resetAt, null, "more than 8 days later");
+  assert.equal(clean({ ...base, resetAt: "nonsense" }, models).resetAt, null);
+  assert.equal(clean(base, models).resetAt, null);
+});
+
+const siteReport = (who, ipGroup) => ({ ...fromCollector(who, ipGroup, { firstSeenAgo: 1 }), via: "site" });
+
+test("a one-shot site reporter with a unique network is established, but cannot publish a row alone", () => {
+  const raw = [siteReport("anon-s1", "11111111"), siteReport("anon-s2", "22222222"), siteReport("anon-s3", "33333333")];
+  const out = aggregate(raw, models, now);
+  assert.equal(out.speed.length, 0, "three one-shot site reporters are not enough");
+  assert.equal(out.totals.established, 3);
+  const mixed = [raw[0], raw[1], fromCollector("anon-reg", "55555555")];
+  assert.equal(aggregate(mixed, models, now).speed[0].reporters, 3, "one regular reporter anchors the row");
+  // The same one-shot reports from QuotaPilot keep the normal rule and do not count yet.
+  const qp = raw.map((r) => ({ ...r, via: "quotapilot" }));
+  assert.equal(aggregate(qp, models, now).speed.length, 0);
+});
+
+test("a site reporter sharing a network with another reporter that day does not count", () => {
+  const raw = [siteReport("anon-x", "aaaaaaaa"), siteReport("anon-y", "aaaaaaaa"), siteReport("anon-z", "33333333"), siteReport("anon-w", "44444444")];
+  const out = aggregate(raw, models, now);
+  assert.equal(out.speed.length, 0, "only the two unique-network reporters count");
+  assert.equal(out.totals.established, 2);
+});
+
+test("5-hour quota reports under 10% are ignored and published quota rows are lower bounds", () => {
+  const q = (window, pct) => ({ type: "quota", model: "claude-opus-5-5", plan: "Max", window, percentUsed: pct, tokensUsed: 1e6, date: day(1) });
+  assert.equal(clean(q("5h", 5), models), null);
+  assert.ok(clean(q("5h", 10), models));
+  assert.ok(clean(q("weekly", 5), models), "the weekly window is not affected");
+  const raw = [1, 2, 3].map((i) => ({ ...q("weekly", 5), reporter: "u" + i }));
+  const out = aggregate(raw, models, now);
+  assert.equal(out.quota.length, 1);
+  assert.equal(out.quota[0].lowerBound, true);
+  const five = [1, 2, 3].map((i) => ({ ...q("5h", 5), reporter: "u" + i }));
+  assert.equal(aggregate(five, models, now).quota.length, 0);
+});
+
+test("ratings, quota and events also need a unit that is not a one-shot site reporter", () => {
+  const site = (r, i) => ({ ...r, reporter: "anon-t" + i, reporterFirstSeen: ymd(1), receivedDay: ymd(1), ipGroup: "6000000" + i, via: "site" });
+  const regular = (r) => ({ ...r, reporter: "anon-reg", reporterFirstSeen: ymd(5), receivedDay: ymd(1), ipGroup: "70000000" });
+  const rating = { type: "rating", model: "grok-4-7", score: 8, date: day(1) };
+  const quotaReport = { type: "quota", model: "claude-opus-5-5", plan: "Max", window: "weekly", percentUsed: 5, tokensUsed: 1e6, date: day(1) };
+  const ev = { type: "event", provider: "chatgpt", plan: "Plus", kind: "hit_limit", date: day(1) };
+  const kinds = [rating, quotaReport, ev];
+  const only = aggregate(kinds.flatMap((r) => [1, 2, 3].map((i) => site(r, i))), models, now);
+  assert.equal(only.ratings.length, 0);
+  assert.equal(only.quota.length, 0);
+  assert.equal(eventTotal(only), 0);
+  const mixed = aggregate(kinds.flatMap((r) => [site(r, 1), site(r, 2), regular(r)]), models, now);
+  assert.equal(mixed.ratings.length, 1);
+  assert.equal(mixed.quota.length, 1);
+  assert.equal(eventTotal(mixed), 3);
+});

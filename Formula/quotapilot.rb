@@ -6,7 +6,7 @@
 class Quotapilot < Formula
   desc "Desktop card and CLI for Codex and Claude Code plan quota, tokens and resets"
   homepage "https://github.com/dwagwd/quotapilot"
-  url "https://github.com/dwagwd/quotapilot.git", tag: "v0.6.3"
+  url "https://github.com/dwagwd/quotapilot.git", tag: "v0.6.3", revision: "0000000000000000000000000000000000000000"
   license "MIT"
   head "https://github.com/dwagwd/quotapilot.git", branch: "main"
 

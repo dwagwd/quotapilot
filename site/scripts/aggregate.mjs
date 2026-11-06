@@ -45,7 +45,7 @@ export function clean(r, models) {
   const model = models.find((m) => m.id === r.model);
   const dayOf = (v) => (typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : null);
   const base = { type: r.type, date: date.toISOString(), provider: (r.type === "quota" || r.type === "event") && r.provider ? r.provider : model ? model.provider : r.provider, model: r.model || null, reporter: r.reporter || "anon",
-    firstSeen: dayOf(r.reporterFirstSeen), receivedDay: dayOf(r.receivedDay), ipGroup: typeof r.ipGroup === "string" && /^[0-9a-f]{8}$/.test(r.ipGroup) ? r.ipGroup : null };
+    firstSeen: dayOf(r.reporterFirstSeen), receivedDay: dayOf(r.receivedDay), via: r.via === "site" ? "site" : r.via ? "other" : null, ipGroup: typeof r.ipGroup === "string" && /^[0-9a-f]{8}$/.test(r.ipGroup) ? r.ipGroup : null };
   if (!PROVIDERS.includes(base.provider)) return null;
   const num = (v, lo, hi) => { const n = Number(v); return Number.isFinite(n) && n >= lo && n <= hi ? n : null; };
   if (r.type === "speed") {
@@ -73,6 +73,7 @@ export function clean(r, models) {
   if (r.type === "quota") {
     const pct = num(r.percentUsed, 0.5, 100), tokens = num(r.tokensUsed, 1000, 1e10);
     if (!r.plan || !["5h", "weekly"].includes(r.window) || pct == null || tokens == null) return null;
+    if (r.window === "5h" && pct < 10) return null;  // too coarse to extrapolate a 5-hour window from under 10%
     const est = tokens / (pct / 100);
     if (est > 5e10) return null;  // no plan window holds 50B tokens
     const price = model && model.input != null ? (r.inputShare != null ? num(r.inputShare, 0, 1) : 0.8) : null;
@@ -81,7 +82,14 @@ export function clean(r, models) {
   }
   if (r.type === "event") {
     if (!["hit_limit", "reset"].includes(r.kind)) return null;
-    return { ...base, kind: r.kind, plan: String(r.plan || "").slice(0, 30), hourUtc: date.getUTCHours() };
+    // From QuotaPilot 0.6.3 `date` is the hour the limit was first reached and `resetAt` the hour the window resets.
+    // resetAt is kept only when it is a date within [date, date + 8 days].
+    let resetAt = null;
+    if (typeof r.resetAt === "string") {
+      const t = new Date(r.resetAt);
+      if (!isNaN(t) && t >= date && t <= new Date(date.getTime() + 8 * 864e5)) resetAt = t.toISOString();
+    }
+    return { ...base, kind: r.kind, plan: String(r.plan || "").slice(0, 30), hourUtc: date.getUTCHours(), resetAt };
   }
   return null;
 }
@@ -90,7 +98,12 @@ export function clean(r, models) {
 export function dedupe(reports) {
   const seen = new Map();
   for (const r of reports) {
-    const key = [r.reporter, r.type, r.model || r.plan, r.effort || "", r.window || "", r.kind || "", r.date.slice(0, 10)].join("|");
+    // A limit episode (hit_limit) is one event per reporter x provider x reset hour, however many days it lasts;
+    // without resetAt the event hour stands in.
+    const episode = r.type === "event" && r.kind === "hit_limit";
+    const key = episode
+      ? [r.reporter, "event", "hit_limit", r.provider, r.resetAt ? "reset:" + r.resetAt.slice(0, 13) : "hour:" + r.date.slice(0, 13)].join("|")
+      : [r.reporter, r.type, r.model || r.plan, r.effort || "", r.window || "", r.kind || "", r.date.slice(0, 10)].join("|");
     if (r.reporter === "anon" || !seen.has(key)) seen.set(key + (r.reporter === "anon" ? Math.random() : ""), r);
   }
   return [...seen.values()];
@@ -108,19 +121,41 @@ export const MAX_PER_REPORTER_PER_DAY = 60;
 // forward-date. Established status applies to all of that reporter's reports, so a real new user's first-day
 // reports start counting as soon as they report again on another day. Reports without reporterFirstSeen (older
 // collector data) are counted as before, so existing published stats stay.
-export function establishedReporters(reports) {
+// The website form is a one-shot, so it can never pass the rules above. A reporter whose reports are all
+// via "site" is established instead when, on each day it reported, its ipGroup was shared with no other reporter
+// (a report without ipGroup cannot be checked and does not qualify).
+// reporterStatus also returns `oneShot`: reporters established only by the site rule. A published row needs at
+// least one unit that is not one of them (see aggregate), so three browser submissions from three networks in
+// one day cannot publish a row on their own.
+export function reporterStatus(reports) {
+  const members = new Map();
+  for (const r of reports) {
+    if (!r.ipGroup) continue;
+    const k = (r.receivedDay || r.date.slice(0, 10)) + "|" + r.ipGroup;
+    if (!members.has(k)) members.set(k, new Set());
+    members.get(k).add(r.reporter || "anon");
+  }
   const info = new Map();
   for (const r of reports) {
     const id = r.reporter || "anon";
-    const i = info.get(id) || { legacy: false, aged: false, days: new Set() };
+    const i = info.get(id) || { legacy: false, aged: false, days: new Set(), siteOnly: true, unique: true };
     const received = r.receivedDay || r.date.slice(0, 10);
     if (!r.firstSeen) i.legacy = true;
     else if (r.firstSeen < received) i.aged = true;
     i.days.add(received);
+    if (r.via !== "site") i.siteOnly = false;
+    if (!r.ipGroup || members.get(received + "|" + r.ipGroup).size > 1) i.unique = false;
     info.set(id, i);
   }
-  return new Set([...info].filter(([, i]) => i.legacy || i.aged || i.days.size >= 2).map(([id]) => id));
+  const regular = (i) => i.legacy || i.aged || i.days.size >= 2;
+  const entries = [...info];
+  return {
+    established: new Set(entries.filter(([, i]) => regular(i) || (i.siteOnly && i.unique)).map(([id]) => id)),
+    oneShot: new Set(entries.filter(([, i]) => !regular(i) && i.siteOnly && i.unique).map(([id]) => id))
+  };
 }
+
+export function establishedReporters(reports) { return reporterStatus(reports).established; }
 
 // Network diversity. ipGroup is a daily-rotating hash of the reporter's /24 (IPv4) or /48 (IPv6) network, so it
 // already identifies one network on one day. Within one stats row, reporters that share an ipGroup are joined
@@ -154,7 +189,7 @@ export function aggregate(raw, models, now = new Date(), blocked = []) {
   const recent = all.filter((r) => new Date(r.date) >= since && new Date(r.date) <= now);
   const rejected = raw.length - raw.map((r) => clean(r, models)).filter(Boolean).length;
   // Only established reporters feed the stats rows (see establishedReporters); totals still show every report.
-  const established = establishedReporters(all);
+  const { established, oneShot } = reporterStatus(all);
   const counted = recent.filter((r) => established.has(r.reporter || "anon"));
 
   // Publication needs MIN_SAMPLES distinct people, not MIN_SAMPLES reports: each person (reporter unit, see
@@ -166,13 +201,17 @@ export function aggregate(raw, models, now = new Date(), blocked = []) {
     return v.length ? quantile(v, 0.5) : null;
   }).filter((v) => v != null);
   const people = (rs) => byReporter(rs).length;
+  // Every published row needs at least one unit with a reporter that is not a one-shot site reporter.
+  const anchored = (rs) => byReporter(rs).some((unit) => unit.some((r) => !oneShot.has(r.reporter || "anon")));
 
   const speed = Object.entries(groupBy(counted.filter((r) => r.type === "speed"),(r) => r.model))
+    .filter(([, rs]) => anchored(rs))
     .map(([model, rs]) => ({ model, ...stats(perPerson(rs, (r) => r.tps)), reporters: people(rs), reports: rs.length, clients: [...new Set(rs.map((r) => r.client).filter(Boolean))].slice(0, 5) }))
     .filter((s) => s.reporters >= MIN_SAMPLES && s.n >= MIN_SAMPLES).sort((a, b) => b.median - a.median);
 
   // Real usage per model and reasoning effort (reports that name an effort).
   const effortUsage = Object.entries(groupBy(counted.filter((r) => r.type === "speed" && r.effort), (r) => r.model + "|" + r.effort))
+    .filter(([, rs]) => anchored(rs))
     .map(([k, rs]) => {
       const [model, effort] = k.split("|");
       const share = perPerson(rs, (r) => r.reasoningShare);
@@ -184,6 +223,7 @@ export function aggregate(raw, models, now = new Date(), blocked = []) {
   // Token mix per model: prompt tokens per output token and the share of the prompt served from cache.
   // One value per person (their median), shown once MIN_SAMPLES people report it.
   const tokenMix = Object.entries(groupBy(counted.filter((r) => r.type === "speed" && r.inputPerOutput != null), (r) => r.model))
+    .filter(([, rs]) => anchored(rs))
     .map(([model, rs]) => {
       const q = (values, p) => { const v = trimOutliers(values); return v.length ? quantile(v, p) : null; };
       const ratio = perPerson(rs, (r) => r.inputPerOutput), hit = perPerson(rs, (r) => r.cacheHit), write = perPerson(rs, (r) => r.cacheWriteShare);
@@ -193,6 +233,7 @@ export function aggregate(raw, models, now = new Date(), blocked = []) {
     .filter((s) => s.n >= MIN_SAMPLES).sort((a, b) => b.cacheHit - a.cacheHit);
 
   const ratings = Object.entries(groupBy(counted.filter((r) => r.type === "rating"), (r) => r.model))
+    .filter(([, rs]) => anchored(rs))
     .map(([model, rs]) => {
       const scores = byReporter(rs).map((mine) => mine.reduce((a, r) => a + r.score, 0) / mine.length);
       const degraded = byReporter(rs).map((mine) => mine.filter((r) => r.degraded).length / mine.length);
@@ -203,10 +244,11 @@ export function aggregate(raw, models, now = new Date(), blocked = []) {
     .filter((s) => s.n >= MIN_SAMPLES).sort((a, b) => b.avg - a.avg);
 
   const quota = Object.entries(groupBy(counted.filter((r) => r.type === "quota"), (r) => [r.provider, r.plan, r.window].join("|")))
+    .filter(([, rs]) => anchored(rs))
     .map(([k, rs]) => {
       const [provider, plan, window] = k.split("|");
       const tok = stats(perPerson(rs, (r) => r.estTokens)), usd = stats(perPerson(rs, (r) => r.estUsd));
-      return { provider, plan, window, n: tok.n, reporters: people(rs), reports: rs.length, medianTokens: Math.round(tok.median), p25Tokens: Math.round(tok.p25), p75Tokens: Math.round(tok.p75), medianUsd: usd.n ? usd.median : null };
+      return { provider, plan, window, n: tok.n, reporters: people(rs), reports: rs.length, medianTokens: Math.round(tok.median), p25Tokens: Math.round(tok.p25), p75Tokens: Math.round(tok.p75), medianUsd: usd.n ? usd.median : null, lowerBound: true };
     })
     .filter((s) => s.reporters >= MIN_SAMPLES && s.n >= MIN_SAMPLES).sort((a, b) => a.provider.localeCompare(b.provider) || b.medianTokens - a.medianTokens);
 
@@ -215,18 +257,18 @@ export function aggregate(raw, models, now = new Date(), blocked = []) {
   // Like every other row, a provider's events are published only once MIN_SAMPLES established people report
   // them: with fewer, the hour-of-day chart would show one person's working hours.
   const evsAll = all.filter((r) => r.type === "event" && established.has(r.reporter || "anon") && new Date(r.date) >= eventSince && new Date(r.date) <= now);
-  const evs = Object.values(groupBy(evsAll, (e) => e.provider)).filter((rs) => people(rs) >= MIN_SAMPLES).flat();
+  const evs = Object.values(groupBy(evsAll, (e) => e.provider)).filter((rs) => people(rs) >= MIN_SAMPLES && anchored(rs)).flat();
   const byHour = {};
   for (const p of PROVIDERS) byHour[p] = Array(24).fill(0);
   evs.forEach((e) => { byHour[e.provider][e.hourUtc]++; });
-  const eventCounts = Object.entries(groupBy(evs, (e) => e.provider + "|" + e.kind)).map(([k, rs]) => { const [provider, kind] = k.split("|"); return { provider, kind, n: rs.length }; });
+  const eventCounts = Object.entries(groupBy(evs, (e) => e.provider + "|" + e.kind)).map(([k, rs]) => { const [provider, kind] = k.split("|"); return { provider, kind, n: people(rs) }; });
 
   return {
     generated: now.toISOString(),
     windowDays: WINDOW_DAYS,
     eventWindowDays: 30,
     minSamples: MIN_SAMPLES,
-    totals: { reports: recent.length, reporters: new Set(recent.map((r) => r.reporter).filter((r) => r !== "anon")).size, rejected },
+    totals: { reports: recent.length, reporters: new Set(recent.map((r) => r.reporter).filter((r) => r !== "anon")).size, established: reporterUnits(counted).length, rejected },
     speed, effortUsage, tokenMix, ratings, quota,
     events: { byHourUtc: byHour, counts: eventCounts }
   };

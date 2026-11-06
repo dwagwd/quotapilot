@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import worker, { sanitize, ipPrefix, LIMITS, visitStats, VISIT_WRITE_CAP, HIT_KEEP_DAYS, ROLLUP_KEEP_DAYS } from "../worker.js";
+import worker, { sanitize, ipPrefix, LIMITS, LEGACY_KEYS_UNTIL, visitStats, VISIT_WRITE_CAP, VISIT_RECHECK_EVERY, HIT_KEEP_DAYS, ROLLUP_KEEP_DAYS } from "../worker.js";
 
 function kv() {
   const m = new Map();
@@ -10,7 +10,12 @@ function kv() {
     ttl: new Map(),
     async put(k, v, o) { await new Promise((r) => setTimeout(r, 1)); m.set(k, v); this.ttl.set(k, o?.expirationTtl); },
     async delete(k) { m.delete(k); },
-    async list({ prefix }) { return { keys: [...m.keys()].filter((k) => k.startsWith(prefix)).map((name) => ({ name })), list_complete: true }; }
+    async list({ prefix, cursor, limit = 1000 }) {
+      const all = [...m.keys()].filter((k) => k.startsWith(prefix)).sort().filter((k) => !cursor || k > cursor);
+      const keys = all.slice(0, limit).map((name) => ({ name }));
+      const complete = all.length <= limit;
+      return { keys, list_complete: complete, cursor: complete ? undefined : keys[keys.length - 1].name };
+    }
   };
 }
 const env = () => ({ REPORTS: kv(), SALT: "test-salt", EXPORT_TOKEN: "secret-token" });
@@ -81,7 +86,20 @@ test("known reporters cost no extra KV writes", async () => {
   await worker.fetch(post({ install, reports: [good] }), e);
   let writes = 0; const put = e.REPORTS.put.bind(e.REPORTS); e.REPORTS.put = async (k, v, o) => { writes++; return put(k, v, o); };
   await worker.fetch(post({ install, reports: [good] }), e);
-  assert.equal(writes, 3); // IP counter, install counter, the report itself
+  assert.equal(writes, 3); // global day counter, install counter, the report itself (no network counter)
+});
+
+test("KV writes per accepted batch fit the free-plan budget", async () => {
+  const e = env();
+  let writes = 0; const put = e.REPORTS.put.bind(e.REPORTS); e.REPORTS.put = async (k, v, o) => { writes++; return put(k, v, o); };
+  await worker.fetch(post({ install, reports: [good] }), e);
+  assert.equal(writes, 6); // day, install, network, first-seen, new-reporter counter, the report
+  writes = 0;
+  await worker.fetch(post({ install, reports: [good] }, "5.6.7.8"), e);
+  assert.equal(writes, 3);
+  assert.equal([...e.REPORTS.m.keys()].filter((k) => k.startsWith("rl:ip:")).length, 1, "a known reporter does not write a network counter");
+  // Worst case per class: known batch 3 writes, new batch 6, forget 96 (2 counters + 94 deletes), plus the visit cap and slack.
+  assert.ok(LIMITS.knownBatchesPerDay * 3 + LIMITS.newBatchesPerDay * 6 + LIMITS.forgetsPerDay * 96 + VISIT_WRITE_CAP + LIMITS.slackWrites <= 1000);
 });
 
 test("reports carry a stable reporterFirstSeen and an ipGroup that does not contain the IP", async () => {
@@ -182,11 +200,11 @@ test("visitor hashes expire within days; only totals are kept long term", async 
   const hitKeys = [...e.REPORTS.ttl.entries()].filter(([k]) => k.startsWith("hit:"));
   assert.equal(hitKeys.length, 1);
   assert.equal(hitKeys[0][1], HIT_KEEP_DAYS * 86400);
-  // The next day the finished day is rolled up without hashes.
-  const tomorrow = new Date(Date.now() + 86400000);
+  // Ten minutes after the day ends, the finished day is rolled up without hashes.
+  const day = new Date().toISOString().slice(0, 10);
+  const tomorrow = new Date(Date.parse(day) + 86400000 + 600000);
   const stats = await visitStats(e, tomorrow);
   assert.equal(stats.views, 1);
-  const day = new Date().toISOString().slice(0, 10);
   const rollup = JSON.parse(e.REPORTS.m.get("visits:" + day));
   assert.deepEqual(rollup, { views: 1, visitors: 1, capped: false });
   assert.equal(e.REPORTS.ttl.get("visits:" + day), ROLLUP_KEEP_DAYS * 86400);
@@ -214,7 +232,7 @@ test("today's old-format record is combined with new per-visit keys", async () =
   assert.equal(stats.views, 4);
   assert.equal(stats.visitors, 4);
   // After the day ends it rolls up into one final record.
-  stats = await visitStats(e, new Date(Date.now() + 86400000));
+  stats = await visitStats(e, new Date(Date.parse(today) + 86400000 + 600000));
   assert.deepEqual(JSON.parse(e.REPORTS.m.get("visits:" + today)), { views: 4, visitors: 4, capped: false });
 });
 
@@ -270,4 +288,333 @@ test("reports dated in the future or more than 8 days back are refused", async (
   const future = { ...good, date: new Date(Date.now() + 3 * 864e5).toISOString() };
   const res = await worker.fetch(post({ install, reports: [old, future, good] }), e);
   assert.equal((await res.json()).accepted, 1);
+});
+
+test("event reports may carry resetAt, cut to the hour", () => {
+  assert.equal(sanitize({ type: "event", kind: "reset", resetAt: "2026-11-06T10:42:13.123Z" }).resetAt, "2026-11-06T10:00:00Z");
+  assert.equal(sanitize({ type: "event", resetAt: "not a date" }).resetAt, undefined);
+  assert.equal(sanitize({ type: "event", resetAt: 12345 }).resetAt, undefined);
+});
+
+test("reports are stored under r:<reporter>:<day>:<uuid>", async () => {
+  const e = env();
+  await worker.fetch(post({ install, reports: [good] }), e);
+  const key = [...e.REPORTS.m.keys()].find((k) => k.startsWith("r:"));
+  assert.match(key, /^r:anon-[0-9a-f]{16}:\d{4}-\d{2}-\d{2}:[0-9a-f-]{36}$/);
+});
+
+test("forget lists by reporter prefix plus a bounded scan of old date-prefixed keys", async () => {
+  const e = env();
+  await worker.fetch(post({ install, reports: [good] }), e);
+  await worker.fetch(post({ install: installN(7), reports: [good] }, "5.6.7.8"), e);
+  const keys = () => [...e.REPORTS.m.keys()].filter((k) => k.startsWith("r:"));
+  const mineKey = keys()[0];
+  const reporter = mineKey.split(":")[1];
+  e.REPORTS.m.set("r:2026-11-01:" + reporter + ":old-uuid", "[]");
+  e.REPORTS.m.set("r:2026-11-01:anon-0000000000000000:other-uuid", "[]");
+  const prefixes = [];
+  const list = e.REPORTS.list.bind(e.REPORTS);
+  e.REPORTS.list = async (o) => { prefixes.push(o.prefix); return list(o); };
+  const res = await worker.fetch(new Request("https://c.example/v1/forget", { method: "POST", body: JSON.stringify({ install }), headers: { "CF-Connecting-IP": "1.2.3.4" } }), e);
+  assert.equal(res.status, 200);
+  assert.equal((await res.json()).deleted, 2);
+  assert.deepEqual(prefixes, ["r:" + reporter + ":", "r:20"]);
+  assert.equal(keys().length, 2, "the other reporter's new key and the other old-format key remain");
+  assert.ok(!keys().some((k) => k.includes(reporter)));
+});
+
+test("forget removes old-format keys beyond the first 1,000", async () => {
+  const e = env();
+  await worker.fetch(post({ install, reports: [good] }), e);
+  const reporter = [...e.REPORTS.m.keys()].find((k) => k.startsWith("r:")).split(":")[1];
+  for (let i = 0; i < 1100; i++) e.REPORTS.m.set("r:2026-10-01:anon-0000000000000000:u" + i, "[]");
+  for (let i = 0; i < 3; i++) e.REPORTS.m.set("r:2026-11-02:" + reporter + ":u" + i, "[]");
+  let oldLists = 0;
+  const list = e.REPORTS.list.bind(e.REPORTS);
+  e.REPORTS.list = async (o) => { if (o.prefix === "r:20") oldLists++; return list(o); };
+  const res = await worker.fetch(new Request("https://c.example/v1/forget", { method: "POST", body: JSON.stringify({ install }), headers: { "CF-Connecting-IP": "1.2.3.4" } }), e);
+  assert.equal(res.status, 200);
+  assert.equal((await res.json()).deleted, 4);
+  assert.ok(oldLists >= 2, "walked past the first page");
+  const left = [...e.REPORTS.m.keys()].filter((k) => k.startsWith("r:"));
+  assert.ok(!left.some((k) => k.includes(reporter)));
+  assert.equal(left.length, 1100);
+});
+
+test("once the cap is reached the hit path stops listing and caches that until UTC midnight", async () => {
+  const store = new Map(); const cacheControl = [];
+  globalThis.caches = { default: {
+    async match(u) { const r = store.get(u); return r ? r.clone() : undefined; },
+    async put(u, r) { cacheControl.push(r.headers.get("Cache-Control")); store.set(u, r); }
+  } };
+  const realNow = Date.now; let offset = 0;
+  Date.now = () => realNow() + offset;
+  try {
+    const e = env();
+    let lists = 0;
+    const list = e.REPORTS.list.bind(e.REPORTS);
+    e.REPORTS.list = async (o) => { lists++; return list(o); };
+    const hit = (i) => worker.fetch(new Request("https://x/api/v1/hit", { method: "POST", headers: { "CF-Connecting-IP": "10.0." + Math.floor(i / 250) + "." + (i % 250) } }), e);
+    for (let i = 0; i < VISIT_WRITE_CAP; i++) { await hit(i); if (i === 10 || i === 300) offset += 61000; }
+    assert.equal(lists, VISIT_WRITE_CAP / VISIT_RECHECK_EVERY, "listed when there was no counter and again after every 50 accepted hits");
+    const listsAtCap = lists;
+    const now = Date.now();
+    const expected = Math.max(60, Math.ceil((Date.parse(new Date(now).toISOString().slice(0, 10)) + 86400000 - now) / 1000));
+    assert.ok(Math.abs(Number(cacheControl.at(-1).match(/max-age=(\d+)/)[1]) - expected) <= 5, "capped state is cached until UTC midnight");
+    offset += 61000;
+    for (let i = 0; i < 20; i++) assert.equal((await (await hit(VISIT_WRITE_CAP + i)).json()).capped, true);
+    assert.equal(lists, listsAtCap, "no further listing once the cap is known");
+    assert.equal([...e.REPORTS.m.keys()].filter((k) => k.startsWith("hit:")).length, VISIT_WRITE_CAP);
+  } finally {
+    Date.now = realNow;
+    delete globalThis.caches;
+  }
+});
+
+test("a looping install is stopped by its own limit before it uses the network's budget", async () => {
+  const e = env();
+  for (let i = 0; i < LIMITS.perInstallPerDay + 3; i++) await worker.fetch(post({ install, reports: [good] }), e);
+  const ipKeys = [...e.REPORTS.m.entries()].filter(([k]) => k.startsWith("rl:ip:"));
+  assert.equal(ipKeys.length, 1);
+  assert.equal(ipKeys[0][1], "1", "only the first (new-reporter) batch touched the network counter");
+});
+
+test("IPv6 addresses in one /48 share the network limits", async () => {
+  const e = env();
+  const addrs = ["2001:db8:abcd:1::1", "2001:db8:abcd:2::2", "2001:db8:abcd:ffff:1:2:3:4"];
+  const codes = [];
+  for (let i = 0; i < addrs.length; i++) codes.push((await worker.fetch(post({ install: installN(i + 1), reports: [good] }, addrs[i]), e)).status);
+  assert.deepEqual(codes, [200, 200, 429]);
+  assert.equal((await worker.fetch(post({ install: installN(4), reports: [good] }, "2001:db8:abce::1"), e)).status, 200);
+  const dump = [...e.REPORTS.m.keys()].join(" ") + [...e.REPORTS.m.values()].join(" ");
+  assert.ok(!dump.includes("2001:db8"));
+});
+
+test("each reporter class has its own daily cap, refused with 429 {full:true} before writing anything", async () => {
+  const e = env();
+  const day = new Date().toISOString().slice(0, 10);
+  assert.equal((await worker.fetch(post({ install, reports: [good] }), e)).status, 200);
+  assert.equal(e.REPORTS.m.get("rl:day:new:" + day), "1");
+  // New class full: another new reporter is refused, nothing written.
+  e.REPORTS.m.set("rl:day:new:" + day, String(LIMITS.newBatchesPerDay));
+  let before = [...e.REPORTS.m.keys()];
+  let res = await worker.fetch(post({ install: installN(2), reports: [good] }, "5.5.5.5"), e);
+  assert.equal(res.status, 429);
+  assert.deepEqual(await res.json(), { error: "collector is full for today", full: true });
+  assert.deepEqual([...e.REPORTS.m.keys()], before);
+  // ...but a reporter on record still gets in, through the known counter.
+  assert.equal((await worker.fetch(post({ install, reports: [good] }), e)).status, 200);
+  assert.equal(e.REPORTS.m.get("rl:day:known:" + day), "1");
+  // Known class full.
+  e.REPORTS.m.set("rl:day:known:" + day, String(LIMITS.knownBatchesPerDay));
+  before = [...e.REPORTS.m.keys()];
+  res = await worker.fetch(post({ install, reports: [good] }), e);
+  assert.equal(res.status, 429);
+  assert.deepEqual(await res.json(), { error: "collector is full for today", full: true });
+  assert.deepEqual([...e.REPORTS.m.keys()], before);
+  e.REPORTS.m.set("rl:day:known:" + day, String(LIMITS.knownBatchesPerDay - 1));
+  assert.equal((await worker.fetch(post({ install, reports: [good] }), e)).status, 200);
+  assert.equal(e.REPORTS.m.get("rl:day:known:" + day), String(LIMITS.knownBatchesPerDay));
+  assert.equal((await worker.fetch(post({ install, reports: [good] }), e)).status, 429);
+});
+
+test("via is decided by the request's Origin, not by the client", async () => {
+  const viaFor = async (via, origin) => {
+    const e = env();
+    assert.equal((await worker.fetch(post({ install, reports: [{ ...good, via }] }, "1.2.3.4", origin), e)).status, 200);
+    return storedRows(e)[0].via;
+  };
+  assert.equal(await viaFor("quotapilot", "https://aiquotawatch.pages.dev"), "site");
+  assert.equal(await viaFor("quotapilot", "https://dwagwd.github.io"), "site");
+  assert.equal(await viaFor("site", undefined), "quotapilot");
+  assert.equal(await viaFor("site", "http://localhost:8765"), "quotapilot");
+  assert.equal(await viaFor("site", "http://127.0.0.1:8765"), "quotapilot");
+  assert.equal(await viaFor("site", "https://evil.example"), "quotapilot");
+});
+
+test("visits are served from rollups and the cached today counter without KV list calls", async () => {
+  const store = new Map();
+  globalThis.caches = { default: {
+    async match(u) { const r = store.get(u); return r ? r.clone() : undefined; },
+    async put(u, r) { store.set(u, r); }
+  } };
+  try {
+    const e = env();
+    const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
+    e.REPORTS.m.set("hit:" + yesterday + ":aaaaaaaaaaaa:u1", "");
+    e.REPORTS.m.set("hit:" + yesterday + ":bbbbbbbbbbbb:u2", "");
+    // A visit today primes the cached today counter.
+    await worker.fetch(new Request("https://x/api/v1/hit", { method: "POST", headers: { "CF-Connecting-IP": "9.9.9.9" } }), e);
+    // The first call rolls the finished days up once.
+    const first = await visitStats(e);
+    assert.equal(first.views, 3);
+    assert.equal(first.visitors, 3);
+    assert.deepEqual(JSON.parse(e.REPORTS.m.get("visits:" + yesterday)), { views: 2, visitors: 2, capped: false });
+    let lists = 0;
+    const list = e.REPORTS.list.bind(e.REPORTS);
+    e.REPORTS.list = async (o) => { lists++; return list(o); };
+    const again = await visitStats(e);
+    assert.equal(again.views, 3);
+    assert.equal(lists, 0);
+    const res = await worker.fetch(new Request("https://x/api/v1/visits"), e);
+    const body = await res.json();
+    assert.equal(body.views, 3);
+    assert.equal(body.days.length, 7);
+    assert.equal(res.headers.get("Cache-Control"), "public, max-age=300");
+    assert.equal(lists, 0);
+    // The whole response is cached: a later hit does not change it within the window.
+    e.REPORTS.m.set("visits:" + yesterday, JSON.stringify({ views: 50, visitors: 50, capped: false }));
+    assert.equal((await (await worker.fetch(new Request("https://x/api/v1/visits"), e)).json()).views, 3);
+  } finally {
+    delete globalThis.caches;
+  }
+});
+
+function fakeCache() {
+  const store = new Map();
+  globalThis.caches = { default: {
+    async match(u) { const r = store.get(u); return r ? r.clone() : undefined; },
+    async put(u, r) { store.set(u, r); }
+  } };
+  return store;
+}
+
+test("the hit path re-lists today's keys every 50 accepted hits, so the global overshoot stays bounded", async () => {
+  fakeCache();
+  try {
+    const e = env();
+    const today = new Date().toISOString().slice(0, 10);
+    let lists = 0;
+    const list = e.REPORTS.list.bind(e.REPORTS);
+    e.REPORTS.list = async (o) => { lists++; return list(o); };
+    // Distinct visitors: repeat visitors are counted in the cache only and do not count as accepted (written) hits.
+    const hit = (n) => worker.fetch(new Request("https://x/api/v1/hit", { method: "POST", headers: { "CF-Connecting-IP": "20.0.0." + n } }), e);
+    await hit(0);
+    // Other data centers fill the day up to the cap while this one only counts its own hits.
+    for (let i = 0; i < VISIT_WRITE_CAP; i++) e.REPORTS.m.set("hit:" + today + ":zzzzzzzzzzzz:o" + i, "");
+    for (let i = 1; i < VISIT_RECHECK_EVERY; i++) await hit(i);
+    assert.equal(lists, 1, "no relisting before 50 accepted hits");
+    const res = await hit(VISIT_RECHECK_EVERY);
+    assert.equal((await res.json()).capped, true);
+    assert.equal(lists, 2, "relisted after 50 accepted hits");
+    const hitKeys = [...e.REPORTS.m.keys()].filter((k) => k.startsWith("hit:")).length;
+    assert.equal(hitKeys, VISIT_WRITE_CAP + VISIT_RECHECK_EVERY, "overshoot is at most 50 for this data center");
+  } finally {
+    delete globalThis.caches;
+  }
+});
+
+test("the stats path never lists today when an entry exists, and lists once when there is none", async () => {
+  const store = fakeCache();
+  try {
+    const e = env();
+    const today = new Date().toISOString().slice(0, 10);
+    await worker.fetch(new Request("https://x/api/v1/hit", { method: "POST", headers: { "CF-Connecting-IP": "9.9.9.9" } }), e);
+    for (let i = 0; i < 5; i++) e.REPORTS.m.set("hit:" + today + ":cccccccccccc:o" + i, "");
+    let todayLists = 0;
+    const list = e.REPORTS.list.bind(e.REPORTS);
+    e.REPORTS.list = async (o) => { if (o.prefix === "hit:" + today + ":") todayLists++; return list(o); };
+    let stats = await visitStats(e);
+    assert.equal(todayLists, 0);
+    assert.equal(stats.views, 1, "served from the running counter, approximate until the rollup");
+    assert.equal(stats.visitors, 1);
+    // With no entry at all, today is listed once and the result is kept.
+    store.clear();
+    stats = await visitStats(e);
+    assert.equal(todayLists, 1);
+    assert.equal(stats.views, 6);
+    await visitStats(e);
+    assert.equal(todayLists, 1);
+  } finally {
+    delete globalThis.caches;
+  }
+});
+
+test("forget has its own small daily cap, refused with 429 {full:true}", async () => {
+  const e = env();
+  for (let i = 1; i <= LIMITS.forgetsPerDay + 1; i++) assert.equal((await worker.fetch(post({ install: installN(i), reports: [good] }, "9.9." + i + ".1"), e)).status, 200);
+  const forget = (n, ip) => new Request("https://c.example/v1/forget", { method: "POST", body: JSON.stringify({ install: installN(n) }), headers: { "CF-Connecting-IP": ip } });
+  const codes = [];
+  for (let i = 1; i <= LIMITS.forgetsPerDay; i++) {
+    const res = await worker.fetch(forget(i, "7.7.7." + i), e);
+    codes.push(res.status);
+    assert.equal((await res.json()).deleted, 1);
+  }
+  assert.deepEqual(codes, Array(LIMITS.forgetsPerDay).fill(200));
+  const left = [...e.REPORTS.m.keys()].filter((k) => k.startsWith("r:")).length;
+  const res = await worker.fetch(forget(LIMITS.forgetsPerDay + 1, "8.8.8.8"), e);
+  assert.equal(res.status, 429);
+  assert.deepEqual(await res.json(), { error: "collector is full for today", full: true });
+  assert.equal([...e.REPORTS.m.keys()].filter((k) => k.startsWith("r:")).length, left, "a refused forget deletes nothing");
+});
+
+test("forgets for unknown ids delete nothing, use no counters, and do not block a real forget", async () => {
+  const e = env();
+  assert.equal((await worker.fetch(post({ install, reports: [good] }), e)).status, 200);
+  const forget = (id) => new Request("https://c.example/v1/forget", { method: "POST", body: JSON.stringify({ install: id }), headers: { "CF-Connecting-IP": "1.2.3.4" } });
+  let writes = 0;
+  const put = e.REPORTS.put.bind(e.REPORTS);
+  e.REPORTS.put = async (k, v, o) => { writes++; return put(k, v, o); };
+  for (let i = 0; i < 5; i++) {
+    const res = await worker.fetch(forget(crypto.randomUUID()), e);
+    assert.equal(res.status, 200);
+    assert.deepEqual(await res.json(), { ok: true, deleted: 0 });
+  }
+  assert.equal(writes, 0);
+  assert.ok(![...e.REPORTS.m.keys()].some((k) => k.startsWith("rl:forget")), "no forget counter was written");
+  const res = await worker.fetch(forget(install), e);
+  assert.equal(res.status, 200);
+  assert.equal((await res.json()).deleted, 1);
+  assert.equal(e.REPORTS.m.get("rl:forget-day:" + new Date().toISOString().slice(0, 10)), "1");
+});
+
+test("50 hits from one IP write one key", async () => {
+  fakeCache();
+  try {
+    const e = env();
+    let writes = 0;
+    const put = e.REPORTS.put.bind(e.REPORTS);
+    e.REPORTS.put = async (k, v, o) => { writes++; return put(k, v, o); };
+    for (let i = 0; i < 50; i++) assert.equal((await worker.fetch(new Request("https://x/api/v1/hit", { method: "POST", headers: { "CF-Connecting-IP": "1.1.1.1" } }), e)).status, 200);
+    assert.equal(writes, 1);
+    assert.equal([...e.REPORTS.m.keys()].filter((k) => k.startsWith("hit:")).length, 1);
+    const stats = await visitStats(e);
+    assert.equal(stats.views, 50);
+    assert.equal(stats.visitors, 1);
+  } finally {
+    delete globalThis.caches;
+  }
+});
+
+test("a day is rolled up only 5 minutes after its UTC midnight end", async () => {
+  const e = env();
+  const day = new Date().toISOString().slice(0, 10);
+  await worker.fetch(new Request("https://x/api/v1/hit", { method: "POST", headers: { "CF-Connecting-IP": "4.4.4.4" } }), e);
+  const end = Date.parse(day) + 86400000;
+  let stats = await visitStats(e, new Date(end + 60000));
+  assert.equal(e.REPORTS.m.has("visits:" + day), false, "not rolled up one minute after midnight");
+  assert.equal(stats.days.find((r) => r.day === day).views, 1, "served from the running counter meanwhile");
+  stats = await visitStats(e, new Date(end + 6 * 60000));
+  assert.deepEqual(JSON.parse(e.REPORTS.m.get("visits:" + day)), { views: 1, visitors: 1, capped: false });
+  assert.equal(stats.days.find((r) => r.day === day).views, 1);
+});
+
+test("forget stops walking the old r:20 keys from LEGACY_KEYS_UNTIL", async () => {
+  const e = env();
+  await worker.fetch(post({ install, reports: [good] }), e);
+  const reporter = [...e.REPORTS.m.keys()].find((k) => k.startsWith("r:")).split(":")[1];
+  e.REPORTS.m.set("r:2026-11-01:" + reporter + ":old-uuid", "[]");
+  const prefixes = [];
+  const list = e.REPORTS.list.bind(e.REPORTS);
+  e.REPORTS.list = async (o) => { prefixes.push(o.prefix); return list(o); };
+  const realNow = Date.now;
+  Date.now = () => Date.parse(LEGACY_KEYS_UNTIL + "T00:00:00Z") + 1000;
+  try {
+    const res = await worker.fetch(new Request("https://c.example/v1/forget", { method: "POST", body: JSON.stringify({ install }), headers: { "CF-Connecting-IP": "1.2.3.4" } }), e);
+    assert.equal(res.status, 200);
+    assert.equal((await res.json()).deleted, 1);
+    assert.deepEqual(prefixes, ["r:" + reporter + ":"]);
+  } finally {
+    Date.now = realNow;
+  }
 });

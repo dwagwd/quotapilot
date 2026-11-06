@@ -1,6 +1,19 @@
 # Release checklist
 
-**From 0.6.3 releases are source only.** Bump `VERSION`, the plugin manifest, the CLI `version` constant, `CHANGELOG.md` and the `tag:` in [`Formula/quotapilot.rb`](../Formula/quotapilot.rb), run `./scripts/check.sh`, then push the `vX.Y.Z` tag. Homebrew compiles the app on each user's Mac, so nothing is signed with a personal Developer ID and no binary carries the maintainer's machine paths. The signed-build notes below are kept only for a future organization account.
+**From 0.6.3 releases are source only.** Bump `VERSION`, the plugin manifest, the CLI `version` constant, `CHANGELOG.md` and the `tag:` in [`Formula/quotapilot.rb`](../Formula/quotapilot.rb) (its `revision:` stays the all-zero placeholder until the tag exists), run `./scripts/check.sh`, then tag and pin as described in [Source-only release steps](#source-only-release-steps). Homebrew compiles the app on each user's Mac, so nothing is signed with a personal Developer ID and no binary carries the maintainer's machine paths. The signed-build notes below are kept only for a future organization account.
+
+## Source-only release steps
+
+The formula lives in this repository, so it cannot contain the hash of the commit that includes it. The tag therefore points at the release commit, and the next commit pins the formula to it:
+
+1. Bump the versions and `CHANGELOG.md`. In the formula set `tag: "vX.Y.Z"` and keep `revision: "0000000000000000000000000000000000000000"`.
+2. Run `./scripts/check.sh`. `scripts/check-release.py` accepts the placeholder only while the `vX.Y.Z` tag does not exist locally.
+3. Commit and create the tag on that release commit: `git tag vX.Y.Z`.
+4. Run `./scripts/pin-formula.sh vX.Y.Z`. It resolves `git rev-parse "vX.Y.Z^{commit}"`, rewrites both `tag:` and `revision:` in the formula, and refuses to run if the tag does not exist.
+5. Commit the pinned formula (for example `Pin formula to vX.Y.Z`) and run `./scripts/check.sh` again; it now requires the formula's revision to equal the tag's commit.
+6. Push `main` and the tag.
+
+Never move or re-create a published tag. Homebrew refuses a tag/revision mismatch, and the check fails if the revision no longer matches.
 
 ## Local preparation
 

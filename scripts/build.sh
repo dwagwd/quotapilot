@@ -10,14 +10,23 @@ APP_VERSION="${QUOTAPILOT_APP_VERSION:-$(cat "$PLUGIN_ROOT/VERSION")}"  # overri
 # QUOTAPILOT_UNIVERSAL=1 builds one arm64 + x86_64 binary (needs Xcode, not only the CLT).
 ARCH_FLAGS=()
 if [ "${QUOTAPILOT_UNIVERSAL:-0}" = "1" ]; then ARCH_FLAGS=(--arch arm64 --arch x86_64); fi
-swift build --scratch-path "$BUILD_CACHE" -c release --disable-index-store --jobs 2 ${ARCH_FLAGS[@]+"${ARCH_FLAGS[@]}"}
-BIN_DIR="$(swift build --scratch-path "$BUILD_CACHE" -c release --show-bin-path ${ARCH_FLAGS[@]+"${ARCH_FLAGS[@]}"})"
+# Published binaries must not carry this machine's paths (user name, folder names): map the source and
+# build folders to neutral names, and strip debug symbols, which otherwise point at the object files.
+PREFIX_FLAGS=(-Xswiftc -file-prefix-map -Xswiftc "$PLUGIN_ROOT=quotapilot" -Xswiftc -file-prefix-map -Xswiftc "$BUILD_CACHE=build")
+swift build --scratch-path "$BUILD_CACHE" -c release --disable-index-store --jobs 2 "${PREFIX_FLAGS[@]}" ${ARCH_FLAGS[@]+"${ARCH_FLAGS[@]}"}
+BIN_DIR="$(swift build --scratch-path "$BUILD_CACHE" -c release --show-bin-path "${PREFIX_FLAGS[@]}" ${ARCH_FLAGS[@]+"${ARCH_FLAGS[@]}"})"
 APP="$DIST_DIR/QuotaPilot.app"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources" "$APP/Contents/Helpers"
 cp "$BIN_DIR/QuotaPilotApp" "$APP/Contents/MacOS/QuotaPilot"
 # The `quotapilot` command-line tool (status, share, ...). Homebrew links it onto PATH (see Casks/quotapilot.rb).
 # It lives in Helpers because Contents/MacOS/quotapilot would collide with QuotaPilot on case-insensitive volumes.
 cp "$BIN_DIR/quotapilot" "$APP/Contents/Helpers/quotapilot"
+strip -S "$APP/Contents/MacOS/QuotaPilot" "$APP/Contents/Helpers/quotapilot"
+for bin in "$APP/Contents/MacOS/QuotaPilot" "$APP/Contents/Helpers/quotapilot"; do
+  if LC_ALL=C grep -a -q -E "$HOME|$PLUGIN_ROOT|$BUILD_CACHE" "$bin"; then
+    echo "error: $bin still contains a local path; refusing to package it" >&2; exit 1
+  fi
+done
 # Bundled so "Connect agents…" can install status-line bridges without a source checkout.
 cp "$PLUGIN_ROOT/scripts/provider_bridge.py" "$PLUGIN_ROOT/scripts/setup-provider.py" "$APP/Contents/Resources/"
 cp "$PLUGIN_ROOT/assets/AppIcon.icns" "$APP/Contents/Resources/AppIcon.icns"

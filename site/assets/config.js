@@ -5,7 +5,7 @@
 window.SITE_CONFIG = {
   // Sponsor link shown in the nav, hero, support card, footer and the community invite.
   // Empty url hides every sponsor element. Only https:// URLs are used. Empty label = the translated default ("Sponsor").
-  sponsor: { url: "https://github.com/sponsors/dwagwd", label: "" },
+  sponsor: { url: "", label: "" },  // set to the Polar/Ko-fi page when it exists (GitHub Sponsors does not pay out to Taiwan)
   // Homebrew install box (hero and community invite). The Copy button joins the lines with " && ".
   install: {
     commands: [

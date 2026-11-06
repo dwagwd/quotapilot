@@ -51,8 +51,8 @@ test("one reporter cannot stack the same stat on one day", () => {
   assert.equal(out.ratings[0].avg, 6.3);
 });
 
-test("degradation alert fires at 30% of recent ratings", () => {
-  const raw = [1, 2, 3].map((i) => ({ type: "rating", model: "claude-opus-5-5", score: 5, degraded: i === 1, date: day(i), reporter: "u" + i }));
+test("degradation alert fires at 30% of recent ratings once enough people say so", () => {
+  const raw = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((i) => ({ type: "rating", model: "claude-opus-5-5", score: 5, degraded: i <= 3, date: day(1 + (i % 3)), reporter: "u" + i }));
   assert.equal(aggregate(raw, models, now).ratings[0].alert, true);
 });
 
@@ -110,7 +110,7 @@ const fromCollector = (reporter, ipGroup, { d = 1, firstSeenAgo = 5, tokens = 10
 });
 
 test("many reporters from one network on one day count as one person", () => {
-  const fakes = [1, 2, 3, 4, 5].map((i) => fromCollector("anon-fake" + i, "aaaaaaaa", { tokens: 5000 }));
+  const fakes = [1, 2, 3, 4, 5].map((i) => fromCollector("anon-fake" + i, "aaaaaaaa", { tokens: 3000 }));
   assert.equal(aggregate(fakes, models, now).speed.length, 0, "five install ids on one network cannot publish");
   const raw = [...fakes, fromCollector("anon-real1", "bbbbbbbb"), fromCollector("anon-real2", "cccccccc")];
   const [row] = aggregate(raw, models, now).speed;
@@ -150,7 +150,7 @@ test("legacy reports without the new fields still count", () => {
 
 test("each person counts once per row, and report count is kept separately", () => {
   const raw = [
-    ...[1, 2, 3, 4, 5].map((i) => ({ type: "speed", model: "gpt-6-1-sol", outputTokens: 5000, seconds: 10, date: day(i), reporter: "heavy" })),
+    ...[1, 2, 3, 4, 5].map((i) => ({ type: "speed", model: "gpt-6-1-sol", outputTokens: 3000, seconds: 10, date: day(i), reporter: "heavy" })),
     { type: "speed", model: "gpt-6-1-sol", outputTokens: 1000, seconds: 10, date: day(1), reporter: "a" },
     { type: "speed", model: "gpt-6-1-sol", outputTokens: 1000, seconds: 10, date: day(1), reporter: "b" }
   ];
@@ -186,4 +186,26 @@ test("limit events stay hidden until three people report them for a provider", (
   assert.deepEqual(one.events.counts, []);
   const three = aggregate([ev("a", 1), ev("b", 2), ev("c", 3)], models, now);
   assert.equal(three.events.byHourUtc.chatgpt.reduce((a, b) => a + b, 0), 3);
+});
+
+test("implausible or backdated reports are dropped before they reach a row", () => {
+  const base = { type: "speed", model: "claude-opus-5-5", calls: 10, receivedDay: "2026-11-02", date: "2026-11-02T08:00:00Z" };
+  assert.ok(clean({ ...base, outputTokens: 10000, seconds: 200 }, models), "50 tok/s is fine");
+  assert.equal(clean({ ...base, outputTokens: 1e7, seconds: 10 }, models), null, "1M tok/s is not");
+  assert.equal(clean({ ...base, outputTokens: 10000, seconds: 20000 }, models), null, "2000 s per call is not");
+  assert.equal(clean({ ...base, outputTokens: 10000, seconds: 200, date: "2026-10-01T00:00:00Z" }, models), null, "backdated");
+  assert.equal(clean({ ...base, outputTokens: 10000, seconds: 200, date: "2026-11-05T00:00:00Z" }, models), null, "from the future");
+  const r = clean({ ...base, outputTokens: 10000, seconds: 200, inputTokens: 1e11, cacheReadTokens: 0, cacheWriteTokens: 0 }, models);
+  assert.equal(r.inputPerOutput, null, "absurd prompt totals are ignored, speed is kept");
+  assert.equal(clean({ type: "quota", provider: "claude", plan: "Max", window: "5h", percentUsed: 0.5, tokensUsed: 1e9, date: day(1) }, models), null);
+});
+
+test("a feels-worse warning needs five people and three of them saying so", () => {
+  const rate = (who, degraded) => ({ type: "rating", model: "grok-4-7", score: 5, degraded, date: day(1), reporter: who });
+  const two = aggregate([rate("a", true), rate("b", true), rate("c", false), rate("d", false), rate("e", false)], models, now);
+  assert.equal(two.ratings[0].alert, false);
+  const three = aggregate([rate("a", true), rate("b", true), rate("c", true), rate("d", false), rate("e", false)], models, now);
+  assert.equal(three.ratings[0].alert, true);
+  const few = aggregate([rate("a", true), rate("b", true), rate("c", true)], models, now);
+  assert.equal(few.ratings[0].alert, false, "three people make a row, not a warning");
 });

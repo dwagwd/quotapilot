@@ -29,3 +29,7 @@ imports `worker.js`; bindings in `site/wrangler.toml`). It receives `quotapilot 
 
 Deploys with the site (`.github/workflows/site-pages.yml`). Secrets: `SALT` and `EXPORT_TOKEN` on the Pages
 project, and the matching `COLLECTOR_TOKEN` Actions secret. Tests: `node --test test/worker.test.mjs`.
+
+## Data quality
+
+The collector refuses reports dated in the future or more than 8 days back. `site/scripts/aggregate.mjs` then drops impossible values (speed above 4× the model's benchmark or 2,000 tok/s, calls longer than 15 minutes, absurd prompt or quota totals), counts each person once with their median, trims outliers, merges reporters sharing a network on the same day, waits until a reporter has been seen on two days, and publishes a row only from 3 people (a "feels worse" warning from 5, at least 3 of whom report it).

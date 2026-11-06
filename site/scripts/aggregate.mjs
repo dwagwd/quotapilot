@@ -6,6 +6,9 @@ import { fileURLToPath } from "node:url";
 
 export const WINDOW_DAYS = 7;
 export const MIN_SAMPLES = 3;
+// A "feels worse" warning is a strong public claim, so it needs more people than a plain row, and at least
+// MIN_SAMPLES of them must say so themselves.
+export const ALERT_MIN_PEOPLE = 5;
 export const TYPES = ["speed", "rating", "quota", "event"];
 export const PROVIDERS = ["chatgpt", "claude", "gemini", "grok"];
 export const EFFORTS = ["minimal", "low", "medium", "high", "xhigh", "max", "ultra"];
@@ -35,6 +38,10 @@ export function clean(r, models) {
   if (!r || !TYPES.includes(r.type)) return null;
   const date = new Date(r.date);
   if (isNaN(date)) return null;
+  // A report may not claim a time in the future or long before the collector received it (backdating would
+  // let one sender fill old days that are already published).
+  const received = typeof r.receivedDay === "string" && /^\d{4}-\d{2}-\d{2}$/.test(r.receivedDay) ? new Date(r.receivedDay + "T23:59:59Z") : null;
+  if (received && (date > new Date(received.getTime() + 3600e3) || date < new Date(received.getTime() - 9 * 864e5))) return null;
   const model = models.find((m) => m.id === r.model);
   const dayOf = (v) => (typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : null);
   const base = { type: r.type, date: date.toISOString(), provider: (r.type === "quota" || r.type === "event") && r.provider ? r.provider : model ? model.provider : r.provider, model: r.model || null, reporter: r.reporter || "anon",
@@ -45,11 +52,16 @@ export function clean(r, models) {
     const tokens = num(r.outputTokens, 50, 1e9), secs = num(r.seconds, 0.2, 31 * 86400);
     if (!model || tokens == null || secs == null) return null;
     const calls = num(r.calls, 1, 1e7) || 1;
+    // Plausibility, so one sender cannot drag a row with impossible numbers: speed must be in a range real
+    // agents reach (and at most 4× the model's benchmark speed when known), and calls must look like real calls.
+    const tps = tokens / secs, cap = model.speed ? Math.min(2000, model.speed * 4) : 2000;
+    if (tps < 1 || tps > cap || tokens / calls > 200000 || secs / calls > 900 || secs / calls < 0.2) return null;
     const effort = EFFORTS.includes(r.effort) ? r.effort : null;
     const reasoning = num(r.reasoningTokens, 0, tokens);
     // Prompt side (QuotaPilot 0.6.3+): new input, cache reads and cache writes, as totals for the same calls.
     const inp = num(r.inputTokens, 0, 1e12), cRead = num(r.cacheReadTokens, 0, 1e12), cWrite = num(r.cacheWriteTokens, 0, 1e12);
-    const prompt = inp != null && cRead != null && cWrite != null ? inp + cRead + cWrite : null;
+    let prompt = inp != null && cRead != null && cWrite != null ? inp + cRead + cWrite : null;
+    if (prompt != null && (prompt / tokens > 5000 || prompt / calls > 5e6)) prompt = null;  // implausible prompt side: dropped, speed kept
     return { ...base, client: String(r.client || "").slice(0, 40), tps: tokens / secs, effort, calls, perCall: tokens / calls, reasoningShare: reasoning != null ? reasoning / tokens : null,
       inputPerOutput: prompt ? prompt / tokens : null, cacheHit: prompt ? cRead / prompt : null, cacheWriteShare: prompt ? cWrite / prompt : null };
   }
@@ -62,6 +74,7 @@ export function clean(r, models) {
     const pct = num(r.percentUsed, 0.5, 100), tokens = num(r.tokensUsed, 1000, 1e10);
     if (!r.plan || !["5h", "weekly"].includes(r.window) || pct == null || tokens == null) return null;
     const est = tokens / (pct / 100);
+    if (est > 5e10) return null;  // no plan window holds 50B tokens
     const price = model && model.input != null ? (r.inputShare != null ? num(r.inputShare, 0, 1) : 0.8) : null;
     const usd = price != null ? (est * price * model.input + est * (1 - price) * model.output) / 1e6 : null;
     return { ...base, plan: String(r.plan).slice(0, 30), window: r.window, estTokens: est, estUsd: usd };
@@ -185,7 +198,7 @@ export function aggregate(raw, models, now = new Date(), blocked = []) {
       const degraded = byReporter(rs).map((mine) => mine.filter((r) => r.degraded).length / mine.length);
       const degradedShare = degraded.reduce((a, v) => a + v, 0) / degraded.length;
       const n = scores.length;
-      return { model, n, reports: rs.length, avg: round(scores.reduce((a, v) => a + v, 0) / n), degradedShare: round(degradedShare, 2), alert: n >= MIN_SAMPLES && degradedShare >= 0.3 };
+      return { model, n, reports: rs.length, avg: round(scores.reduce((a, v) => a + v, 0) / n), degradedShare: round(degradedShare, 2), alert: n >= ALERT_MIN_PEOPLE && degraded.filter((v) => v > 0).length >= MIN_SAMPLES && degradedShare >= 0.3 };
     })
     .filter((s) => s.n >= MIN_SAMPLES).sort((a, b) => b.avg - a.avg);
 

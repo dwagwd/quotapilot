@@ -63,7 +63,10 @@ async function report(request, env) {
   try { body = JSON.parse(text); } catch { return json(request, 400, { error: "invalid JSON" }); }
   const install = typeof body?.install === "string" && /^[A-Za-z0-9-]{16,64}$/.test(body.install) ? body.install : null;
   if (!install) return json(request, 400, { error: "missing install id" });
-  const reports = (Array.isArray(body.reports) ? body.reports : []).slice(0, LIMITS.reports).map(sanitize).filter(Boolean);
+  // Reports must describe the last 8 days, not the future or older days that are already published.
+  const nowMs = Date.now();
+  const recent = (r) => !r.date || (Date.parse(r.date) <= nowMs + 3600e3 && Date.parse(r.date) >= nowMs - 8 * 864e5);
+  const reports = (Array.isArray(body.reports) ? body.reports : []).slice(0, LIMITS.reports).map(sanitize).filter(Boolean).filter(recent);
   if (!reports.length) return json(request, 400, { error: "no valid reports" });
 
   const day = new Date().toISOString().slice(0, 10);

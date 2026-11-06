@@ -263,3 +263,11 @@ test("only fields the stats use are kept, with known values, ranges and hour-pre
   assert.equal(r.date, "2026-11-06T10:00:00Z");
   assert.equal(sanitize({ type: "speed", model: "Bob Smith <bob@example.com>" }).model, undefined);
 });
+
+test("reports dated in the future or more than 8 days back are refused", async () => {
+  const e = env();
+  const old = { ...good, date: new Date(Date.now() - 20 * 864e5).toISOString() };
+  const future = { ...good, date: new Date(Date.now() + 3 * 864e5).toISOString() };
+  const res = await worker.fetch(post({ install, reports: [old, future, good] }), e);
+  assert.equal((await res.json()).accepted, 1);
+});

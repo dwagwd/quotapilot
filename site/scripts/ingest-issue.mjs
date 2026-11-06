@@ -6,30 +6,13 @@ import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createHash } from "node:crypto";
+import { sanitize } from "../../collector/schema.js";
+export { sanitize };
 
 export const githubReporterId = (login) => "gh-" + createHash("sha256").update("github:" + String(login).toLowerCase()).digest("hex").slice(0, 16);
 
-// Only these fields are kept; everything else in a report is dropped before it is saved.
-const FIELDS = {
-  type: "string", model: "string", provider: "string", plan: "string", window: "string", kind: "string", effort: "string",
-  client: "string", task: "string", via: "string", date: "string",
-  outputTokens: "number", reasoningTokens: "number", inputTokens: "number", cacheReadTokens: "number", cacheWriteTokens: "number", seconds: "number", calls: "number", score: "number",
-  percentUsed: "number", tokensUsed: "number", inputShare: "number", degraded: "boolean"
-};
 const MAX_BODY = 20000;
 
-export function sanitize(report) {
-  if (!report || typeof report !== "object" || Array.isArray(report)) return null;
-  const out = {};
-  for (const [key, kind] of Object.entries(FIELDS)) {
-    const v = report[key];
-    if (typeof v !== kind) continue;
-    if (kind === "number" && !Number.isFinite(v)) continue;
-    // Plain text only: no control characters, no markup, at most 60 characters.
-    out[key] = kind === "string" ? v.replace(/[\u0000-\u001f\u007f<>"'`]/g, "").slice(0, 60) : v;
-  }
-  return out.type ? out : null;
-}
 
 export function parseIssue(issue) {
   if ((issue.body || "").length > MAX_BODY) return { error: "The issue body is too long." };

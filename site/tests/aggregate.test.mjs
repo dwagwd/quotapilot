@@ -85,7 +85,8 @@ test("effort usage groups by model and effort", () => {
 test("issue reports are reduced to known plain fields", () => {
   const evil = { type: "quota", plan: "<img src=x onerror=alert(1)>Max", window: "5h", percentUsed: 10, tokensUsed: 1e6, provider: "claude", extra: "x".repeat(1e5), __proto__: { polluted: true } };
   const clean = sanitize(evil);
-  assert.equal(clean.plan, "img src=x onerror=alert(1)Max");
+  assert.equal(clean.plan, undefined, "markup is rejected, not cleaned up");
+  assert.equal(clean.window, "5h");
   assert.equal(clean.extra, undefined);
   assert.equal(sanitize("nope"), null);
   assert.ok(parseIssue({ body: "x".repeat(20001) }).error);

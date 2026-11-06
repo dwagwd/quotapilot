@@ -3,7 +3,8 @@
 Served as a Cloudflare Pages Function at `https://aiquotawatch.pages.dev/api/` (`site/functions/api/[[path]].js`
 imports `worker.js`; bindings in `site/wrangler.toml`). It receives `quotapilot share` reports (and the site's report form) without any account.
 
-- `POST /v1/report` `{install, reports[]}`: keeps only known plain-text fields, stores them for 35 days under
+- `POST /v1/forget` `{install}`: deletes every report this install sent and its first-seen record.
+- `POST /v1/report` `{install, reports[]}`: keeps only the fields the statistics use (see `schema.js`: known values, id-like strings, bounded numbers, hour-precision times), stores them for 31 days under
   `anon-<HMAC(SALT, install id)>`. The install id, IP address and GitHub account are never stored.
 - Limits: 20 KB per request, 30 reports, 3 submissions per computer and 20 per IP address per day
   (counters keyed by `HMAC(SALT, ip + day)`, expiring after a day). One IP address can introduce at most 2 new
@@ -11,7 +12,7 @@ imports `worker.js`; bindings in `site/wrangler.toml`). It receives `quotapilot 
   holds only a number and expires after 2 days. Reporters already on record are never held back by it.
 - Fields the collector adds to each stored report, so the stats can't be faked by minting install ids:
   - `reporterFirstSeen`: the day this reporter id was first seen. The record behind it (`rs:<reporter>`) holds only
-    that day and expires 35 days after it was written, so an idle reporter is forgotten and later starts as new.
+    that day and expires 31 days after it was written, so an idle reporter is forgotten and later starts as new.
   - `receivedDay`: the day the collector received the report (the report's own `date` is chosen by the client).
   - `ipGroup`: 8 hex characters of `HMAC(SALT, /24 network (IPv4) or /48 network (IPv6) + day)`. It changes every
     day, covers a whole network rather than one address, and can't be turned back into an address without `SALT`.

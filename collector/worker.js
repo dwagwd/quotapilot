@@ -9,27 +9,11 @@
 // HMAC(SALT, /24 or /48 network + day), so it changes every day and cannot be turned back into an address).
 // The aggregation step uses them to discount brand-new reporters and reporters sharing a network on the same day.
 
-const FIELDS = {
-  type: "string", model: "string", provider: "string", plan: "string", window: "string", kind: "string", effort: "string",
-  client: "string", task: "string", via: "string", date: "string",
-  outputTokens: "number", reasoningTokens: "number", inputTokens: "number", cacheReadTokens: "number", cacheWriteTokens: "number", seconds: "number", calls: "number", score: "number",
-  percentUsed: "number", tokensUsed: "number", inputShare: "number", degraded: "boolean"
-};
-const TYPES = ["speed", "rating", "quota", "event"];
-export const LIMITS = { bodyBytes: 20000, reports: 30, perInstallPerDay: 3, perIpPerDay: 20, newReportersPerIpPerDay: 2, keepDays: 35 };
+import { sanitize, hourOf } from "./schema.js";
+export { sanitize };
+export const LIMITS = { bodyBytes: 20000, reports: 30, perInstallPerDay: 3, perIpPerDay: 20, newReportersPerIpPerDay: 2, keepDays: 31 };
 const ALLOWED_ORIGINS = ["https://aiquotawatch.pages.dev", "https://dwagwd.github.io", "http://127.0.0.1:8765", "http://localhost:8765"];
 
-export function sanitize(report) {
-  if (!report || typeof report !== "object" || Array.isArray(report)) return null;
-  const out = {};
-  for (const [key, kind] of Object.entries(FIELDS)) {
-    const v = report[key];
-    if (typeof v !== kind) continue;
-    if (kind === "number" && !Number.isFinite(v)) continue;
-    out[key] = kind === "string" ? v.replace(/[\u0000-\u001f\u007f<>"'`]/g, "").slice(0, 60) : v;
-  }
-  return TYPES.includes(out.type) ? out : null;
-}
 
 async function hmac(secret, text) {
   const key = await crypto.subtle.importKey("raw", new TextEncoder().encode(secret), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
@@ -107,8 +91,8 @@ async function report(request, env) {
     await env.REPORTS.put(newKey, String(introduced + 1), { expirationTtl: 2 * 86400 });
   }
   const ipGroup = (await hmac(env.SALT, "ipgrp:" + ipPrefix(ip) + ":" + day)).slice(0, 8);
-  const now = new Date().toISOString();
-  const stored = reports.map((r) => ({ ...r, date: typeof r.date === "string" && !isNaN(Date.parse(r.date)) ? r.date : now, reporter,
+  const now = hourOf(new Date().toISOString());
+  const stored = reports.map((r) => ({ ...r, date: r.date || now, reporter,
     reporterFirstSeen: firstSeen || day, receivedDay: day, ipGroup }));
   // The reporter id is part of the key so /v1/forget can find this install's reports without reading them all.
   await env.REPORTS.put("r:" + day + ":" + reporter + ":" + crypto.randomUUID(), JSON.stringify(stored), { expirationTtl: LIMITS.keepDays * 86400 });

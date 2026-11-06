@@ -32,7 +32,7 @@ test("stores sanitized reports under an anonymous id, never the install id or IP
   assert.ok(!text.includes(install) && !text.includes("1.2.3.4"));
   const rows = JSON.parse(text);
   assert.match(rows[0].reporter, /^anon-[0-9a-f]{16}$/);
-  assert.equal(rows[1].plan, "bPlus/b");
+  assert.equal(rows[1].plan, undefined, "a plan name with markup is not stored at all");
   assert.equal(rows[1].extra, undefined);
 });
 
@@ -252,4 +252,14 @@ test("forget deletes every report from one install and nothing else", async () =
   assert.equal((await res.json()).deleted, 2);
   assert.equal(e.REPORTS.m.has("rs:" + mine), false);
   assert.equal((await worker.fetch(forget({ install: "bad" }), e)).status, 400);
+});
+
+test("only fields the stats use are kept, with known values, ranges and hour-precision times", () => {
+  const r = sanitize({ type: "speed", model: "claude-opus-5-5", client: "My laptop at ACME", effort: "turbo", task: "secret project",
+    plan: "Max 5x", via: "quotapilot", outputTokens: -1, seconds: 12.5, calls: 3, date: "2026-11-06T10:42:13.123Z", prompt: "hello", email: "a@b.c" });
+  assert.equal(r.model, "claude-opus-5-5");
+  assert.equal(r.plan, "Max 5x");
+  for (const k of ["client", "effort", "task", "outputTokens", "prompt", "email"]) assert.equal(r[k], undefined, k);
+  assert.equal(r.date, "2026-11-06T10:00:00Z");
+  assert.equal(sanitize({ type: "speed", model: "Bob Smith <bob@example.com>" }).model, undefined);
 });

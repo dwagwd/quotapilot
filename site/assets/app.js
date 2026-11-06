@@ -709,7 +709,7 @@
     $("#repType").innerHTML = REP_TYPES.map((k) => `<button type="button" role="tab" aria-selected="${state.repType === k}" class="${state.repType === k ? "on" : ""}" data-type="${k}">${t("rep.type." + k)}</button>`).join("");
     const f = {
       speed: field("rSpModel", t("rep.model"), modelSelect("rSpModel")) +
-        field("rSpClient", t("rep.client"), `<input id="rSpClient" type="text" maxlength="40" placeholder="CLI, Desktop, API…">`) +
+        field("rSpClient", t("rep.client"), `<select id="rSpClient"><option value="">—</option>${["CLI", "Desktop", "API", "Web", "Other"].map((k) => `<option value="${k}">${k}</option>`).join("")}</select>`) +
         field("rSpTokens", t("rep.outTokens"), `<input id="rSpTokens" type="number" min="50" step="1" placeholder="1500" required>`) +
         field("rSpSecs", t("rep.seconds"), `<input id="rSpSecs" type="number" min="0.2" step="0.1" placeholder="20" required>`),
       rating: field("rRaModel", t("rep.model"), modelSelect("rRaModel")) +
@@ -735,7 +735,7 @@
     const now = new Date().toISOString();
     switch (state.repType) {
       case "speed": {
-        const r = { type: "speed", model: v("#rSpModel"), client: v("#rSpClient").trim(), outputTokens: n("#rSpTokens"), seconds: n("#rSpSecs"), date: now };
+        const r = { type: "speed", model: v("#rSpModel"), client: v("#rSpClient") || undefined, via: "site", outputTokens: n("#rSpTokens"), seconds: n("#rSpSecs"), date: now };
         if (!(r.outputTokens >= 50) || !(r.seconds >= 0.2)) return { error: t("rep.err.speed") };
         return { r, title: `Speed: ${modelName(r.model)} ${(r.outputTokens / r.seconds).toFixed(1)} tok/s` };
       }

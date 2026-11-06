@@ -766,51 +766,37 @@
     if (res.error) return;
     const json = JSON.stringify(res.r, null, 2);
     const community = window.SITE_CONFIG.community || {};
-    const repo = community.repo;
     const out = $("#repOut");
     out.hidden = false;
-    const githubURL = repo ? `https://github.com/${repo}/issues/new?template=data-report.md&labels=data-report&title=${encodeURIComponent(res.title)}&body=${encodeURIComponent(`Submitted from AI Quota Watch.\n\n\`\`\`json\n${json}\n\`\`\``)}` : null;
-    if (community.collector) {
-      let install = null;
-      try { install = localStorage.getItem("aqw-install"); } catch (e) { /* storage blocked */ }
-      if (!install) {
-        install = (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random().toString(16).slice(2)).replace(/[^A-Za-z0-9-]/g, "");
-        try { localStorage.setItem("aqw-install", install); } catch (e) { /* ignore */ }
-      }
-      // On failure the report is kept: the user can retry, or choose to file it publicly on GitHub instead.
-      const failed = (message) => {
-        out.innerHTML = `<p class="rep-err" role="alert">${esc(message)}</p>
-          <p><button type="button" class="btn" id="repRetry">${t("rep.retry")}</button></p>
-          ${githubURL ? `<p class="fine">${t("rep.fallbackNote")}</p><a class="btn ghost" href="${esc(githubURL)}" target="_blank" rel="noopener">${t("rep.fallbackGithub")} →</a>` : ""}
-          <pre>${esc(json)}</pre>`;
-        $("#repRetry").addEventListener("click", send);
-      };
-      const send = () => {
-        out.innerHTML = `<p>${t("rep.sending")}</p>`;
-        fetch(community.collector + "/v1/report", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ install, reports: [res.r] }) })
-          .then((r) => r.json().catch(() => ({})).then((body) => ({ ok: r.ok, body })))
-          .then(({ ok, body }) => { if (ok) { out.innerHTML = `<p>${t("rep.thanks")}</p>`; $("#repForget").hidden = false; } else failed(body.error || t("rep.failed")); })
-          .catch(() => failed(t("rep.failed")));
-      };
-      // Nothing leaves the browser until the person has seen the exact payload and pressed Send.
-      out.innerHTML = `<p><strong>${t("rep.previewTitle")}</strong></p>
-        <p class="fine">${t("rep.previewNote")}</p>
-        <pre>${esc(JSON.stringify({ install, reports: [res.r] }, null, 2))}</pre>
-        <div class="rep-actions"><button type="button" class="btn" id="repSend">${t("rep.send")}</button><button type="button" class="btn ghost" id="repCancel">${t("rep.cancel")}</button></div>`;
-      $("#repSend").addEventListener("click", send);
-      $("#repCancel").addEventListener("click", () => { out.hidden = true; out.innerHTML = ""; });
-      return;
+    // Anonymous only: without the collector there is nowhere to send a report.
+    if (!community.collector) { out.innerHTML = `<p class="rep-err">${t("rep.failed")}</p>`; return; }
+    let install = null;
+    try { install = localStorage.getItem("aqw-install"); } catch (e) { /* storage blocked */ }
+    if (!install) {
+      install = (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random().toString(16).slice(2)).replace(/[^A-Za-z0-9-]/g, "");
+      try { localStorage.setItem("aqw-install", install); } catch (e) { /* ignore */ }
     }
-    if (githubURL) {
-      out.innerHTML = `<p>${t("rep.ready")}</p><a class="btn" href="${esc(githubURL)}" target="_blank" rel="noopener">${t("rep.openGithub")} →</a><pre>${esc(json)}</pre>`;
-    } else {
-      out.innerHTML = `<p>${t("rep.notOpen")}</p><pre id="repJson">${esc(json)}</pre><button type="button" class="btn ghost" id="repCopy">${t("rep.copy")}</button>`;
-      $("#repCopy").addEventListener("click", () => {
-        const done = () => { $("#repCopy").textContent = t("rep.copied"); };
-        const pick = () => { const r = document.createRange(); r.selectNodeContents($("#repJson")); const s = getSelection(); s.removeAllRanges(); s.addRange(r); };
-        try { navigator.clipboard.writeText(json).then(done, pick); } catch (err) { pick(); }
-      });
-    }
+    // On failure the report is kept so the user can retry.
+    const failed = (message) => {
+      out.innerHTML = `<p class="rep-err" role="alert">${esc(message)}</p>
+        <p><button type="button" class="btn" id="repRetry">${t("rep.retry")}</button></p>
+        <pre>${esc(json)}</pre>`;
+      $("#repRetry").addEventListener("click", send);
+    };
+    const send = () => {
+      out.innerHTML = `<p>${t("rep.sending")}</p>`;
+      fetch(community.collector + "/v1/report", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ install, reports: [res.r] }) })
+        .then((r) => r.json().catch(() => ({})).then((body) => ({ ok: r.ok, body })))
+        .then(({ ok, body }) => { if (ok) { out.innerHTML = `<p>${t("rep.thanks")}</p>`; try { localStorage.setItem("aqw-sent", "1"); } catch (e) { /* ignore */ } $("#repForget").hidden = false; } else failed(body.error || t("rep.failed")); })
+        .catch(() => failed(t("rep.failed")));
+    };
+    // Nothing leaves the browser until the person has seen the exact payload and pressed Send.
+    out.innerHTML = `<p><strong>${t("rep.previewTitle")}</strong></p>
+      <p class="fine">${t("rep.previewNote")}</p>
+      <pre>${esc(JSON.stringify({ install, reports: [res.r] }, null, 2))}</pre>
+      <div class="rep-actions"><button type="button" class="btn" id="repSend">${t("rep.send")}</button><button type="button" class="btn ghost" id="repCancel">${t("rep.cancel")}</button></div>`;
+    $("#repSend").addEventListener("click", send);
+    $("#repCancel").addEventListener("click", () => { out.hidden = true; out.innerHTML = ""; });
   }
 
   function initCommunity() {
@@ -823,11 +809,12 @@
     // then the id itself is removed so later reports start a new, unlinked id.
     const forgetBox = $("#repForget"), base = (window.SITE_CONFIG.community || {}).collector;
     const stored = () => { try { return localStorage.getItem("aqw-install"); } catch (e) { return null; } };
-    forgetBox.hidden = !(base && stored());
+    const sent = () => { try { return localStorage.getItem("aqw-sent") === "1"; } catch (e) { return false; } };
+    forgetBox.hidden = !(base && stored() && sent());
     $("#repForgetBtn").addEventListener("click", () => {
       const id = stored(); if (!id || !confirm(t("rep.forgetConfirm"))) return;
       fetch(base + "/v1/forget", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ install: id }) })
-        .then((r) => { if (!r.ok) throw new Error(); try { localStorage.removeItem("aqw-install"); } catch (e) { /* ignore */ } forgetBox.innerHTML = esc(t("rep.forgetDone")); })
+        .then((r) => { if (!r.ok) throw new Error(); try { localStorage.removeItem("aqw-install"); localStorage.removeItem("aqw-sent"); } catch (e) { /* ignore */ } forgetBox.innerHTML = esc(t("rep.forgetDone")); })
         .catch(() => { forgetBox.insertAdjacentHTML("beforeend", ` <span class="rep-err">${esc(t("rep.failed"))}</span>`); });
     });
   }

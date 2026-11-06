@@ -83,7 +83,6 @@ public enum AppUpdate {
 /// Sends `quotapilot share` reports without a browser by filing the issue with the GitHub CLI (`gh`),
 /// which the user has already signed in to. Nothing is sent unless the user turned sharing on.
 public enum ShareSubmitter {
-    public static let defaultRepo = "dwagwd/quotapilot"
     /// Anonymous collector (Cloudflare Worker in `collector/`). Override with QUOTAPILOT_COLLECTOR_URL.
     public static var collectorURL: URL {
         URL(string: ProcessInfo.processInfo.environment["QUOTAPILOT_COLLECTOR_URL"] ?? "https://aiquotawatch.pages.dev/api")!
@@ -151,26 +150,4 @@ public enum ShareSubmitter {
         return result
     }
 
-    public static func ghPath(home: URL, environmentPath: String? = ProcessInfo.processInfo.environment["PATH"]) -> String? {
-        var candidates = (environmentPath ?? "").split(separator: ":").map { String($0) + "/gh" }
-        candidates += ["/opt/homebrew/bin/gh", "/usr/local/bin/gh", home.appendingPathComponent(".local/bin/gh").path, "/usr/bin/gh"]
-        return candidates.first { FileManager.default.isExecutableFile(atPath: $0) }
-    }
-
-    /// Files one issue. Returns the issue URL, or an error message.
-    public static func submit(title: String, body: String, repo: String = defaultRepo, gh: String) -> Result<String, Error> {
-        let process = Process(), output = Pipe(), errors = Pipe(), input = Pipe()
-        process.executableURL = URL(fileURLWithPath: gh)
-        process.arguments = ["issue", "create", "--repo", repo, "--title", title, "--body-file", "-"]
-        process.standardInput = input; process.standardOutput = output; process.standardError = errors
-        do { try process.run() } catch { return .failure(error) }
-        input.fileHandleForWriting.write(Data(body.utf8)); try? input.fileHandleForWriting.close()
-        let out = output.fileHandleForReading.readDataToEndOfFile(), err = errors.fileHandleForReading.readDataToEndOfFile()
-        process.waitUntilExit()
-        guard process.terminationStatus == 0 else {
-            return .failure(NSError(domain: "ShareSubmitter", code: Int(process.terminationStatus),
-                                    userInfo: [NSLocalizedDescriptionKey: String(decoding: err, as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines)]))
-        }
-        return .success(String(decoding: out, as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines))
-    }
 }

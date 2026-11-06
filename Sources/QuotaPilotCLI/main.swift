@@ -271,9 +271,6 @@ func renderText(_ snapshot: Snapshot) -> String {
 
 // MARK: Share (opt-in)
 
-/// Repo that receives shared reports as GitHub issues. Override with QUOTAPILOT_SHARE_REPO.
-let shareRepo = ProcessInfo.processInfo.environment["QUOTAPILOT_SHARE_REPO"] ?? "dwagwd/quotapilot"
-
 /// Collects the anonymous numbers for `share`. Reads the same sources as `status`; sends nothing.
 func shareReports(hours: Double) -> (reports: [[String: Any]], errors: [String: String]) {
     let now = Date().timeIntervalSince1970
@@ -344,11 +341,10 @@ USAGE
   quotapilot config [show]                   Show router mode and task rules
   quotapilot config mode <auto|preferCodex|preferClaude>
   quotapilot config rule <web|review|plan|implement> <auto|codex|claude>
-  quotapilot share [--hours N] [--json] [--yes] [--github | --submit] | --forget
+  quotapilot share [--hours N] [--json] [--yes] | --forget
                                              Preview anonymous speed and quota numbers and, only if
                                              you confirm, send them anonymously to AI Quota Watch.
-                                             --github opens a prefilled GitHub issue instead; --submit
-                                             files it with the GitHub CLI. `share --yes` in cron shares daily
+                                             `share --yes` in cron shares daily.
                                              `share --forget` deletes everything this computer sent.
   quotapilot version
 
@@ -432,46 +428,24 @@ case "share":
         print("Nothing to share yet. Speed needs 3 calls per model and effort in the last \(hoursLabel(hours)); quota needs at least 1% of a 5-hour or weekly window used.")
         exit(0)
     }
-    print("QuotaPilot can share these anonymous numbers with AI Quota Watch (\(shareRepo)):\n")
+    print("QuotaPilot can share these anonymous numbers with AI Quota Watch:\n")
     for report in reports { print("  " + describeReport(report)) }
     print("\nExactly what would be sent:\n\(json)\n")
     print("No paths, project names, prompts or account ids are included. Times are rounded to the hour.")
-    let viaGitHub = arguments.contains("--github"), submit = arguments.contains("--submit")
-    print(viaGitHub || submit
-          ? "This files a public GitHub issue under your GitHub name."
-          : "This sends the numbers anonymously to the AI Quota Watch collector: no GitHub account, and it keeps only a hashed id of this computer.")
+    print("This sends the numbers anonymously to the AI Quota Watch collector: no account, and it keeps only a hashed id of this computer.")
+    if arguments.contains("--github") || arguments.contains("--submit") {
+        fail("Sharing is anonymous only; reports are no longer filed as GitHub issues.", code: 2)
+    }
     if !arguments.contains("--yes") {
         print("\nShare these numbers? [y/N] ", terminator: "")
         guard let answer = readLine()?.trimmingCharacters(in: .whitespaces).lowercased(), answer == "y" || answer == "yes" else {
             print("Nothing was shared."); exit(0)
         }
     }
-    if !viaGitHub && !submit {
-        switch ShareSubmitter.postAnonymous(reports: reports) {
-        case .success(let n): print("Shared \(n) data points anonymously. Thank you."); exit(0)
-        case .failure(let error): fail("Could not share: " + error.localizedDescription + " (try --github to file it as a GitHub issue instead)")
-        }
+    switch ShareSubmitter.postAnonymous(reports: reports) {
+    case .success(let n): print("Shared \(n) data points anonymously. Thank you.")
+    case .failure(let error): fail("Could not share: " + error.localizedDescription)
     }
-    let (issueTitle, body) = ContributionReport.issueText(reports: reports, version: version)
-    if submit {
-        guard let gh = ShareSubmitter.ghPath(home: FileManager.default.homeDirectoryForCurrentUser) else {
-            fail("--submit needs the GitHub CLI (gh), signed in with `gh auth login`.")
-        }
-        switch ShareSubmitter.submit(title: issueTitle, body: body, repo: shareRepo, gh: gh) {
-        case .success(let link): print("Shared: " + link); exit(0)
-        case .failure(let error): fail("Could not file the report: " + error.localizedDescription)
-        }
-    }
-    var components = URLComponents(string: "https://github.com/\(shareRepo)/issues/new")!
-    components.queryItems = [URLQueryItem(name: "template", value: "data-report.md"), URLQueryItem(name: "labels", value: "data-report"),
-                             URLQueryItem(name: "title", value: issueTitle), URLQueryItem(name: "body", value: body)]
-    let url = components.url!.absoluteString
-    if url.utf8.count > 7_500 {
-        print("The report is too long for a link. Open https://github.com/\(shareRepo)/issues/new?template=data-report.md and paste the JSON above into the body.")
-        exit(0)
-    }
-    if openURL(url) { print("Opened the report in your browser. Press Submit there to share it.") }
-    else { print("Open this link to share:\n" + url) }
 case "config":
     var settings = loadSettings()
     let rest = Array(arguments.drop { $0 != "config" }.dropFirst())

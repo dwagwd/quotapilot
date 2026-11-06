@@ -1,4 +1,4 @@
 {
-  "note": "GitHub logins whose reports are ignored (spam or abuse).",
+  "note": "Anonymous reporter ids (anon-…) whose reports are ignored (spam or abuse).",
   "reporters": []
 }

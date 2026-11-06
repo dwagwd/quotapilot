@@ -1,4 +1,4 @@
-// The one list of what a shared report may contain, used by the collector and by the GitHub issue path.
+// The one list of what a shared report may contain, used by the collector.
 // Data minimisation: every field is something the public statistics use, text fields only accept known
 // values or short id-like strings (so nobody can store names, prompts or other free text), numbers must be
 // in range, and times are cut to the hour. Anything else is dropped before a report is saved.

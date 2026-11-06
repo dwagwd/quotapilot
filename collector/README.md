@@ -19,7 +19,7 @@ imports `worker.js`; bindings in `site/wrangler.toml`). It receives `quotapilot 
 - How the stats use them (`site/scripts/aggregate.mjs`): a reporter counts only once it is established, meaning
   it reported on a later day than its first-seen day, or on at least two different days. Its earlier reports then
   count too. Within each stats row, reporters that shared an `ipGroup` on a day count as one person and give
-  one value. Older reports without these fields (and GitHub issue reports) are counted as before.
+  one value. Older reports without these fields are counted as before.
 - `POST /v1/hit` / `GET /v1/visits`: cookie-free 7-day visitor stats. Each visit is stored as its own key named
   with `HMAC(SALT, ip + day)` (12 characters; the user agent is left out so changing it can't add visitors) that
   expires after 8 days; finished days are rolled up

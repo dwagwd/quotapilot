@@ -1,29 +1,25 @@
-# AI Quota Watch (site/): saves "data-report" issues and rebuilds the community stats.
-# main is protected, so the data lives on the unprotected `community-data` branch
-# (submissions/*.json + community.json); site-pages.yml copies it into the site when it deploys.
-# Reports come from `quotapilot share`, the app's daily share, or the website form.
+# AI Quota Watch (site/): rebuilds the community stats from the anonymous collector.
+# Sharing is anonymous only: reports come from `quotapilot share`, the app's daily share or the website form,
+# all through the collector. Only the aggregate (community.json) is stored, on the unprotected
+# `community-data` branch; site-pages.yml copies it into the site when it deploys. Raw reports never leave
+# the collector, which deletes them after 31 days.
 name: Community data
 
 on:
-  issues:
-    types: [opened, edited, labeled]
   schedule:
-    - cron: "17 */6 * * *"   # re-aggregate so the 7-day window keeps moving, and pick up missed issues
+    - cron: "17 */6 * * *"   # re-aggregate so the 7-day window keeps moving and deletions drop out
   workflow_dispatch:
 
 permissions:
   contents: write
-  issues: write
 
 concurrency:
   group: community-data
   cancel-in-progress: false
 
 jobs:
-  ingest:
+  aggregate:
     runs-on: ubuntu-latest
-    # Issues from the site form carry the label; issues filed by `quotapilot share --submit` or the app carry the marker.
-    if: github.event_name != 'issues' || contains(github.event.issue.labels.*.name, 'data-report') || contains(github.event.issue.body, '<!-- quotapilot-share -->')
     env:
       GH_TOKEN: ${{ github.token }}
       REPO: ${{ github.repository }}
@@ -33,63 +29,27 @@ jobs:
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 22
-      - name: Load stored data
-        run: |
-          git fetch --depth 1 origin community-data:community-data 2>/dev/null || true
-          mkdir -p store
-          if git rev-parse --verify -q community-data >/dev/null; then
-            git --work-tree=store checkout community-data -- . && git reset -q
-          fi
-          mkdir -p store/submissions
-          cp store/submissions/*.json site/data/submissions/ 2>/dev/null || true
-      - name: Save reports from issues
-        working-directory: site
-        run: |
-          if [ "${{ github.event_name }}" = "issues" ]; then
-            node scripts/ingest-issue.mjs "$GITHUB_EVENT_PATH" && echo "${{ github.event.issue.number }}" >> "$RUNNER_TEMP/done"
-          else
-            # Scheduled or manual runs pick up open report issues that a failed run left behind.
-            gh issue list --repo "$REPO" --state open --limit 50 --json number,body,author,createdAt,labels \
-              --jq '.[] | select(((.body // "") | contains("<!-- quotapilot-share -->")) or (.labels | map(.name) | index("data-report")))' > "$RUNNER_TEMP/open.jsonl" || true
-            while read -r line; do
-              n=$(printf "%s\n" "$line" | jq -r .number)
-              printf "%s\n" "$line" | jq '{issue: {number: .number, body: .body, created_at: .createdAt, user: {login: .author.login}}}' > "$RUNNER_TEMP/event.json"
-              if node scripts/ingest-issue.mjs "$RUNNER_TEMP/event.json"; then echo "$n" >> "$RUNNER_TEMP/done"; fi
-            done < "$RUNNER_TEMP/open.jsonl"
-          fi
       - name: Pull anonymous reports from the collector
         env:
           COLLECTOR_TOKEN: ${{ secrets.COLLECTOR_TOKEN }}
         run: |
           [ -n "$COLLECTOR_TOKEN" ] || { echo "No collector token yet"; exit 0; }
-          curl -fsS --max-time 60 -H "Authorization: Bearer $COLLECTOR_TOKEN" "$COLLECTOR_URL/v1/export" -o "$RUNNER_TEMP/collector.json" \
-            && jq -e 'type == "array"' "$RUNNER_TEMP/collector.json" >/dev/null \
-            && cp "$RUNNER_TEMP/collector.json" site/data/submissions/collector.json \
-            || echo "Collector export unavailable; continuing with stored data"
+          mkdir -p site/data/submissions
+          curl -fsS --max-time 60 -H "Authorization: Bearer $COLLECTOR_TOKEN" "$COLLECTOR_URL/v1/export" -o "$RUNNER_TEMP/collector.json"
+          jq -e 'type == "array"' "$RUNNER_TEMP/collector.json" >/dev/null
+          cp "$RUNNER_TEMP/collector.json" site/data/submissions/collector.json
       - name: Aggregate
         working-directory: site
+        run: node scripts/aggregate.mjs
+      - name: Store the aggregate on the community-data branch
         run: |
-          cp ../store/community.json data/community.json 2>/dev/null || true
-          node scripts/aggregate.mjs
-      - name: Store data on the community-data branch
-        run: |
-          # The collector keeps its own copy, so only issue reports are stored here.
-          find site/data/submissions -name 'issue-*.json' -exec cp {} store/submissions/ \;
-          cp site/data/community.json store/community.json
+          mkdir -p store && cp site/data/community.json store/community.json
           cd store
           git init -q -b community-data
           git config user.name "community-bot"
           git config user.email "community-bot@users.noreply.github.com"
           git remote add origin "https://x-access-token:${GH_TOKEN}@github.com/${REPO}.git"
           git fetch -q --depth 1 origin community-data && git reset -q --soft FETCH_HEAD || true
-          git add -A
+          git add community.json
           git diff --cached --quiet || git commit -qm "Update community data"
           git push -q origin HEAD:community-data
-      - name: Thank and close saved issues
-        run: |
-          [ -f "$RUNNER_TEMP/done" ] || exit 0
-          sort -u "$RUNNER_TEMP/done" | while read -r n; do
-            gh issue edit "$n" --repo "$REPO" --add-label data-report || true
-            gh issue comment "$n" --repo "$REPO" --body "Thanks, your report is saved. It shows on AI Quota Watch once at least 3 reports exist for the same model or plan."
-            gh issue close "$n" --repo "$REPO"
-          done

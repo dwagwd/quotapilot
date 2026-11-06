@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { aggregate, clean, trimOutliers, stats } from "../scripts/aggregate.mjs";
-import { parseIssue, sanitize, githubReporterId } from "../scripts/ingest-issue.mjs";
+import { sanitize } from "../../collector/schema.js";
 
 const models = JSON.parse(readFileSync(new URL("../data/models.json", import.meta.url))).models;
 const now = new Date("2026-11-02T12:00:00Z");
@@ -56,14 +56,6 @@ test("degradation alert fires at 30% of recent ratings", () => {
   assert.equal(aggregate(raw, models, now).ratings[0].alert, true);
 });
 
-test("issue body JSON is parsed and the author attached", () => {
-  const res = parseIssue({ body: "hi\n```json\n{\"type\":\"rating\",\"model\":\"grok-4-7\",\"score\":7}\n```", user: { login: "dana" }, created_at: "2026-11-01T00:00:00Z" });
-  assert.equal(res.reports[0].reporter, githubReporterId("dana"));
-  assert.ok(!JSON.stringify(res.reports).includes("dana"), "the login is not stored");
-  assert.equal(res.reports[0].date, "2026-11-01T00:00:00Z");
-  assert.ok(parseIssue({ body: "no json" }).error);
-});
-
 test("QuotaPilot summary reports (many calls) are accepted", () => {
   const r = clean({ type: "speed", model: "gpt-6-1-sol", outputTokens: 990314, seconds: 33775, calls: 1274, client: "Codex", via: "quotapilot", date: day(1) }, models);
   assert.ok(Math.abs(r.tps - 29.32) < 0.01);
@@ -82,17 +74,13 @@ test("effort usage groups by model and effort", () => {
   assert.equal(out.effortUsage[0].tps, 60);
 });
 
-test("issue reports are reduced to known plain fields", () => {
+test("reports are reduced to known fields", () => {
   const evil = { type: "quota", plan: "<img src=x onerror=alert(1)>Max", window: "5h", percentUsed: 10, tokensUsed: 1e6, provider: "claude", extra: "x".repeat(1e5), __proto__: { polluted: true } };
   const clean = sanitize(evil);
   assert.equal(clean.plan, undefined, "markup is rejected, not cleaned up");
   assert.equal(clean.window, "5h");
   assert.equal(clean.extra, undefined);
   assert.equal(sanitize("nope"), null);
-  assert.ok(parseIssue({ body: "x".repeat(20001) }).error);
-  const res = parseIssue({ body: "```json\n[{\"type\":\"rating\",\"model\":\"grok-4-7\",\"score\":7,\"secret\":\"/Users/me\"}]\n```", user: { login: "bad user; rm -rf" }, created_at: "2026-11-01T00:00:00Z" });
-  assert.equal(res.reports[0].reporter, "anon");
-  assert.equal(res.reports[0].secret, undefined);
 });
 
 test("blocked reporters and floods are ignored", () => {

@@ -51,8 +51,6 @@ public enum ContributionReport {
 
     public static let minimumCallsPerModel = 3
 
-    /// Marks issues filed by QuotaPilot, so the collector accepts them even when GitHub drops the label.
-    public static let issueMarker = "<!-- quotapilot-share -->"
 
     /// The agent behind a plan-wide quota window (`codex:primary`, `claude:five_hour:primary`), or nil for
     /// per-model buckets, which would double count.
@@ -76,11 +74,6 @@ public enum ContributionReport {
         }
     }
 
-    public static func issueText(reports: [[String: Any]], version: String) -> (title: String, body: String) {
-        let data = (try? JSONSerialization.data(withJSONObject: reports, options: [.prettyPrinted, .sortedKeys])) ?? Data()
-        return ("QuotaPilot report: \(reports.count) data points",
-                "\(issueMarker)\nShared with QuotaPilot \(version).\n\n```json\n\(String(decoding: data, as: UTF8.self))\n```")
-    }
 
     /// The tool that wrote the log, from the sample key (`codex|…`, `claude|…`, `gemini|…`). Claude Code
     /// pointed at another model family still counts as Claude Code.
@@ -89,7 +82,7 @@ public enum ContributionReport {
         return ["codex": "Codex", "claude": "Claude Code", "gemini": "Gemini CLI", "grok": "Grok CLI"][source] ?? "Claude Code"
     }
 
-    /// GitHub issue links break past roughly 8 KB, so a share keeps the busiest rows.
+    /// A share keeps the busiest rows, so one report stays small.
     public static let maximumReports = 30
 
     /// Effort labels shared by Codex and Claude Code; anything else is dropped rather than sent.

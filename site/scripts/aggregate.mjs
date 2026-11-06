@@ -1,6 +1,5 @@
 // Turns raw community reports (data/submissions/*.json) into data/community.json.
 // Run: node scripts/aggregate.mjs [--now 2026-11-02T00:00:00Z] [--in dir] [--out file]
-import { githubReporterId } from "./ingest-issue.mjs";
 import { readFileSync, readdirSync, writeFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -95,7 +94,7 @@ export const MAX_PER_REPORTER_PER_DAY = 60;
 // Both use the collector's own days, never the client-supplied report date, which a client could backdate or
 // forward-date. Established status applies to all of that reporter's reports, so a real new user's first-day
 // reports start counting as soon as they report again on another day. Reports without reporterFirstSeen (older
-// collector data, GitHub issue reports) are counted as before, so existing published stats stay.
+// collector data) are counted as before, so existing published stats stay.
 export function establishedReporters(reports) {
   const info = new Map();
   for (const r of reports) {
@@ -128,8 +127,8 @@ export function reporterUnits(rs) {
 }
 
 export function aggregate(raw, models, now = new Date(), blocked = []) {
-  // The blocklist holds GitHub logins; stored issue reports carry their hashed form.
-  const blockedSet = new Set(blocked.flatMap((b) => [String(b).toLowerCase(), githubReporterId(b)]));
+  // The blocklist holds anonymous reporter ids (anon-…) of abusive senders.
+  const blockedSet = new Set(blocked.map((b) => String(b).toLowerCase()));
   const perDay = new Map();
   raw = raw.filter((r) => {
     if (!r || blockedSet.has(String(r.reporter || "").toLowerCase())) return false;

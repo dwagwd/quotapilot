@@ -15,9 +15,7 @@ window.SITE_CONFIG = {
   },
   community: {
     // Anonymous collector (collector/ in the repo). Reports from the site form go here first.
-    collector: "https://aiquotawatch.pages.dev/api",
-    // Fallback: GitHub repo that receives reports as issues when the collector cannot be reached.
-    repo: "dwagwd/quotapilot"
+    collector: "https://aiquotawatch.pages.dev/api"
   },
   officialPricing: {
     chatgpt: "https://chatgpt.com/pricing",

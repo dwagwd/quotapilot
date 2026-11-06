@@ -3,6 +3,10 @@
 // (views, visitors) after that, for up to 400 days.
 (function () {
   var base = "https://aiquotawatch.pages.dev/api";
+  // Only the published site counts. Local previews, test builds and automated browsers would inflate the stats.
+  var h = location.hostname;
+  if (h !== "aiquotawatch.pages.dev" && h !== "dwagwd.github.io") return;
+  if (navigator.webdriver) return;
   try {
     if (sessionStorage.getItem("aqw-hit")) return;
     sessionStorage.setItem("aqw-hit", "1");

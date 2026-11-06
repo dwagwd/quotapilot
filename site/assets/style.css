@@ -47,6 +47,8 @@ a:hover { text-decoration: underline; }
 .hero { padding: 48px 0 24px; max-width: 760px; }
 .hero h1 { font-size: clamp(30px, 5vw, 46px); line-height: 1.1; letter-spacing: -0.025em; margin: 0 0 14px; }
 .lede { font-size: 17px; color: var(--muted); margin: 0 0 16px; }
+.hero-cta { display: flex; flex-wrap: wrap; gap: 10px; margin: 0 0 16px; }
+.hero-cta .btn { font-size: 15px; padding: 10px 18px; }
 .stamp { display: inline-flex; gap: 6px; font-size: 13px; color: var(--muted); background: var(--surface); border: 1px solid var(--line); border-radius: 999px; padding: 4px 12px; }
 
 /* sections */
@@ -168,8 +170,12 @@ table.models { width: 100%; border-collapse: collapse; font-size: 14px; min-widt
 @media (max-width: 860px) {
   .calc { grid-template-columns: 1fr; }
   .calc-inputs { position: static; }
-  .nav { display: none; }
+  /* phones: the section links become a swipeable row under the brand instead of disappearing */
+  .topbar-inner { flex-wrap: wrap; height: auto; padding-block: 8px; gap: 6px 12px; }
+  .nav { order: 3; width: 100%; margin-left: 0; gap: 16px; overflow-x: auto; scrollbar-width: none; white-space: nowrap; padding-bottom: 2px; }
+  .nav::-webkit-scrollbar { display: none; }
   .lang-toggle { margin-left: auto; }
+  section[id], [id].report { scroll-margin-top: 104px; }
 }
 .calc > *, .provider-grid > *, .kpis > * { min-width: 0; }
 body { overflow-x: hidden; }

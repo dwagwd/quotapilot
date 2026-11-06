@@ -91,6 +91,8 @@ function page({ lang, path, title, description, body, alt, jsonLd }) {
 <meta property="og:title" content="${esc(title)}">
 <meta property="og:description" content="${esc(description)}">
 <meta property="og:url" content="${BASE}${pretty(path)}">
+<meta property="og:image" content="${BASE}assets/og.png">
+<meta name="twitter:card" content="summary_large_image">
 <link rel="stylesheet" href="${up}assets/style.css">
 ${jsonLd ? `<script type="application/ld+json">${JSON.stringify(jsonLd)}</script>` : ""}
 </head>

@@ -129,6 +129,28 @@ public enum ShareSubmitter {
         return result
     }
 
+    /// Asks the collector to delete every report this computer sent (`quotapilot share --forget`).
+    /// Returns how many stored batches were deleted.
+    public static func forgetAnonymous(install: String = installID(), url: URL = collectorURL, timeout: Double = 30) -> Result<Int, Error> {
+        guard let body = try? JSONSerialization.data(withJSONObject: ["install": install]) else {
+            return .failure(NSError(domain: "ShareSubmitter", code: -1, userInfo: [NSLocalizedDescriptionKey: "Could not encode the request."]))
+        }
+        var request = URLRequest(url: url.appendingPathComponent("v1/forget"), timeoutInterval: timeout)
+        request.httpMethod = "POST"; request.httpBody = body
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        let done = DispatchSemaphore(value: 0)
+        var result: Result<Int, Error> = .failure(NSError(domain: "ShareSubmitter", code: -2, userInfo: [NSLocalizedDescriptionKey: "No response from the collector."]))
+        URLSession.shared.dataTask(with: request) { data, response, error in
+            let status = (response as? HTTPURLResponse)?.statusCode ?? 0
+            let object = data.flatMap { try? JSONSerialization.jsonObject(with: $0) as? [String: Any] }
+            if status == 200 { result = .success((object?["deleted"] as? Int) ?? 0) }
+            else { result = .failure(NSError(domain: "ShareSubmitter", code: status, userInfo: [NSLocalizedDescriptionKey: (object?["error"] as? String) ?? error?.localizedDescription ?? "HTTP \(status)"])) }
+            done.signal()
+        }.resume()
+        _ = done.wait(timeout: .now() + timeout + 5)
+        return result
+    }
+
     public static func ghPath(home: URL, environmentPath: String? = ProcessInfo.processInfo.environment["PATH"]) -> String? {
         var candidates = (environmentPath ?? "").split(separator: ":").map { String($0) + "/gh" }
         candidates += ["/opt/homebrew/bin/gh", "/usr/local/bin/gh", home.appendingPathComponent(".local/bin/gh").path, "/usr/bin/gh"]

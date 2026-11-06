@@ -1,9 +1,13 @@
 // Used by the GitHub Action: pulls the JSON block out of a "data-report" issue
-// and saves it as data/submissions/issue-<number>.json with the author attached.
+// and saves it as data/submissions/issue-<number>.json with a hashed author id (the stored files are public,
+// so the GitHub login itself is not written; the hash still lets one person count once).
 // Usage: node scripts/ingest-issue.mjs <event.json>
 import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { createHash } from "node:crypto";
+
+export const githubReporterId = (login) => "gh-" + createHash("sha256").update("github:" + String(login).toLowerCase()).digest("hex").slice(0, 16);
 
 // Only these fields are kept; everything else in a report is dropped before it is saved.
 const FIELDS = {
@@ -36,7 +40,7 @@ export function parseIssue(issue) {
   const login = issue.user && /^[A-Za-z0-9-]{1,39}$/.test(issue.user.login || "") ? issue.user.login : "anon";
   const list = (Array.isArray(data) ? data : [data]).slice(0, 50).map(sanitize).filter(Boolean).map((r) => ({
     ...r,
-    reporter: login,
+    reporter: login === "anon" ? "anon" : githubReporterId(login),
     date: r.date || issue.created_at
   }));
   if (!list.length) return { error: "No valid reports in the JSON block." };

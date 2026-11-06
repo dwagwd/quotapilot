@@ -259,6 +259,7 @@ body { overflow-x: hidden; }
 .btn:hover { text-decoration: none; opacity: .9; }
 .btn.ghost { background: transparent; color: var(--text); }
 .rep-err { color: var(--bad); font-size: 13px; }
+.linklike { font: inherit; color: var(--accent); background: none; border: 0; padding: 0; cursor: pointer; text-decoration: underline; }
 .rep-out { border-top: 1px solid var(--line); padding-top: 14px; display: grid; gap: 10px; justify-items: start; font-size: 13px; }
 .rep-out p { margin: 0; }
 .rep-out pre { margin: 0; width: 100%; overflow-x: auto; background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; font-size: 12px; }

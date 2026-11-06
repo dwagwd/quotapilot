@@ -9,6 +9,7 @@ function kv() {
     async get(k) { return m.has(k) ? m.get(k) : null; },
     ttl: new Map(),
     async put(k, v, o) { await new Promise((r) => setTimeout(r, 1)); m.set(k, v); this.ttl.set(k, o?.expirationTtl); },
+    async delete(k) { m.delete(k); },
     async list({ prefix }) { return { keys: [...m.keys()].filter((k) => k.startsWith(prefix)).map((name) => ({ name })), list_complete: true }; }
   };
 }
@@ -231,4 +232,24 @@ test("prompt and cache token totals are kept, other extras are dropped", () => {
   assert.equal(r.cacheReadTokens, 50000);
   assert.equal(r.cacheWriteTokens, 800);
   assert.equal(r.prompt, undefined);
+});
+
+test("forget deletes every report from one install and nothing else", async () => {
+  const e = env();
+  const other = "9a8b7c6d-1111-4222-8333-944455556666";
+  assert.equal((await worker.fetch(post({ install, reports: [good] }), e)).status, 200);
+  assert.equal((await worker.fetch(post({ install: other, reports: [good] }, "5.6.7.8"), e)).status, 200);
+  const keys = () => [...e.REPORTS.m.keys()].filter((k) => k.startsWith("r:"));
+  const reporterOf = (k) => JSON.parse(e.REPORTS.m.get(k))[0].reporter;
+  const mine = reporterOf(keys()[0]); // the first install's reports were stored first
+  // an older-format key (no reporter id in its name) holding this install's reports
+  e.REPORTS.m.set("r:2026-11-01:legacy", e.REPORTS.m.get(keys().find((k) => reporterOf(k) === mine)));
+  const forget = (body) => new Request("https://c.example/v1/forget", { method: "POST", body: JSON.stringify(body), headers: { "CF-Connecting-IP": "1.2.3.4" } });
+  const res = await worker.fetch(forget({ install }), e);
+  assert.equal(res.status, 200);
+  const left = keys().map(reporterOf);
+  assert.equal(left.length, 1, "only the other install's report remains");
+  assert.equal((await res.json()).deleted, 2);
+  assert.equal(e.REPORTS.m.has("rs:" + mine), false);
+  assert.equal((await worker.fetch(forget({ install: "bad" }), e)).status, 400);
 });

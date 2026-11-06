@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { aggregate, clean, trimOutliers, stats } from "../scripts/aggregate.mjs";
-import { parseIssue, sanitize } from "../scripts/ingest-issue.mjs";
+import { parseIssue, sanitize, githubReporterId } from "../scripts/ingest-issue.mjs";
 
 const models = JSON.parse(readFileSync(new URL("../data/models.json", import.meta.url))).models;
 const now = new Date("2026-11-02T12:00:00Z");
@@ -58,7 +58,8 @@ test("degradation alert fires at 30% of recent ratings", () => {
 
 test("issue body JSON is parsed and the author attached", () => {
   const res = parseIssue({ body: "hi\n```json\n{\"type\":\"rating\",\"model\":\"grok-4-7\",\"score\":7}\n```", user: { login: "dana" }, created_at: "2026-11-01T00:00:00Z" });
-  assert.equal(res.reports[0].reporter, "dana");
+  assert.equal(res.reports[0].reporter, githubReporterId("dana"));
+  assert.ok(!JSON.stringify(res.reports).includes("dana"), "the login is not stored");
   assert.equal(res.reports[0].date, "2026-11-01T00:00:00Z");
   assert.ok(parseIssue({ body: "no json" }).error);
 });
@@ -187,4 +188,13 @@ test("prompt fields are bounded numbers", () => {
   const r = clean({ type: "speed", model: "gpt-6-1-sol", outputTokens: 900, seconds: 10, inputTokens: -5, cacheReadTokens: 10, cacheWriteTokens: 0, date: day(1) }, models);
   assert.equal(r.inputPerOutput, null);
   assert.equal(r.cacheHit, null);
+});
+
+test("limit events stay hidden until three people report them for a provider", () => {
+  const ev = (who, h) => ({ type: "event", provider: "chatgpt", plan: "Plus", kind: "hit_limit", date: new Date(now.getTime() - 864e5 + h * 36e5).toISOString(), reporter: who });
+  const one = aggregate([ev("a", 1), ev("a", 2), ev("a", 3)], models, now);
+  assert.equal(one.events.byHourUtc.chatgpt.reduce((a, b) => a + b, 0), 0, "one person's working hours are not published");
+  assert.deepEqual(one.events.counts, []);
+  const three = aggregate([ev("a", 1), ev("b", 2), ev("c", 3)], models, now);
+  assert.equal(three.events.byHourUtc.chatgpt.reduce((a, b) => a + b, 0), 3);
 });

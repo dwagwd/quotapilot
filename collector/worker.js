@@ -1,6 +1,7 @@
 // AI Quota Watch anonymous collector (Cloudflare Worker).
 // POST /v1/report  {install, reports[]}  -> stores sanitized reports under an anonymous reporter id.
 // GET  /v1/export  (Bearer EXPORT_TOKEN) -> every stored report, for the GitHub Action that builds the stats.
+// POST /v1/forget  {install}            -> deletes every report this install sent (right to erasure).
 // No IP address, GitHub account or install id is stored: the reporter id is HMAC(SALT, install id), and
 // rate limits use HMAC(SALT, ip + day) counters that expire after a day.
 // Each stored report also carries reporterFirstSeen (the day this reporter id was first seen; the record expires
@@ -109,8 +110,41 @@ async function report(request, env) {
   const now = new Date().toISOString();
   const stored = reports.map((r) => ({ ...r, date: typeof r.date === "string" && !isNaN(Date.parse(r.date)) ? r.date : now, reporter,
     reporterFirstSeen: firstSeen || day, receivedDay: day, ipGroup }));
-  await env.REPORTS.put("r:" + day + ":" + crypto.randomUUID(), JSON.stringify(stored), { expirationTtl: LIMITS.keepDays * 86400 });
+  // The reporter id is part of the key so /v1/forget can find this install's reports without reading them all.
+  await env.REPORTS.put("r:" + day + ":" + reporter + ":" + crypto.randomUUID(), JSON.stringify(stored), { expirationTtl: LIMITS.keepDays * 86400 });
   return json(request, 200, { ok: true, accepted: stored.length });
+}
+
+// Deletes everything one install has sent: its reports (also older keys without the reporter id in the name,
+// which are read to check) and its first-seen record. Only the install id itself can ask, and it never leaves the
+// sender's machine except in this request; a few requests per network per day are allowed.
+async function forget(request, env) {
+  let body;
+  try { body = JSON.parse((await request.text()).slice(0, 2000)); } catch { return json(request, 400, { error: "invalid JSON" }); }
+  const install = typeof body?.install === "string" && /^[A-Za-z0-9-]{16,64}$/.test(body.install) ? body.install : null;
+  if (!install) return json(request, 400, { error: "missing install id" });
+  const day = new Date().toISOString().slice(0, 10);
+  const ip = request.headers.get("CF-Connecting-IP") || "unknown";
+  if (!(await bump(env.REPORTS, "rl:forget:" + (await hmac(env.SALT, "forget:" + ip + ":" + day)).slice(0, 32), 5))) {
+    return json(request, 429, { error: "daily limit reached" });
+  }
+  const reporter = "anon-" + (await hmac(env.SALT, "install:" + install)).slice(0, 16);
+  let deleted = 0, cursor;
+  do {
+    const page = await env.REPORTS.list({ prefix: "r:", cursor, limit: 1000 });
+    for (const k of page.keys) {
+      const parts = k.name.split(":");
+      let mine = parts.length === 4 ? parts[2] === reporter : false;
+      if (parts.length === 3) {
+        const v = await env.REPORTS.get(k.name);
+        try { mine = !!v && JSON.parse(v).some((r) => r.reporter === reporter); } catch { mine = false; }
+      }
+      if (mine) { await env.REPORTS.delete(k.name); deleted++; }
+    }
+    cursor = page.list_complete ? undefined : page.cursor;
+  } while (cursor);
+  await env.REPORTS.delete("rs:" + reporter);
+  return json(request, 200, { ok: true, deleted });
 }
 
 // Visitor counting without cookies. Each visit is its own short-lived key,
@@ -204,6 +238,7 @@ export default {
     if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: cors(request) });
     if (url.pathname === "/v1/report" && request.method === "POST") return report(request, env);
     if (url.pathname === "/v1/export" && request.method === "GET") return exportAll(request, env);
+    if (url.pathname === "/v1/forget" && request.method === "POST") return forget(request, env);
     if (url.pathname === "/v1/hit" && request.method === "POST") return hit(request, env);
     if (url.pathname === "/v1/visits" && request.method === "GET") {
       const res = json(request, 200, await visitStats(env));

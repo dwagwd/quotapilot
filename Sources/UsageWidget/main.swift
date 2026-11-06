@@ -656,6 +656,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
         menu.items.last?.state = settings.updateChecksEnabled ? .on : .off
         add(l.text("autoShare"), #selector(toggleAutoShare))
         menu.items.last?.state = settings.autoShareEnabled ? .on : .off
+        add(l.text("forgetShared"), #selector(forgetSharedData))
         menu.addItem(.separator())
         add(l.text("quit"), #selector(quit))
         status.menu = menu
@@ -2333,6 +2334,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
         NSApp.activate(ignoringOtherApps: true)
         guard alert.runModal() == .alertFirstButtonReturn else { return }
         settings.autoShareEnabled = true; saveSettings(); autoShareIfDue()
+    }
+
+    /// Right to erasure: turns daily sharing off and asks the collector to delete everything this Mac sent.
+    @objc private func forgetSharedData() {
+        let alert = NSAlert()
+        alert.messageText = l.text("forgetShared"); alert.informativeText = l.text("forgetExplain")
+        alert.addButton(withTitle: l.text("forgetConfirm")); alert.addButton(withTitle: l.text("cancel"))
+        NSApp.activate(ignoringOtherApps: true)
+        guard alert.runModal() == .alertFirstButtonReturn else { return }
+        if settings.autoShareEnabled { settings.autoShareEnabled = false; saveSettings() }
+        DispatchQueue.global(qos: .utility).async { [weak self] in
+            let result = ShareSubmitter.forgetAnonymous()
+            DispatchQueue.main.async {
+                guard let self else { return }
+                switch result {
+                case .success: self.inform(self.l.text("forgetDone"), self.l.text("forgetDoneBody"))
+                case .failure(let error): self.inform(self.l.text("forgetFailed"), error.localizedDescription)
+                }
+            }
+        }
     }
 
     /// Once a day, when the user turned it on: the same anonymous numbers `quotapilot share` previews,

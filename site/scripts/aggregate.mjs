@@ -1,5 +1,6 @@
 // Turns raw community reports (data/submissions/*.json) into data/community.json.
 // Run: node scripts/aggregate.mjs [--now 2026-11-02T00:00:00Z] [--in dir] [--out file]
+import { githubReporterId } from "./ingest-issue.mjs";
 import { readFileSync, readdirSync, writeFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -127,7 +128,8 @@ export function reporterUnits(rs) {
 }
 
 export function aggregate(raw, models, now = new Date(), blocked = []) {
-  const blockedSet = new Set(blocked.map((b) => String(b).toLowerCase()));
+  // The blocklist holds GitHub logins; stored issue reports carry their hashed form.
+  const blockedSet = new Set(blocked.flatMap((b) => [String(b).toLowerCase(), githubReporterId(b)]));
   const perDay = new Map();
   raw = raw.filter((r) => {
     if (!r || blockedSet.has(String(r.reporter || "").toLowerCase())) return false;
@@ -198,7 +200,10 @@ export function aggregate(raw, models, now = new Date(), blocked = []) {
 
   // Events use a 30-day window: they are rarer than other reports.
   const eventSince = new Date(now.getTime() - 30 * 864e5);
-  const evs = all.filter((r) => r.type === "event" && new Date(r.date) >= eventSince && new Date(r.date) <= now);
+  // Like every other row, a provider's events are published only once MIN_SAMPLES established people report
+  // them: with fewer, the hour-of-day chart would show one person's working hours.
+  const evsAll = all.filter((r) => r.type === "event" && established.has(r.reporter || "anon") && new Date(r.date) >= eventSince && new Date(r.date) <= now);
+  const evs = Object.values(groupBy(evsAll, (e) => e.provider)).filter((rs) => people(rs) >= MIN_SAMPLES).flat();
   const byHour = {};
   for (const p of PROVIDERS) byHour[p] = Array(24).fill(0);
   evs.forEach((e) => { byHour[e.provider][e.hourUtc]++; });

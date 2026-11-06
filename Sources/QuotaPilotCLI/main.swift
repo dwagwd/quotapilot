@@ -344,11 +344,12 @@ USAGE
   quotapilot config [show]                   Show router mode and task rules
   quotapilot config mode <auto|preferCodex|preferClaude>
   quotapilot config rule <web|review|plan|implement> <auto|codex|claude>
-  quotapilot share [--hours N] [--json] [--yes] [--github | --submit]
+  quotapilot share [--hours N] [--json] [--yes] [--github | --submit] | --forget
                                              Preview anonymous speed and quota numbers and, only if
                                              you confirm, send them anonymously to AI Quota Watch.
                                              --github opens a prefilled GitHub issue instead; --submit
                                              files it with the GitHub CLI. `share --yes` in cron shares daily
+                                             `share --forget` deletes everything this computer sent.
   quotapilot version
 
 On macOS the router mode and rules come from the QuotaPilot app when it is installed;
@@ -415,6 +416,13 @@ case "stats":
         print("  Output speed = output tokens (incl. reasoning) ÷ model-call time. The time includes prefill and time to first token, so it is a lower bound on decode (TG) tok/s.")
     }
 case "share":
+    if arguments.contains("--forget") {
+        // Right to erasure: the collector deletes everything this computer's anonymous id sent.
+        switch ShareSubmitter.forgetAnonymous() {
+        case .success(let n): print("Deleted \(n) stored report batches from the AI Quota Watch collector. Public stats drop them at the next rebuild (within 6 hours)."); exit(0)
+        case .failure(let error): fail("Could not delete: " + error.localizedDescription)
+        }
+    }
     let (reports, errors) = shareReports(hours: hours)
     let data = (try? JSONSerialization.data(withJSONObject: reports, options: [.prettyPrinted, .sortedKeys])) ?? Data()
     let json = String(decoding: data, as: UTF8.self)

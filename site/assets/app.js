@@ -789,7 +789,7 @@
         out.innerHTML = `<p>${t("rep.sending")}</p>`;
         fetch(community.collector + "/v1/report", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ install, reports: [res.r] }) })
           .then((r) => r.json().catch(() => ({})).then((body) => ({ ok: r.ok, body })))
-          .then(({ ok, body }) => { if (ok) out.innerHTML = `<p>${t("rep.thanks")}</p>`; else failed(body.error || t("rep.failed")); })
+          .then(({ ok, body }) => { if (ok) { out.innerHTML = `<p>${t("rep.thanks")}</p>`; $("#repForget").hidden = false; } else failed(body.error || t("rep.failed")); })
           .catch(() => failed(t("rep.failed")));
       };
       // Nothing leaves the browser until the person has seen the exact payload and pressed Send.
@@ -819,6 +819,17 @@
       state.repType = b.dataset.type; $("#repOut").hidden = true; renderReportForm();
     });
     $("#repForm").addEventListener("submit", onReportSubmit);
+    // Right to erasure for the web form: the browser's random id asks the collector to delete its reports,
+    // then the id itself is removed so later reports start a new, unlinked id.
+    const forgetBox = $("#repForget"), base = (window.SITE_CONFIG.community || {}).collector;
+    const stored = () => { try { return localStorage.getItem("aqw-install"); } catch (e) { return null; } };
+    forgetBox.hidden = !(base && stored());
+    $("#repForgetBtn").addEventListener("click", () => {
+      const id = stored(); if (!id || !confirm(t("rep.forgetConfirm"))) return;
+      fetch(base + "/v1/forget", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ install: id }) })
+        .then((r) => { if (!r.ok) throw new Error(); try { localStorage.removeItem("aqw-install"); } catch (e) { /* ignore */ } forgetBox.innerHTML = esc(t("rep.forgetDone")); })
+        .catch(() => { forgetBox.insertAdjacentHTML("beforeend", ` <span class="rep-err">${esc(t("rep.failed"))}</span>`); });
+    });
   }
 
   // ---------- partners / ads ----------

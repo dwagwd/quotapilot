@@ -35,6 +35,20 @@ final class ContributionReportTests: XCTestCase {
         XCTAssertEqual(reports.first { $0["effort"] as? String == "high" }?["reasoningTokens"] as? Double, 1800)
     }
 
+    func testSpeedReportsCarryPromptAndCacheTotalsOnly() {
+        let samples = (0..<3).map { i -> OutputSpeedSample in
+            var s = OutputSpeedSample(provider: "claude", timestamp: Double(i), outputTokens: 500, reasoningTokens: 0, seconds: 10, key: "claude|m\(i)", model: "claude-opus-5-5")
+            s.inputTokens = 10; s.cacheReadTokens = 40000; s.cacheWriteTokens = 1000
+            return s
+        }
+        let r = ContributionReport.build(speed: samples, windows: [], now: 0)[0]
+        XCTAssertEqual(r["inputTokens"] as? Double, 30)
+        XCTAssertEqual(r["cacheReadTokens"] as? Double, 120000)
+        XCTAssertEqual(r["cacheWriteTokens"] as? Double, 3000)
+        let none = (0..<3).map { OutputSpeedSample(provider: "codex", timestamp: Double($0), outputTokens: 500, reasoningTokens: 0, seconds: 10, key: "\($0)", model: "gpt-6.1-sol") }
+        XCTAssertNil(ContributionReport.build(speed: none, windows: [], now: 0)[0]["inputTokens"], "no prompt data, no fields")
+    }
+
     func testQuotaReportSkipsCacheReadsAndUnknownWindows() {
         let use = ContributionReport.WindowUse(provider: "codex", plan: "pro", windowMinutes: 300, usedPercent: 12.34, limitReached: false,
                                                tokensSinceStart: TokenBreakdown(input: 100_000, cacheRead: 9_000_000, cacheWrite: 0, output: 20_000), model: "gpt-6.1-sol")

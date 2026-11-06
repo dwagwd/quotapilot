@@ -63,4 +63,22 @@ final class OutputSpeedTests: XCTestCase {
         XCTAssertEqual(summary.medianTokensPerSecond, 20)
         XCTAssertNil(OutputSpeedSummary([]))
     }
+
+    func testPromptSideAndCacheAreRecorded() {
+        var codex = CallTimer(provider: "codex")
+        let c = [
+            #"{"timestamp":"2026-10-19T07:26:00.000Z","type":"response_item","payload":{"type":"function_call_output"}}"#,
+            #"{"timestamp":"2026-10-19T07:26:10.000Z","type":"token_usage_record","payload":{"response_id":"r","usage":{"input_tokens":10000,"cached_input_tokens":9000,"output_tokens":500}}}"#
+        ].flatMap { codex.feed($0) }
+        XCTAssertEqual(c.first?.inputTokens, 1000, "Codex counts cached input inside input_tokens")
+        XCTAssertEqual(c.first?.cacheReadTokens, 9000)
+
+        var claude = CallTimer(provider: "claude")
+        _ = claude.feed(#"{"type":"user","timestamp":"2026-10-19T08:05:00.000Z","message":{"role":"user"}}"#)
+        _ = claude.feed(#"{"type":"assistant","timestamp":"2026-10-19T08:05:04.000Z","message":{"id":"m1","model":"claude-opus-5-5","usage":{"input_tokens":12,"cache_read_input_tokens":50000,"cache_creation_input_tokens":800,"output_tokens":400}}}"#)
+        let s = claude.flush()
+        XCTAssertEqual(s.first?.inputTokens, 12)
+        XCTAssertEqual(s.first?.cacheReadTokens, 50000)
+        XCTAssertEqual(s.first?.cacheWriteTokens, 800)
+    }
 }

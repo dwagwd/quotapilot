@@ -170,3 +170,21 @@ test("each person counts once per row, and report count is kept separately", () 
   assert.equal(row.reports, 7);
   assert.equal(row.median, 100, "the heavy reporter's five reports weigh as one");
 });
+
+test("token mix shows prompt per output and cache hit once three people report it", () => {
+  const rep = (who, input, read, write) => ({ type: "speed", model: "claude-opus-5-5", outputTokens: 1000, seconds: 10, inputTokens: input, cacheReadTokens: read, cacheWriteTokens: write, date: day(1), reporter: who });
+  const two = aggregate([rep("a", 100, 9000, 900), rep("b", 200, 8000, 800)], models, now);
+  assert.deepEqual(two.tokenMix, []);
+  const three = aggregate([rep("a", 100, 9000, 900), rep("b", 200, 8000, 800), rep("c", 1000, 18000, 1000), { type: "speed", model: "claude-opus-5-5", outputTokens: 1000, seconds: 10, date: day(1), reporter: "d" }], models, now);
+  const row = three.tokenMix.find((r) => r.model === "claude-opus-5-5");
+  assert.equal(row.n, 3, "reports without prompt data are not counted");
+  assert.equal(row.inputPerOutput, 10);   // person medians 10, 9, 20 -> 10
+  assert.equal(row.cacheHit, 0.9);        // 0.9, 0.889, 0.9 -> 0.9
+  assert.ok(row.cacheWriteShare > 0.04 && row.cacheWriteShare < 0.1);
+});
+
+test("prompt fields are bounded numbers", () => {
+  const r = clean({ type: "speed", model: "gpt-6-1-sol", outputTokens: 900, seconds: 10, inputTokens: -5, cacheReadTokens: 10, cacheWriteTokens: 0, date: day(1) }, models);
+  assert.equal(r.inputPerOutput, null);
+  assert.equal(r.cacheHit, null);
+});

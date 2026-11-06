@@ -26,7 +26,9 @@ for (const fam of efforts.filter((f) => ["claude-opus-5-5", "gpt-6-1-sol", "gpt-
   for (const e of fam.efforts) {
     for (let i = 0; i < 4; i++) {
       const calls = 40 + Math.round(rnd() * 200), per = jitter(perCallBase[e.effort], 0.2), tps = jitter((e.speed || 80) * 0.75, 0.2);
-      raw.push({ type: "speed", model: fam.model, effort: e.effort, calls, outputTokens: Math.round(per * calls), reasoningTokens: Math.round(per * calls * jitter(reasonBase[e.effort], 0.1)), seconds: per * calls / tps, client: "Codex", date: when(7), reporter: `eff${i}` });
+      const out = Math.round(per * calls), prompt = out * jitter(40, 0.4), hit = Math.min(0.97, jitter(0.88, 0.06)), write = 0.04;
+      raw.push({ type: "speed", model: fam.model, effort: e.effort, calls, outputTokens: out, reasoningTokens: Math.round(per * calls * jitter(reasonBase[e.effort], 0.1)), seconds: per * calls / tps, client: "Codex", date: when(7), reporter: `eff${i}`,
+        inputTokens: Math.round(prompt * (1 - hit - write)), cacheReadTokens: Math.round(prompt * hit), cacheWriteTokens: Math.round(prompt * write) });
     }
   }
 }

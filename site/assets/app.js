@@ -674,6 +674,12 @@
       <td class="num">${fmtTokens(q.medianTokens)}<small>${fmtTokens(q.p25Tokens)}–${fmtTokens(q.p75Tokens)} · n=${q.n}</small></td>
       <td class="num">${q.medianUsd != null ? money(q.medianUsd, 0) : t("calc.na")}</td></tr>`).join("")}</tbody></table>` : emptyNote();
 
+    const mix = c.tokenMix || [];
+    $("#comMix").innerHTML = mix.length ? `<table class="com-table"><thead><tr><th>${t("col.model")}</th><th class="num">${t("com.mixRatio")}</th><th class="num">${t("com.mixCache")}</th></tr></thead><tbody>${mix.map((r) => `
+      <tr><td>${esc(modelName(r.model))}</td>
+      <td class="num">${r.inputPerOutput}:1<small>${r.inputPerOutputP25}–${r.inputPerOutputP75} · n=${r.n}</small></td>
+      <td class="num">${Math.round(r.cacheHit * 100)}%<small>${t("com.mixWrite").replace("{p}", Math.round(r.cacheWriteShare * 100))}</small></td></tr>`).join("")}</tbody></table>` : emptyNote();
+
     // shift UTC hours into the viewer's local time
     const off = -new Date().getTimezoneOffset() / 60;
     const hours = Array(24).fill(0).map(() => ({}));

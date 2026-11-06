@@ -47,7 +47,11 @@ export function clean(r, models) {
     const calls = num(r.calls, 1, 1e7) || 1;
     const effort = EFFORTS.includes(r.effort) ? r.effort : null;
     const reasoning = num(r.reasoningTokens, 0, tokens);
-    return { ...base, client: String(r.client || "").slice(0, 40), tps: tokens / secs, effort, calls, perCall: tokens / calls, reasoningShare: reasoning != null ? reasoning / tokens : null };
+    // Prompt side (QuotaPilot 0.6.3+): new input, cache reads and cache writes, as totals for the same calls.
+    const inp = num(r.inputTokens, 0, 1e12), cRead = num(r.cacheReadTokens, 0, 1e12), cWrite = num(r.cacheWriteTokens, 0, 1e12);
+    const prompt = inp != null && cRead != null && cWrite != null ? inp + cRead + cWrite : null;
+    return { ...base, client: String(r.client || "").slice(0, 40), tps: tokens / secs, effort, calls, perCall: tokens / calls, reasoningShare: reasoning != null ? reasoning / tokens : null,
+      inputPerOutput: prompt ? prompt / tokens : null, cacheHit: prompt ? cRead / prompt : null, cacheWriteShare: prompt ? cWrite / prompt : null };
   }
   if (r.type === "rating") {
     const score = num(r.score, 1, 10);
@@ -163,6 +167,17 @@ export function aggregate(raw, models, now = new Date(), blocked = []) {
     })
     .filter((s) => s.n >= MIN_SAMPLES).sort((a, b) => a.model.localeCompare(b.model) || EFFORTS.indexOf(a.effort) - EFFORTS.indexOf(b.effort));
 
+  // Token mix per model: prompt tokens per output token and the share of the prompt served from cache.
+  // One value per person (their median), shown once MIN_SAMPLES people report it.
+  const tokenMix = Object.entries(groupBy(counted.filter((r) => r.type === "speed" && r.inputPerOutput != null), (r) => r.model))
+    .map(([model, rs]) => {
+      const q = (values, p) => { const v = trimOutliers(values); return v.length ? quantile(v, p) : null; };
+      const ratio = perPerson(rs, (r) => r.inputPerOutput), hit = perPerson(rs, (r) => r.cacheHit), write = perPerson(rs, (r) => r.cacheWriteShare);
+      return { model, n: people(rs), reports: rs.length, inputPerOutput: round(q(ratio, 0.5), 1), inputPerOutputP25: round(q(ratio, 0.25), 1), inputPerOutputP75: round(q(ratio, 0.75), 1),
+        cacheHit: round(q(hit, 0.5), 3), cacheWriteShare: round(q(write, 0.5), 3) };
+    })
+    .filter((s) => s.n >= MIN_SAMPLES).sort((a, b) => b.cacheHit - a.cacheHit);
+
   const ratings = Object.entries(groupBy(counted.filter((r) => r.type === "rating"), (r) => r.model))
     .map(([model, rs]) => {
       const scores = byReporter(rs).map((mine) => mine.reduce((a, r) => a + r.score, 0) / mine.length);
@@ -195,7 +210,7 @@ export function aggregate(raw, models, now = new Date(), blocked = []) {
     eventWindowDays: 30,
     minSamples: MIN_SAMPLES,
     totals: { reports: recent.length, reporters: new Set(recent.map((r) => r.reporter).filter((r) => r !== "anon")).size, rejected },
-    speed, effortUsage, ratings, quota,
+    speed, effortUsage, tokenMix, ratings, quota,
     events: { byHourUtc: byHour, counts: eventCounts }
   };
 }

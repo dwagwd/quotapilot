@@ -118,6 +118,12 @@ public enum ContributionReport {
                                          "reasoningTokens": samples.reduce(0) { $0 + $1.reasoningTokens }.rounded(),
                                          "calls": summary.calls, "date": date, "via": "quotapilot"]
             if parts.count > 1, !parts[1].isEmpty { report["effort"] = String(parts[1]) }
+            // Prompt side, for the site's input/output and prompt-cache statistics. Totals only.
+            let input = samples.reduce(0) { $0 + $1.inputTokens }, cacheRead = samples.reduce(0) { $0 + $1.cacheReadTokens }
+            let cacheWrite = samples.reduce(0) { $0 + $1.cacheWriteTokens }
+            if input + cacheRead + cacheWrite > 0 {
+                report["inputTokens"] = input.rounded(); report["cacheReadTokens"] = cacheRead.rounded(); report["cacheWriteTokens"] = cacheWrite.rounded()
+            }
             reports.append(report)
         }
 

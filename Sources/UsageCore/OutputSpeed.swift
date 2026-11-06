@@ -14,6 +14,10 @@ public struct OutputSpeedSample: Equatable {
     public var model: String? = nil
     /// Reasoning effort the call ran at (`low` … `max`), when the log names it.
     public var effort: String? = nil
+    /// Prompt side of the call: new input, input read from the prompt cache, and input written to it.
+    public var inputTokens: Double = 0
+    public var cacheReadTokens: Double = 0
+    public var cacheWriteTokens: Double = 0
     public var tokensPerSecond: Double { seconds > 0 ? outputTokens / seconds : 0 }
 }
 
@@ -23,7 +27,7 @@ public struct CallTimer {
     private var start: Double?
     private var codexModel: String?
     private var codexEffort: String?
-    private var pending: [String: (start: Double, end: Double, output: Double, order: Int, model: String?, effort: String?, reasoning: Double)] = [:]
+    private var pending: [String: (start: Double, end: Double, output: Double, order: Int, model: String?, effort: String?, reasoning: Double, input: Double, cacheRead: Double, cacheWrite: Double)] = [:]
     private var order = 0
     public static let plausibleSeconds: ClosedRange<Double> = 0.5...900
 
@@ -60,10 +64,16 @@ public struct CallTimer {
               let usage = payload["usage"] as? [String: Any] else { return [] }
         let seconds = time - begin, output = Self.number(usage["output_tokens"])
         guard Self.plausibleSeconds.contains(seconds), output > 0 else { return [] }
-        return [OutputSpeedSample(provider: "codex", timestamp: time, outputTokens: output,
-                                  reasoningTokens: min(output, Self.number(usage["reasoning_output_tokens"])),
-                                  seconds: seconds, key: "codex|" + ((payload["response_id"] as? String) ?? "\(time)"),
-                                  model: (payload["model"] as? String) ?? codexModel, effort: codexEffort)]
+        var sample = OutputSpeedSample(provider: "codex", timestamp: time, outputTokens: output,
+                                       reasoningTokens: min(output, Self.number(usage["reasoning_output_tokens"])),
+                                       seconds: seconds, key: "codex|" + ((payload["response_id"] as? String) ?? "\(time)"),
+                                       model: (payload["model"] as? String) ?? codexModel, effort: codexEffort)
+        // Codex counts cached input inside input_tokens.
+        let cached = Self.number(usage["cached_input_tokens"]), written = Self.number(usage["cache_write_input_tokens"])
+        sample.inputTokens = max(0, Self.number(usage["input_tokens"]) - cached - written)
+        sample.cacheReadTokens = cached
+        sample.cacheWriteTokens = written
+        return [sample]
     }
 
     /// Gemini CLI: a `user` message (prompt or tool result) starts a request; the `gemini` message with
@@ -80,8 +90,12 @@ public struct CallTimer {
         let thoughts = Self.number(tokens["thoughts"]), output = Self.number(tokens["output"]) + thoughts
         let seconds = time - begin
         guard Self.plausibleSeconds.contains(seconds), output > 0 else { return [] }
-        return [OutputSpeedSample(provider: "gemini", timestamp: time, outputTokens: output, reasoningTokens: thoughts,
-                                  seconds: seconds, key: "gemini|" + id, model: object["model"] as? String, effort: nil)]
+        var sample = OutputSpeedSample(provider: "gemini", timestamp: time, outputTokens: output, reasoningTokens: thoughts,
+                                       seconds: seconds, key: "gemini|" + id, model: object["model"] as? String, effort: nil)
+        let cached = Self.number(tokens["cached"])
+        sample.inputTokens = max(0, Self.number(tokens["input"]) - cached) + Self.number(tokens["tool"])
+        sample.cacheReadTokens = cached
+        return [sample]
     }
 
     /// Claude Code: a `user` line (prompt or tool result) starts a request; the assistant message is written
@@ -98,11 +112,15 @@ public struct CallTimer {
               let id = message["id"] as? String, let usage = message["usage"] as? [String: Any] else { return [] }
         let output = Self.number(usage["output_tokens"])
         let thinking = Self.number((usage["output_tokens_details"] as? [String: Any])?["thinking_tokens"])
+        let input = Self.number(usage["input_tokens"]), cacheRead = Self.number(usage["cache_read_input_tokens"])
+        let cacheWrite = Self.number(usage["cache_creation_input_tokens"])
         if var entry = pending[id] {
-            entry.end = max(entry.end, time); entry.output = max(entry.output, output); entry.reasoning = max(entry.reasoning, thinking); pending[id] = entry
+            entry.end = max(entry.end, time); entry.output = max(entry.output, output); entry.reasoning = max(entry.reasoning, thinking)
+            entry.input = max(entry.input, input); entry.cacheRead = max(entry.cacheRead, cacheRead); entry.cacheWrite = max(entry.cacheWrite, cacheWrite)
+            pending[id] = entry
         } else if let begin = start {
             order += 1
-            pending[id] = (begin, time, output, order, message["model"] as? String, object["effort"] as? String, thinking)
+            pending[id] = (begin, time, output, order, message["model"] as? String, object["effort"] as? String, thinking, input, cacheRead, cacheWrite)
         }
         return []
     }
@@ -112,9 +130,11 @@ public struct CallTimer {
         let done = pending.sorted { $0.value.order < $1.value.order }.compactMap { id, entry -> OutputSpeedSample? in
             let seconds = entry.end - entry.start
             guard Self.plausibleSeconds.contains(seconds), entry.output > 0 else { return nil }
-            return OutputSpeedSample(provider: AgentLogParser.providerForModel(entry.model), timestamp: entry.end, outputTokens: entry.output,
-                                     reasoningTokens: min(entry.output, entry.reasoning), seconds: seconds, key: "claude|" + id,
-                                     model: entry.model, effort: entry.effort)
+            var sample = OutputSpeedSample(provider: AgentLogParser.providerForModel(entry.model), timestamp: entry.end, outputTokens: entry.output,
+                                           reasoningTokens: min(entry.output, entry.reasoning), seconds: seconds, key: "claude|" + id,
+                                           model: entry.model, effort: entry.effort)
+            sample.inputTokens = entry.input; sample.cacheReadTokens = entry.cacheRead; sample.cacheWriteTokens = entry.cacheWrite
+            return sample
         }
         pending = [:]
         return done

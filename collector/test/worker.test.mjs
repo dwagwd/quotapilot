@@ -224,3 +224,11 @@ test("a hash-free total stored for today is still combined with today's visits",
   await worker.fetch(new Request("https://x/api/v1/hit", { method: "POST", headers: { "CF-Connecting-IP": "8.8.8.8" } }), e);
   assert.equal((await visitStats(e)).views, 3);
 });
+
+test("prompt and cache token totals are kept, other extras are dropped", () => {
+  const r = sanitize({ type: "speed", model: "claude-opus-5-5", outputTokens: 1000, inputTokens: 12, cacheReadTokens: 50000, cacheWriteTokens: 800, prompt: "secret" });
+  assert.equal(r.inputTokens, 12);
+  assert.equal(r.cacheReadTokens, 50000);
+  assert.equal(r.cacheWriteTokens, 800);
+  assert.equal(r.prompt, undefined);
+});

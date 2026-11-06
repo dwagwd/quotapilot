@@ -9,7 +9,7 @@ import { fileURLToPath } from "node:url";
 const FIELDS = {
   type: "string", model: "string", provider: "string", plan: "string", window: "string", kind: "string", effort: "string",
   client: "string", task: "string", via: "string", date: "string",
-  outputTokens: "number", reasoningTokens: "number", seconds: "number", calls: "number", score: "number",
+  outputTokens: "number", reasoningTokens: "number", inputTokens: "number", cacheReadTokens: "number", cacheWriteTokens: "number", seconds: "number", calls: "number", score: "number",
   percentUsed: "number", tokensUsed: "number", inputShare: "number", degraded: "boolean"
 };
 const MAX_BODY = 20000;

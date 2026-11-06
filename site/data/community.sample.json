@@ -5,17 +5,19 @@
   "eventWindowDays": 30,
   "minSamples": 3,
   "totals": {
-    "reports": 215,
+    "reports": 214,
     "reporters": 22,
     "rejected": 0
   },
   "speed": [
     {
       "model": "claude-sonnet-5-5",
-      "n": 29,
-      "median": 86.8,
-      "p25": 76.1,
-      "p75": 96.4,
+      "n": 12,
+      "median": 92.4,
+      "p25": 87.2,
+      "p75": 96.2,
+      "reporters": 13,
+      "reports": 29,
       "clients": [
         "CLI",
         "Desktop",
@@ -29,6 +31,8 @@
       "median": 70.9,
       "p25": 64.4,
       "p75": 75.7,
+      "reporters": 8,
+      "reports": 8,
       "clients": [
         "CLI",
         "Desktop",
@@ -36,11 +40,13 @@
       ]
     },
     {
-      "model": "claude-opus-5-5",
-      "n": 26,
+      "model": "gpt-6-1-sol",
+      "n": 11,
       "median": 63.9,
-      "p25": 57.7,
-      "p75": 69.3,
+      "p25": 52.4,
+      "p75": 67.3,
+      "reporters": 11,
+      "reports": 27,
       "clients": [
         "CLI",
         "Desktop",
@@ -49,11 +55,13 @@
       ]
     },
     {
-      "model": "gpt-6-1-sol",
-      "n": 27,
-      "median": 60.4,
-      "p25": 52.3,
-      "p75": 66.6,
+      "model": "claude-opus-5-5",
+      "n": 10,
+      "median": 62.9,
+      "p25": 59.9,
+      "p75": 68.3,
+      "reporters": 10,
+      "reports": 26,
       "clients": [
         "CLI",
         "Desktop",
@@ -67,6 +75,8 @@
       "median": 58.1,
       "p25": 51.6,
       "p75": 63.7,
+      "reporters": 11,
+      "reports": 11,
       "clients": [
         "CLI",
         "Desktop",
@@ -75,10 +85,12 @@
     },
     {
       "model": "gpt-6-astra",
-      "n": 30,
-      "median": 50.7,
-      "p25": 44.4,
-      "p75": 55.1,
+      "n": 14,
+      "median": 49,
+      "p25": 47.1,
+      "p75": 55,
+      "reporters": 14,
+      "reports": 30,
       "clients": [
         "CLI",
         "Desktop",
@@ -92,187 +104,250 @@
       "model": "claude-opus-5-5",
       "effort": "low",
       "n": 4,
-      "calls": 651,
-      "tps": 61.6,
-      "perCall": 218,
+      "reports": 4,
+      "calls": 611,
+      "tps": 61.8,
+      "perCall": 232,
       "reasoningShare": 0.2
     },
     {
       "model": "claude-opus-5-5",
       "effort": "medium",
       "n": 4,
-      "calls": 759,
-      "tps": 53.2,
-      "perCall": 412,
+      "reports": 4,
+      "calls": 755,
+      "tps": 60.3,
+      "perCall": 408,
       "reasoningShare": 0.4
     },
     {
       "model": "claude-opus-5-5",
       "effort": "high",
       "n": 4,
-      "calls": 511,
-      "tps": 65.6,
-      "perCall": 692,
+      "reports": 4,
+      "calls": 618,
+      "tps": 59.5,
+      "perCall": 677,
       "reasoningShare": 0.6
     },
     {
       "model": "claude-opus-5-5",
       "effort": "xhigh",
       "n": 4,
-      "calls": 428,
-      "tps": 67.5,
-      "perCall": 1053,
+      "reports": 4,
+      "calls": 472,
+      "tps": 62.6,
+      "perCall": 910,
       "reasoningShare": 0.7
     },
     {
       "model": "claude-opus-5-5",
       "effort": "max",
       "n": 4,
-      "calls": 534,
-      "tps": 75.6,
-      "perCall": 1409,
+      "reports": 4,
+      "calls": 447,
+      "tps": 70.4,
+      "perCall": 1570,
       "reasoningShare": 0.8
     },
     {
       "model": "claude-sonnet-5-5",
       "effort": "low",
       "n": 4,
-      "calls": 615,
-      "tps": 72,
-      "perCall": 214,
+      "reports": 4,
+      "calls": 629,
+      "tps": 83.1,
+      "perCall": 278,
       "reasoningShare": 0.2
     },
     {
       "model": "claude-sonnet-5-5",
       "effort": "medium",
       "n": 4,
-      "calls": 647,
-      "tps": 78.7,
-      "perCall": 378,
+      "reports": 4,
+      "calls": 555,
+      "tps": 87.9,
+      "perCall": 437,
       "reasoningShare": 0.4
     },
     {
       "model": "claude-sonnet-5-5",
       "effort": "high",
       "n": 4,
-      "calls": 561,
-      "tps": 80.6,
-      "perCall": 702,
+      "reports": 4,
+      "calls": 392,
+      "tps": 89.4,
+      "perCall": 605,
       "reasoningShare": 0.6
     },
     {
       "model": "claude-sonnet-5-5",
       "effort": "xhigh",
       "n": 4,
-      "calls": 701,
-      "tps": 72.2,
-      "perCall": 1018,
+      "reports": 4,
+      "calls": 482,
+      "tps": 78.2,
+      "perCall": 988,
       "reasoningShare": 0.7
     },
     {
       "model": "claude-sonnet-5-5",
       "effort": "max",
       "n": 4,
-      "calls": 511,
-      "tps": 107,
-      "perCall": 1494,
+      "reports": 4,
+      "calls": 862,
+      "tps": 99.8,
+      "perCall": 1693,
       "reasoningShare": 0.8
     },
     {
       "model": "gpt-6-1-sol",
       "effort": "low",
       "n": 4,
-      "calls": 535,
-      "tps": 51.9,
-      "perCall": 265,
+      "reports": 4,
+      "calls": 533,
+      "tps": 50.6,
+      "perCall": 228,
       "reasoningShare": 0.2
     },
     {
       "model": "gpt-6-1-sol",
       "effort": "medium",
       "n": 4,
-      "calls": 573,
-      "tps": 47.8,
-      "perCall": 448,
+      "reports": 4,
+      "calls": 662,
+      "tps": 46.8,
+      "perCall": 417,
       "reasoningShare": 0.4
     },
     {
       "model": "gpt-6-1-sol",
       "effort": "high",
       "n": 4,
-      "calls": 597,
-      "tps": 53.9,
-      "perCall": 611,
-      "reasoningShare": 0.5
+      "reports": 4,
+      "calls": 474,
+      "tps": 44.1,
+      "perCall": 676,
+      "reasoningShare": 0.6
     },
     {
       "model": "gpt-6-1-sol",
       "effort": "xhigh",
       "n": 4,
-      "calls": 404,
-      "tps": 63.7,
-      "perCall": 865,
-      "reasoningShare": 0.6
+      "reports": 4,
+      "calls": 681,
+      "tps": 50.4,
+      "perCall": 934,
+      "reasoningShare": 0.7
     },
     {
       "model": "gpt-6-1-sol",
       "effort": "max",
       "n": 4,
-      "calls": 587,
-      "tps": 69.7,
-      "perCall": 1593,
+      "reports": 4,
+      "calls": 412,
+      "tps": 69.2,
+      "perCall": 1440,
       "reasoningShare": 0.8
     },
     {
       "model": "gpt-6-astra",
       "effort": "low",
       "n": 4,
-      "calls": 439,
-      "tps": 39.6,
-      "perCall": 236,
+      "reports": 4,
+      "calls": 726,
+      "tps": 45.7,
+      "perCall": 228,
       "reasoningShare": 0.2
     },
     {
       "model": "gpt-6-astra",
       "effort": "medium",
       "n": 4,
-      "calls": 633,
-      "tps": 42.3,
-      "perCall": 379,
+      "reports": 4,
+      "calls": 501,
+      "tps": 46.5,
+      "perCall": 426,
       "reasoningShare": 0.4
     },
     {
       "model": "gpt-6-astra",
       "effort": "high",
       "n": 4,
-      "calls": 780,
-      "tps": 52.9,
-      "perCall": 565,
+      "reports": 4,
+      "calls": 582,
+      "tps": 47.3,
+      "perCall": 655,
       "reasoningShare": 0.6
     },
     {
       "model": "gpt-6-astra",
       "effort": "xhigh",
       "n": 4,
-      "calls": 416,
-      "tps": 56.1,
-      "perCall": 974,
+      "reports": 4,
+      "calls": 502,
+      "tps": 51.1,
+      "perCall": 1070,
       "reasoningShare": 0.7
     },
     {
       "model": "gpt-6-astra",
       "effort": "max",
       "n": 4,
-      "calls": 612,
-      "tps": 56.3,
-      "perCall": 1628,
+      "reports": 4,
+      "calls": 536,
+      "tps": 61,
+      "perCall": 1579,
       "reasoningShare": 0.8
+    }
+  ],
+  "tokenMix": [
+    {
+      "model": "gpt-6-1-sol",
+      "n": 4,
+      "reports": 20,
+      "inputPerOutput": 35.3,
+      "inputPerOutputP25": 31.3,
+      "inputPerOutputP75": 38.1,
+      "cacheHit": 0.892,
+      "cacheWriteShare": 0.04
+    },
+    {
+      "model": "claude-opus-5-5",
+      "n": 4,
+      "reports": 20,
+      "inputPerOutput": 41,
+      "inputPerOutputP25": 38.3,
+      "inputPerOutputP75": 43.4,
+      "cacheHit": 0.882,
+      "cacheWriteShare": 0.04
+    },
+    {
+      "model": "claude-sonnet-5-5",
+      "n": 4,
+      "reports": 20,
+      "inputPerOutput": 41,
+      "inputPerOutputP25": 37.3,
+      "inputPerOutputP75": 45.4,
+      "cacheHit": 0.881,
+      "cacheWriteShare": 0.04
+    },
+    {
+      "model": "gpt-6-astra",
+      "n": 4,
+      "reports": 20,
+      "inputPerOutput": 39.3,
+      "inputPerOutputP25": 36.4,
+      "inputPerOutputP75": 41.6,
+      "cacheHit": 0.881,
+      "cacheWriteShare": 0.04
     }
   ],
   "ratings": [
     {
       "model": "gemini-4-carbon",
       "n": 8,
+      "reports": 8,
       "avg": 8.3,
       "degradedShare": 0.13,
       "alert": false
@@ -280,6 +355,7 @@
     {
       "model": "claude-opus-5-5",
       "n": 6,
+      "reports": 6,
       "avg": 8.2,
       "degradedShare": 0.17,
       "alert": false
@@ -287,6 +363,7 @@
     {
       "model": "gpt-6-1-sol",
       "n": 7,
+      "reports": 7,
       "avg": 8,
       "degradedShare": 0.14,
       "alert": false
@@ -294,6 +371,7 @@
     {
       "model": "gpt-6-astra",
       "n": 10,
+      "reports": 10,
       "avg": 7.9,
       "degradedShare": 0.5,
       "alert": true
@@ -301,6 +379,7 @@
     {
       "model": "claude-sonnet-5-5",
       "n": 9,
+      "reports": 9,
       "avg": 7.6,
       "degradedShare": 0.11,
       "alert": false
@@ -308,6 +387,7 @@
     {
       "model": "grok-4-7",
       "n": 11,
+      "reports": 11,
       "avg": 5.4,
       "degradedShare": 0.09,
       "alert": false
@@ -319,19 +399,23 @@
       "plan": "Pro (200)",
       "window": "weekly",
       "n": 4,
-      "medianTokens": 218586678,
-      "p25Tokens": 196465723,
-      "p75Tokens": 248352579,
-      "medianUsd": 786.9
+      "reporters": 4,
+      "reports": 4,
+      "medianTokens": 247696800,
+      "p25Tokens": 231740617,
+      "p75Tokens": 260587494,
+      "medianUsd": 891.7
     },
     {
       "provider": "chatgpt",
       "plan": "Plus",
       "window": "5h",
       "n": 4,
-      "medianTokens": 845572,
-      "p25Tokens": 751340,
-      "p75Tokens": 960564,
+      "reporters": 4,
+      "reports": 4,
+      "medianTokens": 820776,
+      "p25Tokens": 779313,
+      "p75Tokens": 892285,
       "medianUsd": 3
     },
     {
@@ -339,30 +423,24 @@
       "plan": "Max",
       "window": "5h",
       "n": 4,
-      "medianTokens": 3289265,
-      "p25Tokens": 3181729,
-      "p75Tokens": 3395460,
-      "medianUsd": 23.7
-    },
-    {
-      "provider": "claude",
-      "plan": "Pro",
-      "window": "5h",
-      "n": 3,
-      "medianTokens": 585170,
-      "p25Tokens": 552970,
-      "p75Tokens": 624928,
-      "medianUsd": 4.2
+      "reporters": 4,
+      "reports": 4,
+      "medianTokens": 2813769,
+      "p25Tokens": 2617767,
+      "p75Tokens": 3067371,
+      "medianUsd": 20.3
     },
     {
       "provider": "gemini",
       "plan": "AI Pro",
       "window": "5h",
       "n": 4,
-      "medianTokens": 1379958,
-      "p25Tokens": 1295663,
-      "p75Tokens": 1424740,
-      "medianUsd": 5
+      "reporters": 4,
+      "reports": 4,
+      "medianTokens": 1033255,
+      "p25Tokens": 1001077,
+      "p75Tokens": 1155217,
+      "medianUsd": 3.7
     }
   ],
   "events": {

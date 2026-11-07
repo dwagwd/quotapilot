@@ -48,6 +48,15 @@ async function verifyTurnstile(secret, token, ip) {
 }
 
 
+// Compares two strings without leaking how much of them matched: both are hashed with a key first, so the
+// comparison time does not depend on where they differ.
+async function sameSecret(given, expected, key) {
+  const [a, b] = await Promise.all([hmac(key || "compare", "cmp:" + given), hmac(key || "compare", "cmp:" + expected)]);
+  let diff = 0;
+  for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  return diff === 0;
+}
+
 async function hmac(secret, text) {
   const key = await crypto.subtle.importKey("raw", new TextEncoder().encode(secret), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
   const sig = await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(text));
@@ -378,7 +387,7 @@ async function visits(request, env) {
 
 async function exportAll(request, env) {
   const auth = request.headers.get("Authorization") || "";
-  if (!env.EXPORT_TOKEN || auth !== "Bearer " + env.EXPORT_TOKEN) return json(request, 401, { error: "unauthorized" });
+  if (!env.EXPORT_TOKEN || !(await sameSecret(auth, "Bearer " + env.EXPORT_TOKEN, env.SALT))) return json(request, 401, { error: "unauthorized" });
   const out = [];
   let cursor;
   do {

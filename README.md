@@ -14,6 +14,8 @@ open "$(brew --prefix quotapilot)/QuotaPilot.app"
 
 Homebrew builds QuotaPilot from source on your Mac (about two minutes, needs the Xcode Command Line Tools); update with `brew upgrade quotapilot`. No prebuilt binaries are published.
 
+<!-- sponsor:start --><!-- sponsor:end -->
+
 [繁體中文](README.zh-TW.md) · [AI Quota Watch site](site/) · [Privacy](PRIVACY.md) · [Contributing](CONTRIBUTING.md) · [MIT license](LICENSE)
 
 Unofficial community project. Not affiliated with or endorsed by OpenAI, Anthropic, Google, or Cursor. Product names belong to their respective owners.

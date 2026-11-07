@@ -1,0 +1,10 @@
+# Keeps the pinned GitHub Actions up to date (the repo has no npm or SwiftPM dependencies to track).
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      actions:
+        patterns: ["*"]

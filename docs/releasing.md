@@ -2,6 +2,9 @@
 
 **From 0.6.3 releases are source only.** Bump `VERSION`, the plugin manifest, the CLI `version` constant, `CHANGELOG.md` and the `tag:` in [`Formula/quotapilot.rb`](../Formula/quotapilot.rb) (its `revision:` stays the all-zero placeholder until the tag exists), run `./scripts/check.sh`, then tag and pin as described in [Source-only release steps](#source-only-release-steps). Homebrew compiles the app on each user's Mac, so nothing is signed with a personal Developer ID and no binary carries the maintainer's machine paths. The signed-build notes below are kept only for a future organization account.
 
+**CI does the heavy work on GitHub's free macOS runners (public repository):** pushing the `vX.Y.Z` tag runs `.github/workflows/release.yml` (checks, source archive, SHA-256, notes from this CHANGELOG section, GitHub Release) and `.github/workflows/formula.yml` (installs the formula exactly as users do, `brew test`, signature and build-path checks). Pull requests that touch the app or the formula run the same Homebrew build against the commit under test. CodeQL (JavaScript and Swift) and Dependabot (pinned actions) run from `.github/workflows/codeql.yml` and `.github/dependabot.yml`.
+
+
 ## Source-only release steps
 
 The formula lives in this repository, so it cannot contain the hash of the commit that includes it. The tag therefore points at the release commit, and the next commit pins the formula to it:

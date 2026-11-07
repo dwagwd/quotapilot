@@ -1,0 +1,38 @@
+# Publishes a source-only GitHub Release when a version tag is pushed: release notes from CHANGELOG.md,
+# the source archive and its SHA-256. No app binaries are published (Homebrew builds them on each Mac).
+name: Release
+on:
+  push:
+    tags: ["v*"]
+permissions:
+  contents: write
+jobs:
+  release:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+          fetch-tags: true
+      - name: Check the release
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          [ "$VERSION" = "$(cat VERSION)" ] || { echo "::error::tag $GITHUB_REF_NAME does not match VERSION $(cat VERSION)"; exit 1; }
+          ./scripts/check.sh
+      - name: Source archive and notes
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          mkdir -p dist
+          python3 scripts/source-archive.py "dist/QuotaPilot-$VERSION-source.zip"
+          (cd dist && shasum -a 256 "QuotaPilot-$VERSION-source.zip" > SHA256SUMS.txt)
+          # The CHANGELOG section for this version, up to the next "## " heading.
+          awk -v v="## $VERSION" '$0==v {on=1; next} /^## / && on {exit} on' CHANGELOG.md > dist/notes.md
+          printf '\n\nInstall or update:\n\n```sh\nbrew tap dwagwd/quotapilot https://github.com/dwagwd/quotapilot\nbrew install dwagwd/quotapilot/quotapilot   # or: brew upgrade quotapilot\n```\n\nBuilt from source on your Mac (about 2 minutes, needs the Xcode Command Line Tools).\n' >> dist/notes.md
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --title "QuotaPilot $VERSION" \
+            --notes-file dist/notes.md --verify-tag "dist/QuotaPilot-$VERSION-source.zip" dist/SHA256SUMS.txt

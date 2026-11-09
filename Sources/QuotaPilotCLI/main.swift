@@ -431,8 +431,15 @@ case "stats":
 case "share":
     if arguments.contains("--forget") {
         // Right to erasure: the collector deletes everything this computer's anonymous id sent.
+        // Like the menu bar app, stop daily sharing first: otherwise the next scheduled run would send new reports.
+        var forgetSettings = loadSettings()
+        let wasSharing = forgetSettings.autoShareEnabled
+        if wasSharing { forgetSettings.autoShareEnabled = false; saveCLISettings(forgetSettings) }
         switch ShareSubmitter.forgetAnonymous() {
-        case .success(let n): print("Deleted \(n) stored report batches from the AI Quota Watch collector. Public stats drop them at the next rebuild (within 6 hours)."); exit(0)
+        case .success(let n):
+            print("Deleted \(n) stored report batches from the AI Quota Watch collector. Public stats drop them at the next rebuild (within 6 hours).")
+            if wasSharing { print("Daily sharing was turned off. Scripts or schedules that run `quotapilot share --yes` still send new reports until you remove them.") }
+            exit(0)
         case .failure(let error): fail("Could not delete: " + error.localizedDescription)
         }
     }

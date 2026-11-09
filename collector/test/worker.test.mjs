@@ -676,3 +676,19 @@ test("forget stops walking the old r:20 keys from LEGACY_KEYS_UNTIL", async () =
     Date.now = realNow;
   }
 });
+
+test("random install ids cost no storage scan and are limited per network before any list", async () => {
+  const e = env();
+  let lists = 0;
+  const realList = e.REPORTS.list.bind(e.REPORTS);
+  e.REPORTS.list = async (...a) => { lists++; return realList(...a); };
+  const forget = (id, ip) => new Request("https://c.example/v1/forget", { method: "POST", body: JSON.stringify({ install: id }), headers: { "CF-Connecting-IP": ip } });
+  const ids = Array.from({ length: 25 }, (_, i) => "aaaaaaaa-bbbb-cccc-dddd-" + String(i).padStart(12, "0"));
+  const statuses = [];
+  for (const id of ids) statuses.push((await worker.fetch(forget(id, "77.88.99.1"), e)).status);
+  assert.deepEqual(statuses.slice(0, 20), Array(20).fill(200));
+  assert.deepEqual(statuses.slice(20), Array(5).fill(429), "the 21st attempt from one network is refused");
+  assert.equal(lists, 20, "one prefix listing per allowed attempt and no legacy scan for ids that were never seen");
+  // another network is not affected
+  assert.equal((await worker.fetch(forget(ids[0], "88.1.2.3"), e)).status, 200);
+});

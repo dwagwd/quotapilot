@@ -118,11 +118,24 @@ public enum ShareSubmitter {
     public static func installID(directory: URL = Portable.stateDirectory()) -> String {
         let file = directory.appendingPathComponent("install-id")
         if let saved = try? String(contentsOf: file, encoding: .utf8).trimmingCharacters(in: .whitespacesAndNewlines),
-           saved.count >= 16, saved.count <= 64 { return saved }
+           saved.count >= 16, saved.count <= 64 {
+            // An id written by an older version may have default (readable) permissions: tighten it now.
+            restrictToOwner(directory: directory, file: file)
+            return saved
+        }
         let id = UUID().uuidString.lowercased()
-        try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
         try? Data(id.utf8).write(to: file, options: .atomic)
+        restrictToOwner(directory: directory, file: file)
         return id
+    }
+
+    /// The id is the capability to send and to delete this computer's reports, so only the owner may read it:
+    /// directory 0700, file 0600. (No-op where the file system has no POSIX permissions.)
+    static func restrictToOwner(directory: URL, file: URL) {
+        let fm = FileManager.default
+        try? fm.setAttributes([.posixPermissions: 0o700], ofItemAtPath: directory.path)
+        try? fm.setAttributes([.posixPermissions: 0o600], ofItemAtPath: file.path)
     }
 
     public static func anonymousBody(reports: [[String: Any]], install: String) -> Data? {

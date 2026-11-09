@@ -5,7 +5,7 @@ permissions:
   contents: read
 jobs:
   package:
-    runs-on: macos-14
+    runs-on: macos-15
     env:
       QUOTAPILOT_DIST_DIR: ${{ github.workspace }}/dist
     steps:

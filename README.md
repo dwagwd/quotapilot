@@ -132,4 +132,4 @@ To remove: quit the widget, remove its app, optionally remove its local data and
 
 ## Status
 
-Version 0.5.0 (QuotaPilot) adds the cross-platform `quotapilot` CLI for macOS, Linux and Windows. From 0.6.3 QuotaPilot is distributed as source only and compiled by Homebrew on your Mac. Codex is the live-tested provider. Optional Claude/Antigravity/Cursor bridges are experimental and fixture-tested; see their support boundaries before setup. CI tests and builds on macOS 14 and 15. See [validation scope](docs/validation.md) for local checks and limitations.
+Version 0.5.0 (QuotaPilot) adds the cross-platform `quotapilot` CLI for macOS, Linux and Windows. From 0.6.3 QuotaPilot is distributed as source only and compiled by Homebrew on your Mac. Codex is the live-tested provider. Optional Claude/Antigravity/Cursor bridges are experimental and fixture-tested; see their support boundaries before setup. CI tests and builds on macOS 15 (GitHub no longer offers macOS 14 runners), Linux x64 and ARM64, and Windows x64. See [validation scope](docs/validation.md) for local checks and limitations.

@@ -69,6 +69,25 @@ final class AppUpdateTests: XCTestCase {
         try? FileManager.default.removeItem(at: dir)
     }
 
+    #if !os(Windows)
+    func testInstallIDIsOwnerOnlyAndOldWorldReadableIDsAreRepaired() throws {
+        let fm = FileManager.default
+        let dir = fm.temporaryDirectory.appendingPathComponent("qp-perm-\(UUID().uuidString)")
+        defer { try? fm.removeItem(at: dir) }
+        func mode(_ url: URL) -> Int { ((try? fm.attributesOfItem(atPath: url.path))?[.posixPermissions] as? NSNumber)?.intValue ?? -1 }
+        let id = ShareSubmitter.installID(directory: dir)
+        let file = dir.appendingPathComponent("install-id")
+        XCTAssertEqual(mode(dir), 0o700)
+        XCTAssertEqual(mode(file), 0o600)
+        // An id written by an older version with default permissions is tightened the next time it is read.
+        try fm.setAttributes([.posixPermissions: 0o755], ofItemAtPath: dir.path)
+        try fm.setAttributes([.posixPermissions: 0o644], ofItemAtPath: file.path)
+        XCTAssertEqual(ShareSubmitter.installID(directory: dir), id)
+        XCTAssertEqual(mode(dir), 0o700)
+        XCTAssertEqual(mode(file), 0o600)
+    }
+    #endif
+
     func testNewestTagIgnoresUnsafeAndPrereleaseTags() throws {
         let tags: [[String: Any]] = [["name": "v0.6.2"], ["name": "v0.10.0"], ["name": "v0.9.9"], ["name": "v1.0.0-beta.1"], ["name": "../x"], ["name": "nightly"]]
         XCTAssertEqual(AppUpdate.newestTag(try JSONSerialization.data(withJSONObject: tags)), "0.10.0")

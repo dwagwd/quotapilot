@@ -172,6 +172,20 @@ async function report(request, env) {
 // older date-prefixed keys, which are no longer written and expire within 31 days) and its first-seen record.
 // Only the install id itself can ask, and it never leaves the
 // sender's machine except in this request; a few requests per network per day are allowed.
+// Attempts are counted in memory before any storage list or scan, so an unknown or random install id costs a map
+// lookup instead of KV operations. The count is per data-center instance (best effort, no KV write), keyed by the
+// same /24 or /48 network prefix as the other limits, and resets with the day.
+const FORGET_TRIES_PER_NETWORK = 20;
+const forgetTries = new Map();
+function forgetAttemptAllowed(ip, day) {
+  const key = day + "|" + ipPrefix(ip);
+  if (forgetTries.size > 5000) forgetTries.clear();
+  const n = forgetTries.get(key) || 0;
+  if (n >= FORGET_TRIES_PER_NETWORK) return false;
+  forgetTries.set(key, n + 1);
+  return true;
+}
+
 async function forget(request, env) {
   let body;
   try { body = JSON.parse((await request.text()).slice(0, 2000)); } catch { return json(request, 400, { error: "invalid JSON" }); }
@@ -179,6 +193,7 @@ async function forget(request, env) {
   if (!install) return json(request, 400, { error: "missing install id" });
   const day = new Date(Date.now()).toISOString().slice(0, 10);
   const ip = request.headers.get("CF-Connecting-IP") || "unknown";
+  if (!forgetAttemptAllowed(ip, day)) return json(request, 429, { error: "too many attempts" });
   const reporter = "anon-" + (await hmac(env.SALT, "install:" + install)).slice(0, 16);
   // Cheap checks first (reads only): the first-seen record and every key this install owns. When nothing is found the
   // answer is deleted:0 and no counter is touched, so unknown ids cannot use up the forget budget.
@@ -193,7 +208,8 @@ async function forget(request, env) {
   // Older formats r:<day>:<reporter>:<uuid> and r:<day>:<uuid> start with a date ("r:20..."). They are no longer
   // written and have all expired by LEGACY_KEYS_UNTIL, so they are walked (every page, with the cursor) only until then.
   let oldCursor;
-  if (day < LEGACY_KEYS_UNTIL) do {
+  // Only for an id this collector has seen (a first-seen record or keys under its prefix): a random id never starts a scan.
+  if (day < LEGACY_KEYS_UNTIL && (known || names.length)) do {
     const old = await env.REPORTS.list({ prefix: "r:20", cursor: oldCursor, limit: 1000 });
     for (const k of old.keys) {
       const parts = k.name.split(":");

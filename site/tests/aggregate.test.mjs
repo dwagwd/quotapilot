@@ -288,3 +288,13 @@ test("ratings, quota and events also need a unit that is not a one-shot site rep
   assert.equal(mixed.quota.length, 1);
   assert.equal(eventTotal(mixed), 3);
 });
+
+test("an optional metric is published only when 3 people supplied it, even if the row has 3 people", () => {
+  const raw = [1, 2, 3].map((i) => ({ type: "speed", model: "gpt-6-1-sol", effort: "high", outputTokens: 6000, seconds: 100, calls: 10, date: day(1), reporter: "u" + i,
+    ...(i === 1 ? { reasoningTokens: 3600 } : {}) }));
+  const row = aggregate(raw, models, now).effortUsage[0];
+  assert.equal(row.n, 3);
+  assert.equal(row.reasoningShare, null, "one person's reasoning share must not appear");
+  const withThree = [1, 2, 3].map((i) => ({ ...raw[i - 1], reasoningTokens: 3600 }));
+  assert.equal(aggregate(withThree, models, now).effortUsage[0].reasoningShare, 0.6);
+});

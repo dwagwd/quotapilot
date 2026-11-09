@@ -201,6 +201,11 @@ export function aggregate(raw, models, now = new Date(), blocked = []) {
     return v.length ? quantile(v, 0.5) : null;
   }).filter((v) => v != null);
   const people = (rs) => byReporter(rs).length;
+  // An optional metric is published only when at least MIN_SAMPLES different people supplied it. The row's own
+  // people count includes people who left that metric out, so without this gate one person's value could appear
+  // in a row that shows n >= 3.
+  const gate = (values) => (values.length >= MIN_SAMPLES ? values : []);
+  const gatedMedian = (values) => { const g = gate(values); return g.length ? stats(g).median : null; };
   // Every published row needs at least one unit with a reporter that is not a one-shot site reporter.
   const anchored = (rs) => byReporter(rs).some((unit) => unit.some((r) => !oneShot.has(r.reporter || "anon")));
 
@@ -214,9 +219,9 @@ export function aggregate(raw, models, now = new Date(), blocked = []) {
     .filter(([, rs]) => anchored(rs))
     .map(([k, rs]) => {
       const [model, effort] = k.split("|");
-      const share = perPerson(rs, (r) => r.reasoningShare);
-      return { model, effort, n: people(rs), reports: rs.length, calls: rs.reduce((a, r) => a + (r.calls || 1), 0), tps: stats(perPerson(rs, (r) => r.tps)).median, perCall: Math.round(stats(perPerson(rs, (r) => r.perCall)).median),
-        reasoningShare: share.length ? round(stats(share).median, 2) : null };
+      const share = gatedMedian(perPerson(rs, (r) => r.reasoningShare)), perCall = gatedMedian(perPerson(rs, (r) => r.perCall));
+      return { model, effort, n: people(rs), reports: rs.length, calls: rs.reduce((a, r) => a + (r.calls || 1), 0), tps: gatedMedian(perPerson(rs, (r) => r.tps)), perCall: perCall == null ? null : Math.round(perCall),
+        reasoningShare: share == null ? null : round(share, 2) };
     })
     .filter((s) => s.n >= MIN_SAMPLES).sort((a, b) => a.model.localeCompare(b.model) || EFFORTS.indexOf(a.effort) - EFFORTS.indexOf(b.effort));
 
@@ -225,7 +230,7 @@ export function aggregate(raw, models, now = new Date(), blocked = []) {
   const tokenMix = Object.entries(groupBy(counted.filter((r) => r.type === "speed" && r.inputPerOutput != null), (r) => r.model))
     .filter(([, rs]) => anchored(rs))
     .map(([model, rs]) => {
-      const q = (values, p) => { const v = trimOutliers(values); return v.length ? quantile(v, p) : null; };
+      const q = (values, p) => { const v = trimOutliers(gate(values)); return v.length ? quantile(v, p) : null; };
       const ratio = perPerson(rs, (r) => r.inputPerOutput), hit = perPerson(rs, (r) => r.cacheHit), write = perPerson(rs, (r) => r.cacheWriteShare);
       return { model, n: people(rs), reports: rs.length, inputPerOutput: round(q(ratio, 0.5), 1), inputPerOutputP25: round(q(ratio, 0.25), 1), inputPerOutputP75: round(q(ratio, 0.75), 1),
         cacheHit: round(q(hit, 0.5), 3), cacheWriteShare: round(q(write, 0.5), 3) };
@@ -248,7 +253,7 @@ export function aggregate(raw, models, now = new Date(), blocked = []) {
     .map(([k, rs]) => {
       const [provider, plan, window] = k.split("|");
       const tok = stats(perPerson(rs, (r) => r.estTokens)), usd = stats(perPerson(rs, (r) => r.estUsd));
-      return { provider, plan, window, n: tok.n, reporters: people(rs), reports: rs.length, medianTokens: Math.round(tok.median), p25Tokens: Math.round(tok.p25), p75Tokens: Math.round(tok.p75), medianUsd: usd.n ? usd.median : null, lowerBound: true };
+      return { provider, plan, window, n: tok.n, reporters: people(rs), reports: rs.length, medianTokens: Math.round(tok.median), p25Tokens: Math.round(tok.p25), p75Tokens: Math.round(tok.p75), medianUsd: usd.n >= MIN_SAMPLES ? usd.median : null, lowerBound: true };
     })
     .filter((s) => s.reporters >= MIN_SAMPLES && s.n >= MIN_SAMPLES).sort((a, b) => a.provider.localeCompare(b.provider) || b.medianTokens - a.medianTokens);
 

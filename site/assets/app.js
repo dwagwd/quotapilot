@@ -755,8 +755,8 @@
         <td class="num">${e.intelligence}${d != null ? `<small class="${d > 0 ? "up" : d < 0 ? "down" : ""}">${d > 0 ? "+" : ""}${d}</small>` : ""}</td>
         <td class="num">${e.costPerTask ? money(e.costPerTask, 2) + `<small>×${(e.costPerTask / minCost).toFixed(1)}</small>` : na}</td>
         <td class="num">${e.speed ?? na}</td>
-        <td class="num">${u ? u.tps + `<small>n=${u.n}</small>` : na}</td>
-        <td class="num">${u ? u.perCall.toLocaleString("en-US") : na}</td>
+        <td class="num">${u && u.tps != null ? u.tps + `<small>n=${u.n}</small>` : na}</td>
+        <td class="num">${u && u.perCall != null ? u.perCall.toLocaleString("en-US") : na}</td>
         <td class="num">${u && u.reasoningShare != null ? Math.round(u.reasoningShare * 100) + "%" : na}</td>
         <td class="num">${u && totalCalls ? Math.round((u.calls / totalCalls) * 100) + "%" : na}</td>
       </tr>`;
@@ -867,7 +867,7 @@
     $("#comMix").innerHTML = mix.length ? `<table class="com-table"><thead><tr><th>${t("col.model")}</th><th class="num">${t("com.mixRatio")}</th><th class="num">${t("com.mixCache")}</th></tr></thead><tbody>${mix.map((r) => `
       <tr><td ${dl("col.model")}>${esc(modelName(r.model))}</td>
       <td class="num" ${dl("com.mixRatio")}>${r.inputPerOutput}:1<small>${r.inputPerOutputP25}–${r.inputPerOutputP75} · n=${r.n}</small></td>
-      <td class="num" ${dl("com.mixCache")}>${Math.round(r.cacheHit * 100)}%<small>${t("com.mixWrite").replace("{p}", Math.round(r.cacheWriteShare * 100))}</small></td></tr>`).join("")}</tbody></table>` : emptyNote();
+      <td class="num" ${dl("com.mixCache")}>${r.cacheHit != null ? Math.round(r.cacheHit * 100) + "%" : t("calc.na")}${r.cacheWriteShare != null ? `<small>${t("com.mixWrite").replace("{p}", Math.round(r.cacheWriteShare * 100))}</small>` : ""}</td></tr>`).join("")}</tbody></table>` : emptyNote();
 
     // shift UTC hours into the viewer's local time
     const off = -new Date().getTimezoneOffset() / 60;

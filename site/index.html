@@ -82,14 +82,19 @@
         <aside id="install" class="install" aria-labelledby="installTitle">
           <span id="quotapilot" class="anchor-alias"></span>
           <h2 id="installTitle" data-i18n="install.title">Install with Homebrew</h2>
+          <div class="install-os" role="group" aria-label="Operating system" data-i18n-aria="install.os">
+            <button type="button" class="chip on" data-platform="mac" aria-pressed="true">macOS</button>
+            <button type="button" class="chip" data-platform="linux" aria-pressed="false">Linux</button>
+            <button type="button" class="chip" data-platform="windows" aria-pressed="false">Windows</button>
+          </div>
           <div class="install-cmd">
             <pre id="installCmd" tabindex="0" data-install-cmd><code>brew tap dwagwd/quotapilot https://github.com/dwagwd/quotapilot
 brew install dwagwd/quotapilot/quotapilot</code></pre>
             <button type="button" class="btn btn-copy" id="installCopy" data-copy-target="installCmd" data-copy-status="installCopied" data-i18n="install.copy">Copy</button>
             <span class="sr-only" id="installCopied" aria-live="polite"></span>
           </div>
-          <p class="install-req" data-i18n="install.req">Builds from source on your Mac, about 2 minutes. Needs the Xcode Command Line Tools and macOS 13 or later.</p>
-          <p class="install-req" data-i18n="install.prereq">No Command Line Tools yet? Run xcode-select --install first.</p>
+          <p class="install-req" id="installReq" data-i18n="install.req">Builds from source on your Mac, about 2 minutes. Needs the Xcode Command Line Tools and macOS 13 or later.</p>
+          <p class="install-req" id="installPrereq" data-i18n="install.prereq">No Command Line Tools yet? Run xcode-select --install first.</p>
           <p class="install-links"><a href="https://github.com/dwagwd/quotapilot#install" rel="noopener" target="_blank" data-install-link="notes"><span data-i18n="install.notes">Install notes</span> ↗</a> · <a href="https://github.com/dwagwd/quotapilot" rel="noopener" target="_blank" data-install-link="source"><span data-i18n="install.source">Source on GitHub</span> ↗</a></p>
         </aside>
 

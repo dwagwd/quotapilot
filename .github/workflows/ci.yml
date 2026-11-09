@@ -24,7 +24,11 @@ jobs:
       - name: Build native app
         run: ./scripts/build.sh
   linux:
-    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, ubuntu-24.04-arm]
+    runs-on: ${{ matrix.os }}
     container: swift:6.2
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
@@ -38,6 +42,22 @@ jobs:
           .build/release/quotapilot version
   windows:
     runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: compnerd/gha-setup-swift@581df1ffa3f3e786ddc73ff37364ee231f9644c5 # v0.3.0
+        with:
+          branch: swift-6.2-release
+          tag: 6.2-RELEASE
+      - name: Build CLI
+        run: |
+          swift build -c release --product quotapilot
+          .build\release\quotapilot.exe version
+  # Windows on ARM: informational until the toolchain setup is proven on the arm runner.
+  windows-arm:
+    runs-on: windows-11-arm
+    continue-on-error: true
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:

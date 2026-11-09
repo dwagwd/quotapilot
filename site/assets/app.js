@@ -52,6 +52,7 @@
     document.querySelectorAll("[data-lang-toggle]").forEach((b) => { b.textContent = state.lang === "en" ? "中文" : "English"; });
     // Theme labels follow the page language (theme-toggle.js reads I18N and <html lang>).
     if (window.AQW_THEME) window.AQW_THEME.refresh();
+    applyPlatform();
   }
 
   // ---------- theme ----------
@@ -82,6 +83,48 @@
     document.querySelectorAll("[data-install-link]").forEach((a) => { const h = links[a.dataset.installLink]; if (h) a.href = h; });
   }
 
+  // Platform picker for the install box. The system is guessed locally from the browser (nothing is sent anywhere);
+  // the buttons always let the visitor pick another one. The CPU is not guessed: the Linux and Windows commands choose x64/arm64 themselves.
+  let installPlatform = null, macDefaults = null;
+  function detectPlatform() {
+    let id = "";
+    try { id = (navigator.userAgentData && navigator.userAgentData.platform) || navigator.platform || navigator.userAgent || ""; } catch (e) { /* ignore */ }
+    id = String(id).toLowerCase();
+    if (/android|iphone|ipad|ipod|cros/.test(id)) return "mac"; // no desktop CLI on phones; show the default
+    if (/win/.test(id)) return "windows";
+    if (/linux|x11/.test(id)) return "linux";
+    return "mac";
+  }
+  function applyPlatform() {
+    const pre = $("#installCmd"), title = $("#installTitle"), req = $("#installReq"), pre2 = $("#installPrereq");
+    if (!pre || !title) return;
+    const code = pre.querySelector("code");
+    if (!macDefaults) macDefaults = code.textContent;
+    if (!installPlatform) installPlatform = detectPlatform();
+    const p = installPlatform;
+    const plat = CFG.install && CFG.install.platforms && CFG.install.platforms[p];
+    const mac = p === "mac" || !Array.isArray(plat) || !plat.length;
+    document.querySelectorAll("[data-platform]").forEach((b) => {
+      const on = b.dataset.platform === (mac ? "mac" : p);
+      b.classList.toggle("on", on);
+      b.setAttribute("aria-pressed", on ? "true" : "false");
+    });
+    const group = document.querySelector(".install-os");
+    if (group) group.setAttribute("aria-label", t("install.os"));
+    if (mac) {
+      code.textContent = (installCommands() || [macDefaults]).join("\n");
+      title.textContent = t("install.title"); if (req) req.textContent = t("install.req");
+      if (pre2) { pre2.hidden = false; pre2.textContent = t("install.prereq"); }
+    } else {
+      code.textContent = plat.join("\n");
+      title.textContent = t("install.title." + p); if (req) req.textContent = t("install.req." + p);
+      if (pre2) pre2.hidden = true;
+    }
+  }
+  function initPlatformButtons() {
+    document.querySelectorAll("[data-platform]").forEach((b) => b.addEventListener("click", () => { installPlatform = b.dataset.platform; applyPlatform(); }));
+  }
+
   // One delegated handler covers the hero box and the invite card (which is re-rendered).
   // Copies the commands as one line joined with " && "; without clipboard access, selects the text instead.
   function initCopyButtons() {
@@ -91,7 +134,9 @@
       const pre = document.getElementById(btn.dataset.copyTarget);
       if (!pre) return;
       const status = btn.dataset.copyStatus ? document.getElementById(btn.dataset.copyStatus) : null;
-      const text = S.joinCommands(pre.textContent);
+      let text = S.joinCommands(pre.textContent);
+      // Windows PowerShell 5.1 has no "&&"; its lines are joined with ";" instead.
+      if (pre.id === "installCmd" && installPlatform === "windows") text = text.split(" && ").join("; ");
       const done = (key) => {
         btn.textContent = t(key);
         if (status) status.textContent = t(key);
@@ -1080,6 +1125,8 @@
     applyStatic();
     applySponsor();
     applyInstall();
+    initPlatformButtons();
+    applyPlatform();
     initCopyButtons();
     const get = (f) => fetch(f).then((r) => { if (!r.ok) throw new Error(f + " " + r.status); return r.json(); });
     const demo = new URLSearchParams(location.search).get("demo") === "1" || window.__AQW_DEMO === true;

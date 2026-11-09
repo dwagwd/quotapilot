@@ -132,6 +132,7 @@ a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible
 /* install box */
 .install { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-l); padding: var(--s-4); box-shadow: var(--shadow); min-width: 0; }
 .install h2 { font-size: var(--t-m); margin: 0 0 var(--s-3); }
+.install-os { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 var(--s-3); }
 .install-cmd { display: flex; align-items: stretch; gap: 8px; }
 .install-cmd pre { margin: 0; background: var(--code-bg); color: var(--code-fg); font: 13px/1.6 var(--mono); overflow-x: auto; border-radius: var(--r-m); padding: 12px 14px; white-space: pre; flex: 1 1 auto; min-width: 0; }
 .install-cmd pre code { font-size: inherit; }

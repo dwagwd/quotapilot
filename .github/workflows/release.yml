@@ -1,5 +1,6 @@
 # Publishes a source-only GitHub Release when a version tag is pushed: release notes from CHANGELOG.md,
-# the source archive and its SHA-256. No app binaries are published (Homebrew builds them on each Mac).
+# the source archive and its SHA-256, plus command-line binaries for Linux and Windows built on GitHub's own runners
+# (no personal machine involved). The macOS app is still built from source by Homebrew on each Mac.
 name: Release
 on:
   push:
@@ -36,3 +37,51 @@ jobs:
           VERSION="${GITHUB_REF_NAME#v}"
           gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --title "QuotaPilot $VERSION" \
             --notes-file dist/notes.md --verify-tag "dist/QuotaPilot-$VERSION-source.zip" dist/SHA256SUMS.txt
+  cli:
+    needs: release
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { name: linux-x64, os: ubuntu-latest, container: "swift:6.2", ext: tar.gz }
+          - { name: linux-arm64, os: ubuntu-24.04-arm, container: "swift:6.2", ext: tar.gz }
+          - { name: windows-x64, os: windows-latest, ext: zip }
+          - { name: windows-arm64, os: windows-11-arm, ext: zip, optional: true }
+    runs-on: ${{ matrix.os }}
+    container: ${{ matrix.container || null }}
+    continue-on-error: ${{ matrix.optional == true }}
+    env:
+      GH_TOKEN: ${{ github.token }}
+      ASSET: quotapilot-${{ matrix.name }}.${{ matrix.ext }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - name: Install Swift (Windows)
+        if: runner.os == 'Windows'
+        uses: compnerd/gha-setup-swift@581df1ffa3f3e786ddc73ff37364ee231f9644c5 # v0.3.0
+        with:
+          branch: swift-6.2-release
+          tag: 6.2-RELEASE
+      - name: Build and package (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          apt-get update -qq && apt-get install -y -qq gh >/dev/null
+          swift build -c release --product quotapilot --static-swift-stdlib -Xswiftc -gnone -Xlinker -s
+          cp .build/release/quotapilot quotapilot
+          tar -czf "$ASSET" quotapilot LICENSE
+          sha256sum "$ASSET" > "$ASSET.sha256"
+          ./quotapilot version
+      - name: Build and package (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          swift build -c release --product quotapilot -Xswiftc -static-stdlib -Xswiftc -gnone
+          Copy-Item .build\release\quotapilot.exe quotapilot.exe
+          Compress-Archive -Path quotapilot.exe, LICENSE -DestinationPath $env:ASSET
+          $h = (Get-FileHash $env:ASSET -Algorithm SHA256).Hash.ToLower()
+          "$h  $env:ASSET" | Out-File -Encoding ascii "$env:ASSET.sha256"
+          .\quotapilot.exe version
+      - name: Upload to the release
+        shell: bash
+        run: gh release upload "$GITHUB_REF_NAME" "$ASSET" "$ASSET.sha256" --repo "$GITHUB_REPOSITORY" --clobber

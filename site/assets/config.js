@@ -12,12 +12,11 @@ window.SITE_CONFIG = {
       "brew tap dwagwd/quotapilot https://github.com/dwagwd/quotapilot",
       "brew install dwagwd/quotapilot/quotapilot"
     ],
-    // Command-line tool for the other systems. The commands pick x64 or arm64 themselves, so the page never guesses the CPU.
+    // Command-line tool for the other systems. The Linux command picks x64 or arm64 itself, so the page never guesses the CPU; Windows gets the x64 build, which also runs on ARM PCs.
     platforms: {
       linux: ['curl -fsSL "https://github.com/dwagwd/quotapilot/releases/latest/download/quotapilot-linux-$(uname -m | sed \'s/x86_64/x64/;s/aarch64/arm64/\').tar.gz" | tar xz quotapilot'],
       windows: [
-        "$a = if ($env:PROCESSOR_ARCHITECTURE -eq 'ARM64') { 'arm64' } else { 'x64' }",
-        'iwr "https://github.com/dwagwd/quotapilot/releases/latest/download/quotapilot-windows-$a.zip" -OutFile quotapilot.zip',
+        'iwr "https://github.com/dwagwd/quotapilot/releases/latest/download/quotapilot-windows-x64.zip" -OutFile quotapilot.zip',
         "Expand-Archive quotapilot.zip -DestinationPath . -Force"
       ]
     },

@@ -33,7 +33,7 @@ test("install box commands come from config and match the static fallback in ind
 
 test("direct download links point at this repo's GitHub releases", () => {
   const links = [...html.matchAll(/href="([^"]+)"[^>]*data-dl/g)].map((m) => m[1]);
-  assert.equal(links.length, 4);
+  assert.equal(links.length, 3);
   for (const l of links) assert.match(l, /^https:\/\/github\.com\/dwagwd\/quotapilot\/releases\/latest\/download\/quotapilot-(linux|windows)-(x64|arm64)\.(tar\.gz|zip)$/);
 });
 

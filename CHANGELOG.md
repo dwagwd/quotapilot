@@ -2,9 +2,9 @@
 
 ## 0.6.5
 
-- **Command-line tool for Linux and Windows, built by GitHub:** each release now carries `quotapilot` for Linux (x64, ARM64) and Windows (x64, ARM64) as a single file with a SHA-256 checksum, compiled on GitHub's own runners, so no personal machine is involved. The macOS app is still compiled by Homebrew on your Mac.
+- **Command-line tool for Linux and Windows, built by GitHub:** each release now carries `quotapilot` for Linux (x64, ARM64) and Windows (x64; it also runs on ARM PCs) as a single file with a SHA-256 checksum, compiled on GitHub's own runners, so no personal machine is involved. The macOS app is still compiled by Homebrew on your Mac.
 - **AI Quota Watch install box:** it picks Linux, Windows or macOS from your browser (locally, nothing is sent) and shows the matching command; buttons switch system and direct GitHub download links are listed for every platform.
-- CI also builds and tests on Linux ARM and Windows ARM.
+- CI also builds and tests on Linux ARM.
 
 ## 0.6.3
 

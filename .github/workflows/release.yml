@@ -5,25 +5,35 @@ name: Release
 on:
   push:
     tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing tag to (re)build the release for, e.g. v0.6.5"
+        required: true
 permissions:
   contents: write
+env:
+  TAG: ${{ inputs.tag || github.ref_name }}
 jobs:
   release:
     runs-on: macos-15
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
+          ref: ${{ env.TAG }}
           persist-credentials: false
           fetch-depth: 0
           fetch-tags: true
       - name: Check the release
+        env:
+          QUOTAPILOT_RELEASE_BUILD: "1"
         run: |
-          VERSION="${GITHUB_REF_NAME#v}"
-          [ "$VERSION" = "$(cat VERSION)" ] || { echo "::error::tag $GITHUB_REF_NAME does not match VERSION $(cat VERSION)"; exit 1; }
+          VERSION="${TAG#v}"
+          [ "$VERSION" = "$(cat VERSION)" ] || { echo "::error::tag $TAG does not match VERSION $(cat VERSION)"; exit 1; }
           ./scripts/check.sh
       - name: Source archive and notes
         run: |
-          VERSION="${GITHUB_REF_NAME#v}"
+          VERSION="${TAG#v}"
           mkdir -p dist
           python3 scripts/source-archive.py "dist/QuotaPilot-$VERSION-source.zip"
           (cd dist && shasum -a 256 "QuotaPilot-$VERSION-source.zip" > SHA256SUMS.txt)
@@ -34,8 +44,8 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          VERSION="${GITHUB_REF_NAME#v}"
-          gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --title "QuotaPilot $VERSION" \
+          VERSION="${TAG#v}"
+          gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --title "QuotaPilot $VERSION" \
             --notes-file dist/notes.md --verify-tag "dist/QuotaPilot-$VERSION-source.zip" dist/SHA256SUMS.txt
   cli:
     needs: release
@@ -56,6 +66,7 @@ jobs:
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
+          ref: ${{ env.TAG }}
           persist-credentials: false
       - name: Install Swift (Windows)
         if: runner.os == 'Windows'
@@ -84,4 +95,4 @@ jobs:
           .\quotapilot.exe version
       - name: Upload to the release
         shell: bash
-        run: gh release upload "$GITHUB_REF_NAME" "$ASSET" "$ASSET.sha256" --repo "$GITHUB_REPOSITORY" --clobber
+        run: gh release upload "$TAG" "$ASSET" "$ASSET.sha256" --repo "$GITHUB_REPOSITORY" --clobber

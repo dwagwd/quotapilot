@@ -77,7 +77,11 @@ if state == "nogit":
 else:
     if state == "missing":
         state, commit = remote_tag_commit(f"v{version}")
-    if state == "ok":
+    head = subprocess.run(["git", "rev-parse", "HEAD"], capture_output=True, text=True).stdout.strip()
+    # The release workflow builds the tag commit itself; its formula is pinned by the next commit (docs/releasing.md).
+    if state == "ok" and os.environ.get("QUOTAPILOT_RELEASE_BUILD") == "1" and commit == head and revision == PLACEHOLDER_REVISION:
+        print(f"Notice: building tag v{version} itself; the formula is pinned by the next commit.")
+    elif state == "ok":
         assert revision != PLACEHOLDER_REVISION, f"Tag v{version} exists; run scripts/pin-formula.sh v{version} and commit the result"
         assert revision == commit, f"Formula revision {revision} differs from v{version} commit {commit}"
     elif state == "unreachable":

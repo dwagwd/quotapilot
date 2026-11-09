@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.6.4
+
+- **Command-line tool for Linux and Windows, built by GitHub:** each release now carries `quotapilot` for Linux (x64, ARM64) and Windows (x64, ARM64) as a single file with a SHA-256 checksum, compiled on GitHub's own runners, so no personal machine is involved. The macOS app is still compiled by Homebrew on your Mac.
+- **AI Quota Watch install box:** it picks Linux, Windows or macOS from your browser (locally, nothing is sent) and shows the matching command; buttons switch system and direct GitHub download links are listed for every platform.
+- CI also builds and tests on Linux ARM and Windows ARM.
+
 ## 0.6.3
 
 - **Built on your Mac, no prebuilt app:** Homebrew now compiles QuotaPilot from source (`brew install dwagwd/quotapilot/quotapilot`, about two minutes) instead of installing a signed download. Update with `brew upgrade quotapilot`; the menu bar still tells you when a new version is tagged. The in-app downloader stays off because no signed builds are published.

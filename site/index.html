@@ -23,6 +23,7 @@
   <meta name="twitter:image" content="https://aiquotawatch.pages.dev/assets/og.png">
   <link rel="canonical" href="https://aiquotawatch.pages.dev/">
   <link rel="alternate" hreflang="en" href="https://aiquotawatch.pages.dev/">
+  <link rel="alternate" hreflang="zh-Hant" href="https://aiquotawatch.pages.dev/zh/">
   <link rel="alternate" hreflang="x-default" href="https://aiquotawatch.pages.dev/">
   <!-- JSON-LD data blocks are never executed, so script-src 'self' does not apply to them. -->
   <script type="application/ld+json">{"@context":"https://schema.org","@type":"WebSite","name":"AI Quota Watch","url":"https://aiquotawatch.pages.dev/","inLanguage":["en","zh-Hant"]}</script>
@@ -63,6 +64,11 @@
   </header>
 
   <main class="wrap" id="main">
+    <noscript>
+      <p class="error">The comparison tools on this page need JavaScript. The same plan, reset and effort data is available as plain pages:
+        <a href="/plans/">Plans</a> · <a href="/resets/codex">Reset history</a> · <a href="/effort/">Reasoning effort</a> ·
+        <a href="/zh/plans/">方案（繁體中文）</a> · <a href="/zh/effort/">思考強度（繁體中文）</a>. Source code: <a href="https://github.com/dwagwd/quotapilot">GitHub</a>.</p>
+    </noscript>
     <section id="hero" class="hero">
       <div class="hero-grid">
         <div class="hero-text">
@@ -238,7 +244,7 @@ brew install dwagwd/quotapilot/quotapilot</code></pre>
         <div class="calc-results">
           <section class="pick" id="pick" aria-live="polite"></section>
           <div class="kpis" id="kpis"></div>
-          <div class="table-scroll">
+          <div class="table-scroll" tabindex="0" role="region" aria-label="Scrollable table">
             <table class="models" id="modelTable">
               <thead>
                 <tr>
@@ -276,7 +282,7 @@ brew install dwagwd/quotapilot/quotapilot</code></pre>
         </div>
         <div class="radar-chart" id="radarChart"></div>
       </div>
-      <div class="table-scroll">
+      <div class="table-scroll" tabindex="0" role="region" aria-label="Scrollable table">
         <table class="models radar-table" id="radarTable"><thead></thead><tbody></tbody></table>
       </div>
       <p class="fine" data-i18n="radar.notes">Scoring: Intelligence and Speed are divided by the top value. Cost efficiency and Budget reach use a log scale, so 100 is the cheapest model and 0 the most expensive.</p>
@@ -290,7 +296,7 @@ brew install dwagwd/quotapilot/quotapilot</code></pre>
       <div class="filters" id="efPick"></div>
       <div class="chart-card"><h3 data-i18n="ef.chartTitle">Intelligence vs cost per task, by effort</h3><div id="efChart"></div></div>
       <div class="seg ef-family" id="efFamily" role="tablist"></div>
-      <div class="table-scroll">
+      <div class="table-scroll" tabindex="0" role="region" aria-label="Scrollable table">
         <table class="models ef-table" id="efTable"><thead></thead><tbody></tbody></table>
       </div>
       <p class="fine" id="efNote"></p>

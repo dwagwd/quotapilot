@@ -40,3 +40,12 @@ test("direct download links point at this repo's GitHub releases", () => {
 test("affiliate links stay empty or https", () => {
   for (const [k, v] of Object.entries(cfg.affiliates)) assert.ok(v === "" || v.startsWith("https://"), k);
 });
+
+test("plan field sources, when present, are https links for a known field", async () => {
+  const plans = JSON.parse(readFileSync(new URL("../data/plans.json", import.meta.url), "utf8"));
+  const rows = plans.providers.flatMap((p) => [...p.plans, ...(p.subproducts || []).flatMap((s) => s.plans)]);
+  for (const pl of rows) for (const [k, v] of Object.entries(pl.fieldSources || {})) {
+    assert.ok(["price", "multiple", "limits"].includes(k), `${pl.name}: unknown field ${k}`);
+    assert.ok(S.safeHttps(v.url), `${pl.name}.${k} needs an https url`);
+  }
+});

@@ -33,6 +33,7 @@
     let lang = "en";
     const q = new URLSearchParams(location.search).get("lang");
     if (q === "zh" || q === "en") lang = q;
+    else if (/^\/zh(\/|$)/.test(location.pathname)) lang = "zh"; // /zh/ is the Chinese home page
     else {
       try { const saved = localStorage.getItem("aqw-lang"); if (saved) lang = saved; } catch (e) { /* storage blocked */ }
     }
@@ -41,6 +42,11 @@
     document.querySelectorAll("[data-lang-toggle]").forEach((b) => b.addEventListener("click", () => {
       state.lang = state.lang === "en" ? "zh" : "en";
       try { localStorage.setItem("aqw-lang", state.lang); } catch (e) { /* ignore */ }
+      // On the two home pages the language is part of the address, so a shared link keeps its language.
+      if (/^\/(zh\/?)?(index\.html)?$/.test(location.pathname) && !location.search) {
+        const to = state.lang === "zh" ? "/zh/" : "/";
+        if (location.pathname !== to) { history.replaceState(null, "", to + location.hash); }
+      }
       renderAll();
     }));
   }
@@ -158,10 +164,15 @@
   }
 
   // Newest hand-check date across all data files.
+  // Per-dataset check dates. The headline date is the OLDEST of them, so one freshly edited file never makes
+  // every section look as new as the newest one; the full list is in the tooltip.
+  function reviewedDates() {
+    return [["plans", state.plans && state.plans.lastReviewed], ["changes", state.changes && state.changes.lastReviewed], ["resets", state.resets && state.resets.lastReviewed],
+      ["models", state.models && state.models.lastReviewed], ["effort", state.efforts && state.efforts.source && state.efforts.source.checked]]
+      .filter(([, d]) => typeof d === "string" && d);
+  }
   function reviewedMax() {
-    return [state.plans && state.plans.lastReviewed, state.changes && state.changes.lastReviewed, state.resets && state.resets.lastReviewed,
-      state.models && state.models.lastReviewed, state.efforts && state.efforts.source && state.efforts.source.checked]
-      .filter((d) => typeof d === "string" && d).sort().pop() || "—";
+    return reviewedDates().map(([, d]) => d).sort()[0] || "—";
   }
 
   // ---------- plans ----------
@@ -174,9 +185,16 @@
     out.push(["limits", pl.confidence]);
     return out;
   }
+  // Optional pl.fieldSources = { price: { url, checked }, multiple: {...}, limits: {...} } gives a field its own evidence.
+  // Without one, an official field is backed by the row's source; a third-party ("reported") field says so plainly,
+  // because the row's source link may not show that number.
   function fieldBadges(pl) {
-    return fieldConfidence(pl).map(([k, c]) =>
-      `<span class="field-conf"><span class="field-name">${t("field." + k)}</span><span class="badge ${c}">${t("conf." + c)}</span></span>`).join("");
+    const fs = pl.fieldSources || {};
+    return fieldConfidence(pl).map(([k, c]) => {
+      const own = fs[k] && S.safeHttps(fs[k].url);
+      const badge = `<span class="badge ${c}"${c === "reported" && !own ? ` title="${esc(t("conf.noFieldSource"))}"` : ""}>${t("conf." + c)}${c === "reported" && !own ? "*" : ""}</span>`;
+      return `<span class="field-conf"><span class="field-name">${t("field." + k)}</span>${own ? `<a href="${esc(own)}" target="_blank" rel="noopener" title="${esc(host(own))}${fs[k].checked ? " · " + esc(fs[k].checked) : ""}">${badge}</a>` : badge}</span>`;
+    }).join("");
   }
 
   function planRows(plans, color) {
@@ -913,6 +931,15 @@
     });
     const sc = $("#rRaScore"); if (sc) $("#rRaScoreOut").textContent = sc.value;
   }
+  // A quota report names the model that was used: only models of the plan's provider are offered.
+  function syncQuotaModels() {
+    const plan = $("#rQuPlan"), sel = $("#rQuModel");
+    if (!plan || !sel) return;
+    const provider = plan.value.split("|")[0], keep = sel.value;
+    const list = state.models.models.filter((m) => m.provider === provider);
+    sel.innerHTML = (list.length ? list : state.models.models).map((m) => `<option value="${m.id}">${esc(m.name)}</option>`).join("");
+    if ([...sel.options].some((o) => o.value === keep)) sel.value = keep;
+  }
   function renderReportForm() {
     if (state.repRendered) state.repDrafts[state.repRendered] = snapshotReport();
     $("#repType").innerHTML = REP_TYPES.map((k) => `<button type="button" aria-pressed="${state.repType === k}" class="${state.repType === k ? "on" : ""}" data-type="${k}">${t("rep.type." + k)}</button>`).join("");
@@ -937,6 +964,8 @@
     $("#repForm").innerHTML = `<div class="rep-fields">${f}</div><p class="fine">${t("rep.help." + state.repType)}</p><div class="rep-actions"><button type="submit" class="btn">${t("rep.submit")}</button><span class="rep-err" id="repErr" role="alert"></span></div>`;
     const sc = $("#rRaScore"); if (sc) sc.addEventListener("input", () => { $("#rRaScoreOut").textContent = sc.value; });
     restoreReport(state.repDrafts[state.repType]);
+    syncQuotaModels();
+    const qp = $("#rQuPlan"); if (qp) qp.addEventListener("change", syncQuotaModels);
     state.repRendered = state.repType;
   }
 
@@ -947,7 +976,7 @@
     switch (state.repType) {
       case "speed": {
         const r = { type: "speed", model: v("#rSpModel"), client: v("#rSpClient") || undefined, via: "site", outputTokens: n("#rSpTokens"), seconds: n("#rSpSecs"), date: now };
-        if (!(r.outputTokens >= 50) || !(r.seconds >= 0.2)) return { error: t("rep.err.speed") };
+        if (!(r.outputTokens >= 50) || !(r.seconds >= 0.2)) return { error: t("rep.err.speed"), fields: ["rSpTokens", "rSpSecs"] };
         return { r, title: `Speed: ${modelName(r.model)} ${(r.outputTokens / r.seconds).toFixed(1)} tok/s` };
       }
       case "rating": {
@@ -957,13 +986,14 @@
       case "quota": {
         const [provider, plan] = v("#rQuPlan").split("|");
         const r = { type: "quota", provider, plan, model: v("#rQuModel"), window: v("#rQuWindow"), percentUsed: n("#rQuPct"), tokensUsed: n("#rQuTok"), date: now };
-        if (!(r.percentUsed >= 0.5 && r.percentUsed <= 100) || !(r.tokensUsed >= 1000)) return { error: t("rep.err.quota") };
+        if (!(r.percentUsed >= 0.5 && r.percentUsed <= 100) || !(r.tokensUsed >= 1000)) return { error: t("rep.err.quota"), fields: ["rQuPct", "rQuTok"] };
         return { r, title: `Quota: ${provider} ${plan} ${r.window} ≈ ${fmtTokens(r.tokensUsed / (r.percentUsed / 100))} tokens` };
       }
       default: {
         const [provider, plan] = v("#rEvPlan").split("|");
         const when = new Date(v("#rEvWhen"));
-        if (isNaN(when)) return { error: t("rep.err.when") };
+        // Same window as the collector: not in the future, not more than 8 days back.
+        if (isNaN(when) || when.getTime() > Date.now() + 5 * 60000 || when.getTime() < Date.now() - 8 * 86400000) return { error: t("rep.err.when"), fields: ["rEvWhen"] };
         const r = { type: "event", provider, plan, kind: v("#rEvKind"), date: when.toISOString() };
         return { r, title: `Limit event: ${provider} ${plan} ${r.kind}` };
       }
@@ -974,7 +1004,12 @@
     e.preventDefault();
     const res = buildReport();
     $("#repErr").textContent = res.error || "";
-    if (res.error) return;
+    document.querySelectorAll("#repForm [aria-invalid]").forEach((el) => { el.removeAttribute("aria-invalid"); el.removeAttribute("aria-describedby"); });
+    if (res.error) {
+      (res.fields || []).forEach((id) => { const el = document.getElementById(id); if (el) { el.setAttribute("aria-invalid", "true"); el.setAttribute("aria-describedby", "repErr"); } });
+      const first = res.fields && document.getElementById(res.fields[0]); if (first) first.focus();
+      return;
+    }
     const json = JSON.stringify(res.r, null, 2);
     const community = window.SITE_CONFIG.community || {};
     const out = $("#repOut");
@@ -1110,8 +1145,8 @@
 
   // Each dataset loads on its own and each section renders on its own: one failed file (or one bug) leaves
   // the other sections working, and the broken one shows a short message with a retry button.
-  const DATA_FILES = { plans: "data/plans.json", models: "data/models.json", changes: "data/changes.json", resets: "data/resets.json", efforts: "data/efforts.json" };
-  const dataFile = (k) => (k === "community" ? (state.demo ? "data/community.sample.json" : "data/community.json") : DATA_FILES[k]);
+  const DATA_FILES = { plans: "/data/plans.json", models: "/data/models.json", changes: "/data/changes.json", resets: "/data/resets.json", efforts: "/data/efforts.json" };
+  const dataFile = (k) => (k === "community" ? (state.demo ? "/data/community.sample.json" : "/data/community.json") : DATA_FILES[k]);
   state.failed = new Set();
   async function loadData(only, bypassCache) {
     const keys = only || [...Object.keys(DATA_FILES), "community"];
@@ -1160,6 +1195,7 @@
     applyStatic();
     $("#reviewed").textContent = reviewedMax();
     $("#footReviewed").textContent = reviewedMax();
+    $("#reviewed").title = reviewedDates().map(([k, d]) => k + " " + d).join(" · ");
     SECTIONS.forEach(runSection);
     applySponsor();
   }
@@ -1171,7 +1207,7 @@
     setInterval(async () => {
       if (document.hidden) return;
       try {
-        const [community, resets, changes] = await Promise.all([get(demo ? "data/community.sample.json" : "data/community.json"), get("data/resets.json"), get("data/changes.json")]);
+        const [community, resets, changes] = await Promise.all([get(demo ? "/data/community.sample.json" : "/data/community.json"), get("/data/resets.json"), get("/data/changes.json")]);
         Object.assign(state, { community, resets, changes, loadedAt: new Date() });
         renderChanges(); renderResets(); renderCommunity(); renderEffort(); renderLive();
       } catch (e) { /* keep showing the last good data */ }

@@ -545,3 +545,6 @@ a.lang-toggle { text-decoration: none; display: inline-flex; align-items: center
 .pick-more { font-size: 13px; color: var(--muted); }
 .pick-more summary { cursor: pointer; color: var(--text); }
 .pick-more ul { margin: 6px 0 0; padding-left: 18px; display: grid; gap: 4px; }
+
+.skip-link { position: absolute; left: 8px; top: -48px; z-index: 100; padding: 10px 14px; background: var(--text); color: var(--bg); border-radius: var(--r-s); }
+.skip-link:focus { top: 8px; }

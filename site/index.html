@@ -32,6 +32,7 @@
   <link rel="stylesheet" href="assets/style.css">
 </head>
 <body>
+  <a class="skip-link" href="#main" data-i18n="a11y.skip">Skip to content</a>
   <header class="topbar">
     <div class="wrap topbar-inner">
       <a class="brand" href="#top" id="top">
@@ -61,7 +62,7 @@
     </div>
   </header>
 
-  <main class="wrap">
+  <main class="wrap" id="main">
     <section id="hero" class="hero">
       <div class="hero-grid">
         <div class="hero-text">
@@ -94,6 +95,7 @@ brew install dwagwd/quotapilot/quotapilot</code></pre>
             <span class="sr-only" id="installCopied" aria-live="polite"></span>
           </div>
           <p class="install-req" id="installReq" data-i18n="install.req">Builds from source on your Mac, about 2 minutes. Needs the Xcode Command Line Tools and macOS 13 or later.</p>
+          <p class="install-req" id="installLaunch" data-i18n="install.launch">Then launch it: open "$(brew --prefix quotapilot)/QuotaPilot.app". A menu bar icon appears and shows your Codex quota within a minute.</p>
           <p class="install-req" id="installPrereq" data-i18n="install.prereq">No Command Line Tools yet? Run xcode-select --install first.</p>
           <p class="install-links install-dl"><span data-i18n="install.download">Or download from GitHub:</span>
             <a href="https://github.com/dwagwd/quotapilot/releases/latest/download/quotapilot-linux-x64.tar.gz" rel="noopener" data-dl>Linux x64</a> ·

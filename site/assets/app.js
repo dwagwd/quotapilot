@@ -96,7 +96,7 @@
     return "mac";
   }
   function applyPlatform() {
-    const pre = $("#installCmd"), title = $("#installTitle"), req = $("#installReq"), pre2 = $("#installPrereq");
+    const pre = $("#installCmd"), title = $("#installTitle"), req = $("#installReq"), pre2 = $("#installPrereq"), launch = $("#installLaunch");
     if (!pre || !title) return;
     const code = pre.querySelector("code");
     if (!macDefaults) macDefaults = code.textContent;
@@ -115,10 +115,12 @@
       code.textContent = (installCommands() || [macDefaults]).join("\n");
       title.textContent = t("install.title"); if (req) req.textContent = t("install.req");
       if (pre2) { pre2.hidden = false; pre2.textContent = t("install.prereq"); }
+      if (launch) launch.textContent = t("install.launch");
     } else {
       code.textContent = plat.join("\n");
       title.textContent = t("install.title." + p); if (req) req.textContent = t("install.req." + p);
       if (pre2) pre2.hidden = true;
+      if (launch) launch.textContent = t("install.launch." + p);
     }
   }
   function initPlatformButtons() {
@@ -180,7 +182,8 @@
   function planRows(plans, color) {
     const maxMult = Math.max(...plans.map((pl) => pl.multiple || 0), 1);
     return plans.map((pl) => {
-      const width = pl.multiple ? Math.max(6, (Math.log(pl.multiple + 1) / Math.log(maxMult + 1)) * 100) : 0;
+      // Linear scale: bar length is proportional to the quota multiple (5x is five times 1x).
+      const width = pl.multiple ? Math.max(3, (pl.multiple / maxMult) * 100) : 0;
       const price = pl.priceUsd == null ? t("plan.varies") : pl.priceUsd === 0 ? "$0" : money(pl.priceUsd, pl.priceUsd % 1 ? 2 : 0) + t("plan.perMonth");
       const perX = pl.multiple && pl.priceUsd ? money(pl.priceUsd / pl.multiple, 2) + " " + t("plan.perX") : "";
       return `
@@ -234,7 +237,7 @@
     const filters = ["all", "upcoming", ...new Set(state.changes.changes.map((c) => c.provider))];
     $("#changeFilters").innerHTML = filters.map((f) => {
       const label = f === "all" ? t("changes.all") : f === "upcoming" ? t("changes.upcoming") : providerById(f).name;
-      return `<button type="button" class="chip ${state.changeFilter === f ? "on" : ""}" data-filter="${f}">${esc(label)}</button>`;
+      return `<button type="button" class="chip ${state.changeFilter === f ? "on" : ""}" aria-pressed="${state.changeFilter === f}" data-filter="${f}">${esc(label)}</button>`;
     }).join("");
     $("#changeFilters").querySelectorAll("button").forEach((b) => b.addEventListener("click", () => { state.changeFilter = b.dataset.filter; renderChanges(); }));
 
@@ -626,7 +629,7 @@
       <p class="com-note">${t("rs.peak").replace("{h}", String(peak).padStart(2, "0") + ":00").replace("{n}", hours[peak])}</p>`;
 
     const filters = ["all", "full", "banked", "official"];
-    $("#rsFilters").innerHTML = filters.map((f) => `<button type="button" class="chip ${state.rsFilter === f ? "on" : ""}" data-f="${f}">${t("rs.filter." + f)}</button>`).join("");
+    $("#rsFilters").innerHTML = filters.map((f) => `<button type="button" class="chip ${state.rsFilter === f ? "on" : ""}" aria-pressed="${state.rsFilter === f}" data-f="${f}">${t("rs.filter." + f)}</button>`).join("");
     const items = st.rs.filter((r) => state.rsFilter === "all" || (state.rsFilter === "official" ? r.confidence === "official" : r.kind === state.rsFilter));
     $("#rsLedger").innerHTML = items.map((r) => `
       <li>
@@ -682,7 +685,7 @@
 
   function renderEffort() {
     const E = state.efforts;
-    $("#efPick").innerHTML = E.models.map((f) => `<button type="button" class="chip ${state.efPick.includes(f.model) ? "on" : ""}" data-m="${f.model}">${esc(f.name)}</button>`).join("");
+    $("#efPick").innerHTML = E.models.map((f) => `<button type="button" class="chip ${state.efPick.includes(f.model) ? "on" : ""}" aria-pressed="${state.efPick.includes(f.model)}" data-m="${f.model}">${esc(f.name)}</button>`).join("");
     const fams = E.models.filter((f) => state.efPick.includes(f.model));
     const pts = fams.flatMap((f) => f.efforts.filter((e) => e.costPerTask));
     if (!pts.length) { $("#efChart").innerHTML = `<p class="empty">${t("calc.empty")}</p>`; }
@@ -716,7 +719,7 @@
     }
 
     if (!E.models.some((f) => f.model === state.efFamily)) state.efFamily = E.models[0].model;
-    $("#efFamily").innerHTML = E.models.filter((f) => f.efforts.length > 1).map((f) => `<button type="button" role="tab" aria-selected="${state.efFamily === f.model}" class="${state.efFamily === f.model ? "on" : ""}" data-f="${f.model}">${esc(f.name)}</button>`).join("");
+    $("#efFamily").innerHTML = E.models.filter((f) => f.efforts.length > 1).map((f) => `<button type="button" aria-pressed="${state.efFamily === f.model}" class="${state.efFamily === f.model ? "on" : ""}" data-f="${f.model}">${esc(f.name)}</button>`).join("");
     const fam = E.models.find((f) => f.model === state.efFamily);
     const usage = (state.community.effortUsage || []).filter((u) => u.model === fam.model);
     const totalCalls = usage.reduce((a, u) => a + (u.calls || 0), 0);
@@ -894,8 +897,25 @@
     tsWidget = null;
   }
 
+  // Drafts survive a re-render (language switch, report type switch): values are kept by control id and put back.
+  state.repDrafts = {};
+  function snapshotReport() {
+    const out = {};
+    document.querySelectorAll("#repForm input[id], #repForm select[id]").forEach((el) => { out[el.id] = el.type === "checkbox" ? el.checked : el.value; });
+    return out;
+  }
+  function restoreReport(d) {
+    Object.entries(d || {}).forEach(([id, v]) => {
+      const el = document.getElementById(id);
+      if (!el) return;
+      if (el.type === "checkbox") el.checked = !!v;
+      else if (el.tagName !== "SELECT" || [...el.options].some((o) => o.value === v)) el.value = v;
+    });
+    const sc = $("#rRaScore"); if (sc) $("#rRaScoreOut").textContent = sc.value;
+  }
   function renderReportForm() {
-    $("#repType").innerHTML = REP_TYPES.map((k) => `<button type="button" role="tab" aria-selected="${state.repType === k}" class="${state.repType === k ? "on" : ""}" data-type="${k}">${t("rep.type." + k)}</button>`).join("");
+    if (state.repRendered) state.repDrafts[state.repRendered] = snapshotReport();
+    $("#repType").innerHTML = REP_TYPES.map((k) => `<button type="button" aria-pressed="${state.repType === k}" class="${state.repType === k ? "on" : ""}" data-type="${k}">${t("rep.type." + k)}</button>`).join("");
     const f = {
       speed: field("rSpModel", t("rep.model"), modelSelect("rSpModel")) +
         field("rSpClient", t("rep.client"), `<select id="rSpClient"><option value="">—</option>${["CLI", "Desktop", "API", "Web", "Other"].map((k) => `<option value="${k}">${k}</option>`).join("")}</select>`) +
@@ -916,6 +936,8 @@
     }[state.repType];
     $("#repForm").innerHTML = `<div class="rep-fields">${f}</div><p class="fine">${t("rep.help." + state.repType)}</p><div class="rep-actions"><button type="submit" class="btn">${t("rep.submit")}</button><span class="rep-err" id="repErr" role="alert"></span></div>`;
     const sc = $("#rRaScore"); if (sc) sc.addEventListener("input", () => { $("#rRaScoreOut").textContent = sc.value; });
+    restoreReport(state.repDrafts[state.repType]);
+    state.repRendered = state.repType;
   }
 
   function buildReport() {
@@ -1086,21 +1108,59 @@
       `<li><a href="${esc(url)}" target="_blank" rel="noopener">${esc(host(url))}</a> <span>${esc(s.label)}</span> <span class="when">${t("plan.checked")} ${esc(s.checked)}</span></li>`).join("");
   }
 
+  // Each dataset loads on its own and each section renders on its own: one failed file (or one bug) leaves
+  // the other sections working, and the broken one shows a short message with a retry button.
+  const DATA_FILES = { plans: "data/plans.json", models: "data/models.json", changes: "data/changes.json", resets: "data/resets.json", efforts: "data/efforts.json" };
+  const dataFile = (k) => (k === "community" ? (state.demo ? "data/community.sample.json" : "data/community.json") : DATA_FILES[k]);
+  state.failed = new Set();
+  async function loadData(only, bypassCache) {
+    const keys = only || [...Object.keys(DATA_FILES), "community"];
+    await Promise.all(keys.map(async (k) => {
+      try {
+        const r = await fetch(dataFile(k), bypassCache ? { cache: "no-cache" } : undefined);
+        if (!r.ok) throw new Error(k + " " + r.status);
+        state[k] = await r.json();
+        state.failed.delete(k);
+      } catch (e) { state.failed.add(k); }
+    }));
+  }
+  const SECTIONS = [
+    { name: "plans", deps: ["plans"], at: "#providerGrid", render: () => { renderPlans(); renderPartners(); } },
+    { name: "changes", deps: ["changes"], at: "#changeFilters", render: () => renderChanges() },
+    { name: "resets", deps: ["resets"], at: "#rsStatus", init: () => initResets(), render: () => renderResets() },
+    { name: "calc", deps: ["models", "plans"], at: "#provFilter", init: () => initCalc(), render: () => renderCalc() },
+    { name: "radar", deps: ["models"], at: "#radarPick", init: () => initRadar(), render: () => renderRadar() },
+    { name: "effort", deps: ["efforts", "models"], at: "#efPick", init: () => initEffort(), render: () => renderEffort() },
+    { name: "community", deps: ["community", "models", "plans"], at: "#comCompiled", init: () => initCommunity(), render: () => { renderCommunity(); renderReportForm(); } },
+    { name: "live", deps: ["changes", "resets"], at: "#liveInner", render: () => renderLive() },
+    { name: "sources", deps: ["plans", "models", "resets", "changes"], at: "#sourceList", render: () => renderSources() }
+  ];
+  const inited = new Set();
+  function runSection(sec) {
+    const host = $(sec.at) && ($(sec.at).closest("section") || $(sec.at).parentElement);
+    if (host) host.querySelectorAll(`[data-section-error="${sec.name}"]`).forEach((n) => n.remove());
+    try {
+      if (sec.deps.some((d) => !state[d])) throw new Error("missing data");
+      if (sec.init && !inited.has(sec.name)) { sec.init(); inited.add(sec.name); }
+      sec.render();
+    } catch (e) {
+      if (host) host.insertAdjacentHTML("afterbegin", `<p class="error" role="alert" data-section-error="${sec.name}">${esc(t("err.section"))} <button type="button" class="btn" data-retry>${esc(t("err.retry"))}</button></p>`);
+    }
+  }
+  function initRetry() {
+    document.addEventListener("click", async (e) => {
+      if (!e.target.closest("[data-retry]")) return;
+      const keys = [...state.failed];
+      if (keys.length) await loadData(keys, true);
+      renderAll();
+    });
+  }
+
   function renderAll() {
     applyStatic();
     $("#reviewed").textContent = reviewedMax();
     $("#footReviewed").textContent = reviewedMax();
-    renderPlans();
-    renderChanges();
-    renderResets();
-    renderCalc();
-    renderRadar();
-    renderEffort();
-    renderCommunity();
-    renderLive();
-    renderReportForm();
-    renderPartners();
-    renderSources();
+    SECTIONS.forEach(runSection);
     applySponsor();
   }
 
@@ -1113,7 +1173,7 @@
       try {
         const [community, resets, changes] = await Promise.all([get(demo ? "data/community.sample.json" : "data/community.json"), get("data/resets.json"), get("data/changes.json")]);
         Object.assign(state, { community, resets, changes, loadedAt: new Date() });
-        renderResets(); renderCommunity(); renderEffort(); renderLive();
+        renderChanges(); renderResets(); renderCommunity(); renderEffort(); renderLive();
       } catch (e) { /* keep showing the last good data */ }
     }, 60000);
   }
@@ -1128,19 +1188,10 @@
     initPlatformButtons();
     applyPlatform();
     initCopyButtons();
-    const get = (f) => fetch(f).then((r) => { if (!r.ok) throw new Error(f + " " + r.status); return r.json(); });
+    initRetry();
     const demo = new URLSearchParams(location.search).get("demo") === "1" || window.__AQW_DEMO === true;
-    try {
-      [state.plans, state.models, state.changes, state.community, state.resets, state.efforts] = await Promise.all([get("data/plans.json"), get("data/models.json"), get("data/changes.json"), get(demo ? "data/community.sample.json" : "data/community.json"), get("data/resets.json"), get("data/efforts.json")]);
-    } catch (e) {
-      document.querySelector("main").insertAdjacentHTML("afterbegin", `<p class="error">Could not load data (${esc(e.message)}). Serve the folder over HTTP, e.g. <code>python3 -m http.server</code>.</p>`);
-      return;
-    }
-    initCalc();
-    initRadar();
-    initCommunity();
-    initResets();
-    initEffort();
+    state.demo = demo;
+    await loadData();
     renderAll();
     // The browser jumps to #anchor before the data has rendered, when the target is still near the top.
     // Jump again once the page has its real height; scroll-margin-top keeps the heading clear of the top bar.

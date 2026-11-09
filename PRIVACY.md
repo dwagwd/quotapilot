@@ -51,7 +51,7 @@ Choose what to share in the menu bar (**What to share**: speed, prompt and cache
 
 The website counts visits without cookies: each visit is stored as a hash of the IP address and the day only (no user agent) that is kept for 8 days, and only daily totals (views, visitors) are kept after that, for up to 400 days. The site shows the visitor figure only at 500 or more a week. It is a sum of daily visitors: because no identifier is kept across days, the same person visiting on two days counts twice. Visit counting stops at a daily write cap, so busy days undercount. Reports sent from the website's form follow the collector rules above.
 
-The report form uses Cloudflare Turnstile, and only after you press "Preview report" (nothing from Cloudflare loads when the page opens), to check that a human is sending. Turnstile runs in your browser under Cloudflare's privacy policy and sets no tracking cookies for us. We keep nothing from it: the one-time token is checked once with Cloudflare and discarded.
+The report form can use Cloudflare Turnstile. It is switched on only when the site has a Turnstile key configured; check `turnstileSiteKey` in `site/assets/config.js`: an empty key means no Cloudflare code loads and the collector relies on its per-network rate limits and daily budgets instead. When it is on, it runs only after you press "Preview report" (nothing from Cloudflare loads when the page opens), to check that a human is sending. Turnstile runs in your browser under Cloudflare's privacy policy and sets no tracking cookies for us. We keep nothing from it: the one-time token is checked once with Cloudflare and discarded.
 
 ## Stored locally
 

@@ -223,6 +223,32 @@ ${m && m.input != null ? `<p>API: $${m.input} / $${m.output} ${lang === "zh" ? "
     body: `<h1>${t.effortIndex}</h1><ul class="plain">${effortLinks.join("")}</ul>` });
 }
 
+// Traditional Chinese home page at /zh/: the English home page with its metadata, canonical and asset paths rewritten,
+// so each language has its own shareable address (app.js starts in Chinese when the path begins with /zh/).
+{
+  const ZH_TITLE = "AI Quota Watch：ChatGPT、Claude、Gemini、Grok 的用量上限、重置時間與實測速度 · 免費 QuotaPilot（macOS）";
+  const ZH_DESC = "人工核對的 ChatGPT、Claude、Gemini、Grok 用量上限、方案變動、重置紀錄與社群實測速度。每個數字都附來源。免費、開源、無廣告。";
+  const ZH_OG_TITLE = "你每個月到底能用多少 AI？方案上限、重置與實測速度";
+  const src = readFileSync(join(root, "index.html"), "utf8");
+  const swap = (h, re, to) => { if (!re.test(h)) throw new Error("zh home: pattern not found " + re); return h.replace(re, to); };
+  let h = src;
+  h = swap(h, /<html lang="en">/, '<html lang="zh-Hant">');
+  h = swap(h, /<title>[^<]*<\/title>/, `<title>${esc(ZH_TITLE)}</title>`);
+  h = swap(h, /<meta name="description" content="[^"]*">/, `<meta name="description" content="${esc(ZH_DESC)}">`);
+  h = swap(h, /<meta property="og:title" content="[^"]*">/, `<meta property="og:title" content="${esc(ZH_OG_TITLE)}">`);
+  h = swap(h, /<meta property="og:description" content="[^"]*">/, `<meta property="og:description" content="${esc(ZH_DESC)}">`);
+  h = swap(h, /<meta name="twitter:title" content="[^"]*">/, `<meta name="twitter:title" content="${esc(ZH_OG_TITLE)}">`);
+  h = swap(h, /<meta name="twitter:description" content="[^"]*">/, `<meta name="twitter:description" content="${esc(ZH_DESC)}">`);
+  h = swap(h, /<meta property="og:url" content="[^"]*">/, `<meta property="og:url" content="${BASE}zh/">`);
+  h = swap(h, /<link rel="canonical" href="[^"]*">/, `<link rel="canonical" href="${BASE}zh/">`);
+  h = swap(h, /<link rel="alternate" hreflang="en" href="[^"]*">\s*<link rel="alternate" hreflang="zh-Hant" href="[^"]*">\s*<link rel="alternate" hreflang="x-default" href="[^"]*">/,
+    `<link rel="alternate" hreflang="en" href="${BASE}">\n  <link rel="alternate" hreflang="zh-Hant" href="${BASE}zh/">\n  <link rel="alternate" hreflang="x-default" href="${BASE}">`);
+  h = h.replace(/(href|src)="assets\//g, '$1="/assets/').replace(/href="plans\/"/g, 'href="/zh/plans/"').replace(/href="effort\/"/g, 'href="/zh/effort/"').replace(/href="resets\//g, 'href="/resets/');
+  mkdirSync(join(OUT, "zh"), { recursive: true });
+  writeFileSync(join(OUT, "zh", "index.html"), h);
+  pages.push({ path: "zh/index.html", lastmod: plans.lastReviewed });
+}
+
 const urls = [{ path: "", lastmod: plans.lastReviewed }, ...pages].map((p) => `  <url><loc>${BASE}${pretty(p.path)}</loc><lastmod>${p.lastmod}</lastmod></url>`).join("\n");
 writeFileSync(join(OUT, "sitemap.xml"), `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls}\n</urlset>\n`);
 writeFileSync(join(OUT, "robots.txt"), `User-agent: *\nAllow: /\nSitemap: ${BASE}sitemap.xml\n`);

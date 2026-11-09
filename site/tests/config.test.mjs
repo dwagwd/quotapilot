@@ -31,6 +31,12 @@ test("install box commands come from config and match the static fallback in ind
   for (const k of ["notesUrl", "sourceUrl"]) assert.ok(S.safeHttps(cfg.install[k]), k);
 });
 
+test("direct download links point at this repo's GitHub releases", () => {
+  const links = [...html.matchAll(/href="([^"]+)"[^>]*data-dl/g)].map((m) => m[1]);
+  assert.equal(links.length, 4);
+  for (const l of links) assert.match(l, /^https:\/\/github\.com\/dwagwd\/quotapilot\/releases\/latest\/download\/quotapilot-(linux|windows)-(x64|arm64)\.(tar\.gz|zip)$/);
+});
+
 test("affiliate links stay empty or https", () => {
   for (const [k, v] of Object.entries(cfg.affiliates)) assert.ok(v === "" || v.startsWith("https://"), k);
 });

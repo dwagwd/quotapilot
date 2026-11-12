@@ -44,7 +44,7 @@ jobs:
       - name: Package the static files only
         run: |
           mkdir -p _site
-          cp -R site/index.html site/404.html site/assets site/data site/plans site/effort site/resets site/zh site/sitemap.xml site/robots.txt site/_headers _site/
+          cp -R site/index.html site/404.html site/assets site/data site/plans site/resets site/zh site/sitemap.xml site/robots.txt site/_headers _site/
           rm -rf _site/data/submissions
       - name: Use the latest community stats
         run: |

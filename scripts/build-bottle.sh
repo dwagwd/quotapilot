@@ -37,8 +37,22 @@ LOCAL="$(ls quotapilot--*.bottle.tar.gz)"
 JSON="$(ls quotapilot--*.bottle.json)"
 
 # Prove the bottle works the way users get it: remove the source build and pour the bottle.
+# The tap formula gets a bottle block that points at this folder, so Homebrew goes through the same steps as with the
+# release: read the block, download name-version.tag.bottle.tar.gz from root_url, check the SHA-256, pour.
 brew uninstall dwagwd/quotapilot/quotapilot
-brew install "./$LOCAL" 2>&1 | tee pour.log
+cp "$LOCAL" "${LOCAL/--/-}"
+python3 - "$TAP/Formula/quotapilot.rb" "$JSON" "$WORK" <<'PY'
+import json, re, sys
+path, json_path, work = sys.argv[1:]
+bottle = next(iter(json.load(open(json_path, encoding="utf-8")).values()))["bottle"]
+lines = [f'    sha256 cellar: :{spec.get("cellar") or bottle["cellar"]}, {tag}: "{spec["sha256"]}"' for tag, spec in bottle["tags"].items()]
+block = "  bottle do\n" + f'    root_url "file://{work}"\n' + "\n".join(lines) + "\n  end\n\n"
+text = open(path, encoding="utf-8").read()
+text, n = re.subn(r"(^  head .*\n)\n?", lambda m: m.group(1) + "\n" + block, text, count=1, flags=re.M)
+assert n == 1, "formula head line not found"
+open(path, "w", encoding="utf-8").write(text)
+PY
+brew install dwagwd/quotapilot/quotapilot 2>&1 | tee pour.log
 grep -q "Pouring" pour.log || { echo "error: Homebrew did not pour the bottle" >&2; exit 1; }
 quotapilot version | grep -q "$VERSION" || { echo "error: poured CLI is not version $VERSION" >&2; exit 1; }
 APP="$(brew --prefix quotapilot)/QuotaPilot.app"
@@ -49,6 +63,6 @@ if LC_ALL=C grep -a -q -F "$ROOT" "$APP/Contents/MacOS/QuotaPilot" "$APP/Content
 fi
 
 # Homebrew names the local file name--version…; downloads use name-version… (the "filename" in the JSON).
-cp "$LOCAL" "$OUT/${LOCAL/--/-}"
+cp "${LOCAL/--/-}" "$OUT/"
 cp "$JSON" "$OUT/quotapilot-bottle.json"
 echo "Bottle: $OUT/${LOCAL/--/-}"

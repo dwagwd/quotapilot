@@ -50,6 +50,8 @@ jobs:
         with:
           branch: swift-6.2-release
           tag: 6.2-RELEASE
+      - name: Test core
+        run: swift test
       - name: Build CLI
         run: |
           swift build -c release --product quotapilot

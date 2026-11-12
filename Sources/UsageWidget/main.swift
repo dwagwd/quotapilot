@@ -448,6 +448,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
         RunLoop.main.add(agentTick!, forMode: .common)
         backfillStats()
         scanAgentLogs()
+        // Nothing below reads Claude Code's saved login or edits another tool's settings before this choice is made.
+        askConnectionConsentIfNeeded()
         deepSeekTick = Timer(timeInterval: 600, repeats: true) { [weak self] _ in
             guard let self, !self.sleeping else { return }; self.refreshDeepSeek()
         }
@@ -657,6 +659,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
         add(l.text("exportUsageEvents"), #selector(exportUsageEvents))
         add(l.text("usageStats"), #selector(showStats))
         add(l.text("connectAgents"), #selector(connectAgents))
+        add(l.text("consentMenu"), #selector(reviewConnectionConsent))
         add(l.text("agentCollaboration") + "…", #selector(configureCollaboration))
         add(l.text("sourceDiagnostics"), #selector(showSourceDiagnostics))
         add(l.text("toggleCollapsed"), #selector(toggleCollapsed))
@@ -1121,6 +1124,49 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
         if actions.indices.contains(index) { actions[index]() }
     }
 
+    /// Asked once, on first launch: whether QuotaPilot may read Claude Code's saved login for plan usage, and whether it
+    /// may edit other agents' settings files to connect them. A new install starts with both off. An install that
+    /// already ran with them keeps its current values, shown ticked, so the person can confirm or turn them off.
+    private func askConnectionConsentIfNeeded(force: Bool = false) {
+        let asked = defaults.bool(forKey: "connectionConsentAsked")
+        guard force || !asked else { return }
+        let existing = asked || defaults.object(forKey: "settings") != nil
+        let plan = NSButton(checkboxWithTitle: l.text("consentClaudePlan"), target: nil, action: nil)
+        let connect = NSButton(checkboxWithTitle: l.text("consentAutoConnect"), target: nil, action: nil)
+        plan.state = existing && settings.claudePlanEnabled ? .on : .off
+        connect.state = existing && settings.autoConnectEnabled ? .on : .off
+        func note(_ key: String) -> NSTextField {
+            let field = NSTextField(wrappingLabelWithString: l.text(key))
+            field.font = .systemFont(ofSize: 11); field.textColor = .secondaryLabelColor
+            field.preferredMaxLayoutWidth = 400
+            field.widthAnchor.constraint(equalToConstant: 400).isActive = true
+            return field
+        }
+        let stack = NSStackView(views: [plan, note("consentClaudePlanNote"), connect, note("consentAutoConnectNote")])
+        stack.orientation = .vertical; stack.alignment = .leading; stack.spacing = 6
+        stack.setCustomSpacing(14, after: stack.views[1])
+        stack.layoutSubtreeIfNeeded()
+        stack.setFrameSize(stack.fittingSize)
+        let alert = NSAlert()
+        alert.messageText = l.text("consentTitle"); alert.informativeText = l.text("consentBody")
+        alert.accessoryView = stack
+        alert.addButton(withTitle: l.text("consentContinue"))
+        NSApp.activate(ignoringOtherApps: true)
+        alert.runModal()
+        var next = settings
+        next.claudePlanEnabled = plan.state == .on
+        next.autoConnectEnabled = connect.state == .on
+        settings = next
+        defaults.set(try? JSONEncoder().encode(next), forKey: "settings")
+        defaults.set(true, forKey: "connectionConsentAsked")
+    }
+
+    @objc private func reviewConnectionConsent() {
+        askConnectionConsentIfNeeded(force: true)
+        claudeLogin = nil
+        autoConnectAgents(); refreshClaudePlan(); refreshDeepSeek(); writeStatus()
+    }
+
     /// Connects whatever can be connected without asking: bridges whose status line is free or a command,
     /// provider imports once a snapshot exists, and the DeepSeek balance when a key is configured.
     private func autoConnectAgents() {
@@ -1150,7 +1196,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
     /// Claude Pro/Max usage via Claude Code's login, so it works for the desktop app and remote sessions
     /// where no status line runs. Writes the same sanitized snapshot the status-line bridge writes.
     private func refreshClaudePlan() {
-        guard settings.autoConnectEnabled, AgentDetection.claudeInstalled, !claudePlanFetching else { return }
+        guard settings.claudePlanEnabled, AgentDetection.claudeInstalled, !claudePlanFetching else { return }
         claudePlanFetching = true
         // Reuse the token until it is about to expire instead of reading the keychain every two minutes.
         if let cached = claudeLogin, (cached.expiresAt ?? .infinity) > Date().timeIntervalSince1970 + 60 {

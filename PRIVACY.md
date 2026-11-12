@@ -1,13 +1,27 @@
 # Privacy and data handling
 
-QuotaPilot runs on your Mac and has no account or server of its own for the app. This page lists what it reads, what leaves the computer and when, and what it stores. The defaults below are for version 0.6.
+Last updated: 2026-11-12.
 
-## What the app reads by default
+QuotaPilot runs on your Mac and has no account or server of its own for the app. This page lists what it reads, what leaves the computer and when, and what it stores. The defaults below are for version 0.6.6 and later; earlier 0.6 versions had the two connection choices below turned on without asking.
+
+## Who runs this and how to reach us
+
+QuotaPilot and the AI Quota Watch website are run by the QuotaPilot maintainers, an open-source project hosted at [github.com/dwagwd/quotapilot](https://github.com/dwagwd/quotapilot). For a privacy question or request, [send a private report](https://github.com/dwagwd/quotapilot/security/advisories/new) (visible only to the maintainers) or open an issue without personal details. You do not need to contact anyone to delete what you shared: see "Deleting what you shared" below.
+
+- **Where data is processed:** the website and the anonymous collector run on Cloudflare (Pages, Workers KV), which stores and serves data from its global network, including outside your country. Cloudflare handles connections under [its own privacy policy](https://www.cloudflare.com/privacypolicy/).
+- **Why we process it:** shared reports are processed only because you chose to send them (you can withdraw by deleting them); cookie-free visit counts are kept to know whether the site is used and to protect the free service from overload.
+- **Your choices:** see, before sending, exactly what would be sent; send nothing; delete everything a computer or browser sent. Hashed ids and network hashes are pseudonymous data, so these rights apply to them too.
+- **Children:** the app and site are tools for software developers and are not directed at children.
+- **Changes:** this file's history in the repository shows every change; a change to what leaves your computer is also listed in `CHANGELOG.md`.
+
+## What the app reads
 
 - **Codex:** it asks the local Codex App Server for account identity, quota windows and the cumulative account token counter. Codex may make authenticated requests to OpenAI to answer. Codex's own policies apply.
-- **Claude Code plan usage:** it reads Claude Code's stored login (the `Claude Code-credentials` keychain item through `/usr/bin/security`, or `~/.claude/.credentials.json`) and sends that token only to `https://api.anthropic.com/api/oauth/usage`, the endpoint Claude Code itself uses. The token is kept in memory and never written to disk.
+- **Claude Code plan usage (off until you turn it on at first launch):** it reads Claude Code's stored login (the `Claude Code-credentials` keychain item through `/usr/bin/security`, or `~/.claude/.credentials.json`) and sends that token only to `https://api.anthropic.com/api/oauth/usage`, the endpoint Claude Code itself uses. The token is kept in memory and never written to disk.
 - **Local agent logs (token breakdown, on by default):** it reads `~/.codex/sessions` and `~/.claude/projects` JSONL files and keeps only token counts, timestamps, model names, a provider name and a de-duplication key. Prompts, replies, tool output and file contents are not stored or sent.
-- **Automatic connection (on by default):** it may edit `~/.claude/settings.json` or `~/.gemini/antigravity-cli/settings.json` to add the status-line bridge (see the last section).
+- **Automatic connection (off until you turn it on at first launch):** it may edit `~/.claude/settings.json` or `~/.gemini/antigravity-cli/settings.json` to add the status-line bridge (see the last section).
+
+The first launch asks about the last two; **Connections and privacy…** in the menu bar changes them later. The Claude plan usage request goes to the endpoint Claude Code itself uses, which Anthropic has not published for other tools and may change or restrict. The `quotapilot` command-line tool reads the same login when you run `quotapilot status`, `watch` or `route`.
 
 It never starts model turns on its own unless you turn on **Auto-continue**, and it never redeems reset credits.
 
@@ -92,4 +106,4 @@ The repository and packages exclude runtime snapshots and settings backups. Opti
 - **Token breakdown:** when enabled (default), the widget reads the local logs of **Codex** (`~/.codex/sessions`), **Claude Code** (`~/.claude/projects`), **Gemini CLI** (`~/.gemini/tmp`) and **Grok CLI** (`~/.grok/logs`) and keeps only token counts, timestamps, a provider name and a de-duplication key in memory. Prompts, replies, tool output and file contents are not stored or sent anywhere.
 - **Auto-continue** (off by default) reads the first line of recent Codex session files (session id and working folder) when a quota limit is first reached, to note which session was interrupted, and after the quota resets runs `codex exec resume` for that session only (if several sessions were active, it skips and tells you); Codex then sends a request with your Codex account. Its output is appended to `auto-continue.log` (mode 0600) in the widget's Application Support folder.
 - **DeepSeek:** the API key is stored only in the macOS login keychain (this device only) and sent only to `https://api.deepseek.com/user/balance`.
-- **Automatic connection** (on by default) edits `~/.claude/settings.json` or `~/.gemini/antigravity-cli/settings.json` only to add the status-line bridge, after writing a timestamped backup, and never replaces a non-command status line. It reads a DeepSeek key from Claude Code's `env` only when `ANTHROPIC_BASE_URL` points at a deepseek.com host; the key is not copied or stored.
+- **Automatic connection** (your choice at first launch) edits `~/.claude/settings.json` or `~/.gemini/antigravity-cli/settings.json` only to add the status-line bridge, after writing a timestamped backup, and never replaces a non-command status line. It reads a DeepSeek key from Claude Code's `env` only when `ANTHROPIC_BASE_URL` points at a deepseek.com host; the key is not copied or stored.

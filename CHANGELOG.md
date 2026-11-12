@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+- First launch now asks before QuotaPilot reads Claude Code's saved login (Claude plan usage) or edits other agents' settings files (automatic connection). A new install starts with both off; an existing install keeps its choices and is asked to confirm them once. **Connections and privacy…** in the menu bar changes them later.
+- Homebrew bottle: releases now include a prebuilt package built on GitHub's runners, so `brew install` no longer has to compile on Macs the bottle covers.
+- Website: `/resets/` index pages, the Chinese home page links the Chinese reset history, and a test checks every internal link.
+- Privacy policy: who runs the service and how to reach us, where data is processed, and what changed.
+- Windows CI now runs the test suite.
+
 ## 0.6.5
 
 - **Command-line tool for Linux and Windows, built by GitHub:** each release now carries `quotapilot` for Linux (x64, ARM64) and Windows (x64; it also runs on ARM PCs) as a single file with a SHA-256 checksum, compiled on GitHub's own runners, so no personal machine is involved. The macOS app is still compiled by Homebrew on your Mac.

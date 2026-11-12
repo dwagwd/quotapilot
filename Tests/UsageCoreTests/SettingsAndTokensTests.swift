@@ -2,6 +2,20 @@ import XCTest
 @testable import UsageCore
 
 final class SettingsAndTokensTests: XCTestCase {
+    func testClaudePlanChoiceIsSeparateAndOldSettingsFollowAutoConnect() throws {
+        // Settings saved before the two choices were split have no claudePlan: it follows the old single switch.
+        var old = try JSONDecoder().decode(WidgetSettings.self, from: JSONEncoder().encode(WidgetSettings()))
+        XCTAssertNil(old.claudePlan)
+        XCTAssertEqual(old.claudePlanEnabled, old.autoConnectEnabled)
+        old.autoConnectEnabled = false
+        XCTAssertFalse(old.claudePlanEnabled)
+        // Once chosen, each survives on its own and round-trips.
+        var chosen = WidgetSettings()
+        chosen.autoConnectEnabled = false; chosen.claudePlanEnabled = true
+        let back = try JSONDecoder().decode(WidgetSettings.self, from: JSONEncoder().encode(chosen))
+        XCTAssertTrue(back.claudePlanEnabled)
+        XCTAssertFalse(back.autoConnectEnabled)
+    }
     func testIntervalBoundsAndUnitConversion() {
         var settings = WidgetSettings()
         XCTAssertEqual(settings.lookback, 3600)

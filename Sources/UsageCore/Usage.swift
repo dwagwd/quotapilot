@@ -194,6 +194,7 @@ public struct WidgetSettings: Codable, Equatable {
     public var autoContinue: Bool? = nil
     public var agentLogs: Bool? = nil
     public var autoConnect: Bool? = nil
+    public var claudePlan: Bool? = nil
     public var routerMode: RouterMode? = nil
     public var cardStyle: CardStyle? = nil
     public var taskRules: [String: String]? = nil
@@ -221,6 +222,12 @@ public struct WidgetSettings: Codable, Equatable {
     public var autoConnectEnabled: Bool {
         get { autoConnect ?? true }
         set { autoConnect = newValue }
+    }
+    /// Read Claude plan usage with Claude Code's saved login. Its own choice since 0.6.6; settings saved before that
+    /// had one switch for both, so an unset value follows `autoConnectEnabled`.
+    public var claudePlanEnabled: Bool {
+        get { claudePlan ?? autoConnectEnabled }
+        set { claudePlan = newValue }
     }
     /// Resume an interrupted Codex session with `codex exec resume` once a full quota window resets.
     public var autoContinueEnabled: Bool {

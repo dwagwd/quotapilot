@@ -20,7 +20,7 @@ window.SITE_CONFIG = {
         "Expand-Archive quotapilot.zip -DestinationPath . -Force"
       ]
     },
-    notesUrl: "https://github.com/dwagwd/quotapilot#install",
+    notesUrl: "https://github.com/dwagwd/quotapilot#build-and-install",
     sourceUrl: "https://github.com/dwagwd/quotapilot"
   },
   ads: {

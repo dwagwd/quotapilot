@@ -200,6 +200,9 @@ ${faq.map(([q, a]) => `<h3>${esc(q)}</h3><p>${esc(a)}</p>`).join("")}
 <div class="table-scroll"><table class="models"><thead><tr><th>${t.when}</th><th>${t.kind}</th><th>${t.what}</th><th>${t.source}</th></tr></thead><tbody>
 ${rs.map((r) => `<tr><td class="num">${esc(r.timeKnown === false ? r.at.slice(0, 10) : r.at.slice(0, 16).replace("T", " "))}</td><td><span class="kind ${r.kind}">${r.kind === "full" ? t.full : t.banked}</span></td><td>${esc(loc(r.text))}</td><td>${badge(lang, r.confidence)} <a href="${esc(r.source)}" rel="noopener">${esc(host(r.source))}</a></td></tr>`).join("")}
 </tbody></table></div><p class="fine">${t.dataAsOf} ${esc(resets.lastReviewed)}.</p>` });
+  // /resets/ itself: an index, so the obvious address (and the 404 page's link to it) works.
+  page({ lang, path: `${prefix}resets/index.html`, alt: `${other}resets/index.html`, title: `${t.resetsNav} · AI Quota Watch`, description: t.resetsIntro, lastmod: resets.lastReviewed,
+    body: `<h1>${t.resetsNav}</h1><ul class="plain"><li><a href="codex">${esc(t.resetsTitle)}</a></li></ul>` });
 
   // effort levels per model
   const effortLinks = [];
@@ -243,7 +246,7 @@ ${m && m.input != null ? `<p>API: $${m.input} / $${m.output} ${lang === "zh" ? "
   h = swap(h, /<link rel="canonical" href="[^"]*">/, `<link rel="canonical" href="${BASE}zh/">`);
   h = swap(h, /<link rel="alternate" hreflang="en" href="[^"]*">\s*<link rel="alternate" hreflang="zh-Hant" href="[^"]*">\s*<link rel="alternate" hreflang="x-default" href="[^"]*">/,
     `<link rel="alternate" hreflang="en" href="${BASE}">\n  <link rel="alternate" hreflang="zh-Hant" href="${BASE}zh/">\n  <link rel="alternate" hreflang="x-default" href="${BASE}">`);
-  h = h.replace(/(href|src)="assets\//g, '$1="/assets/').replace(/href="plans\/"/g, 'href="/zh/plans/"').replace(/href="effort\/"/g, 'href="/zh/effort/"').replace(/href="resets\//g, 'href="/resets/');
+  h = h.replace(/(href|src)="assets\//g, '$1="/assets/').replace(/href="plans\/"/g, 'href="/zh/plans/"').replace(/href="effort\/"/g, 'href="/zh/effort/"').replace(/href="resets\//g, 'href="/zh/resets/');
   mkdirSync(join(OUT, "zh"), { recursive: true });
   writeFileSync(join(OUT, "zh", "index.html"), h);
   pages.push({ path: "zh/index.html", lastmod: plans.lastReviewed });

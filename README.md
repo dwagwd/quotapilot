@@ -16,7 +16,7 @@ Homebrew builds QuotaPilot from source on your Mac (about two minutes, needs the
 
 <!-- sponsor:start --><!-- sponsor:end -->
 
-[繁體中文](README.zh-TW.md) · [AI Quota Watch site](site/) · [Privacy](PRIVACY.md) · [Contributing](CONTRIBUTING.md) · [MIT license](LICENSE)
+[繁體中文](README.zh-TW.md) · [AI Quota Watch website](https://aiquotawatch.pages.dev/) ([source](site/)) · [Privacy](PRIVACY.md) · [Contributing](CONTRIBUTING.md) · [MIT license](LICENSE)
 
 Unofficial community project. Not affiliated with or endorsed by OpenAI, Anthropic, Google, or Cursor. Product names belong to their respective owners.
 
@@ -36,7 +36,7 @@ Unofficial community project. Not affiliated with or endorsed by OpenAI, Anthrop
 - **Usage statistics** window (menu bar → Usage statistics…): 24h / 7d / 30d token totals and tokens per hour, curves per provider, and quota-used curves with the average percentage points consumed per hour. The first launch backfills 30 days from local logs.
 - **All agents** row: total tokens across Codex and Claude Code (plus DeepSeek, Kimi, GLM or Qwen models used through Claude Code) read from local session logs, with an input / cache read / cache write / output / reasoning breakdown per provider in the tooltip. Only token counts are read; turn it off in Settings.
 - **Updates** (menu bar): checks GitHub's version tags once a day (turn off with **Check for updates automatically**) and notifies once per new version; update with `brew upgrade quotapilot`.
-- **Share anonymous stats daily** (menu bar, off by default): once a day sends the same numbers `quotapilot share` previews to [AI Quota Watch](site/) anonymously (no account; the collector keeps only a hashed id of this computer). `quotapilot share --yes` does the same from cron or launchd, and `quotapilot share --forget` deletes everything this computer sent.
+- **Share anonymous stats daily** (menu bar, off by default): once a day sends the same numbers `quotapilot share` previews to [AI Quota Watch](https://aiquotawatch.pages.dev/) anonymously (no account; the collector keeps only a hashed id of this computer). `quotapilot share --yes` does the same from cron or launchd, and `quotapilot share --forget` deletes everything this computer sent.
 - Remaining quota and countdown on the reset line (for example `57% left · reset 02:10:00`).
 - Optional **auto-continue** for Codex (Settings, off by default): when a quota window that was full resets, the interrupted session is resumed once with `codex exec resume` in its project folder. This starts a model turn using your Codex configuration; output is written to `auto-continue.log`.
 - **Agents connect automatically** (Settings → Connect detected agents automatically, on by default): Claude Code and Antigravity quota bridges are installed when those agents are found, and a DeepSeek balance appears when Claude Code is configured for DeepSeek or a key is saved. **Connect agents…** in the menu bar shows the status and does the same manually: connect Claude Code or Antigravity quota with one click, or add a DeepSeek API key (stored in the login keychain) to show the balance.

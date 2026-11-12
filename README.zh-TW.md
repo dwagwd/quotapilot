@@ -16,7 +16,7 @@ Homebrew 會在你的 Mac 上從原始碼編譯（約兩分鐘，需要 Xcode Co
 
 <!-- sponsor:start --><!-- sponsor:end -->
 
-[English](README.md) · [MIT 授權](LICENSE) · [隱私](PRIVACY.md) · [其他 agent 連接指南](docs/providers.md)
+[English](README.md) · [AI Quota Watch 網站](https://aiquotawatch.pages.dev/zh/) · [MIT 授權](LICENSE) · [隱私](PRIVACY.md) · [其他 agent 連接指南](docs/providers.md)
 
 非官方社群專案，與 OpenAI、Anthropic、Google、Cursor 無隸屬或背書關係。
 

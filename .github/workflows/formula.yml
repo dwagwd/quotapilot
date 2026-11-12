@@ -1,13 +1,11 @@
-# Proves the only supported install path works: Homebrew builds QuotaPilot from source on a clean macOS runner.
-# On a version tag it installs the formula exactly as users get it (tag + pinned revision); on other pushes and
-# pull requests it builds the commit under test through the same formula steps. Public repos run this for free.
+# Proves the supported install path works on a clean macOS runner: Homebrew builds QuotaPilot from source,
+# the result is packed as a bottle (Homebrew's prebuilt package), and the bottle is installed again the way
+# users get it. Runs for pull requests and on demand; a version tag builds and publishes its bottle in
+# release.yml with the same script. Public repos run this for free.
 name: Homebrew formula
 on:
-  push:
-    tags: ["v*"]
-    paths: ["Formula/**", "Sources/**", "Package.swift", "scripts/build.sh", ".github/workflows/formula.yml"]
   pull_request:
-    paths: ["Formula/**", "Sources/**", "Package.swift", "scripts/build.sh", ".github/workflows/formula.yml"]
+    paths: ["Formula/**", "Sources/**", "Package.swift", "scripts/build.sh", "scripts/build-bottle.sh", ".github/workflows/formula.yml"]
   workflow_dispatch:
 permissions:
   contents: read
@@ -19,35 +17,14 @@ jobs:
         with:
           persist-credentials: false
           fetch-depth: 0
-      - name: Put the formula in a local tap
-        run: |
-          brew tap-new --no-git local/quotapilot >/dev/null
-          TAP="$(brew --repository)/Library/Taps/local/homebrew-quotapilot"
-          cp Formula/quotapilot.rb "$TAP/Formula/quotapilot.rb"
-          if [[ "$GITHUB_REF" != refs/tags/v* ]]; then
-            # Not a release: build this commit, not the published tag.
-            VERSION="$(cat VERSION)"
-            python3 - "$TAP/Formula/quotapilot.rb" "$GITHUB_WORKSPACE" "$GITHUB_SHA" "$VERSION" <<'PY'
-          import re, sys
-          path, workspace, sha, version = sys.argv[1:]
-          text = open(path).read()
-          text = re.sub(r'^  url .*$', f'  url "file://{workspace}", using: :git, revision: "{sha}"\n  version "{version}"', text, count=1, flags=re.M)
-          open(path, "w").write(text)
-          PY
-          fi
-          sed -n '1,15p' "$TAP/Formula/quotapilot.rb"
-      - name: Install from source
-        env:
-          HOMEBREW_NO_AUTO_UPDATE: "1"
-          HOMEBREW_NO_INSTALL_FROM_API: "1"
-        run: brew install --build-from-source --verbose local/quotapilot/quotapilot
+      - name: Build from source, bottle it and install the bottle
+        run: ./scripts/build-bottle.sh "https://github.com/${GITHUB_REPOSITORY}/releases/download/v$(cat VERSION)" "$RUNNER_TEMP/bottle"
       - name: Test the installed app and CLI
         run: |
-          brew test local/quotapilot/quotapilot
+          brew test dwagwd/quotapilot/quotapilot
           quotapilot --help | head -1
-          APP="$(brew --prefix quotapilot)/QuotaPilot.app"
-          codesign --verify --deep --strict "$APP"
-          # No build-machine paths in what users run.
-          if LC_ALL=C grep -a -q -E "/Users/runner|$GITHUB_WORKSPACE" "$APP/Contents/MacOS/QuotaPilot" "$APP/Contents/Helpers/quotapilot"; then
-            echo "::error::installed binaries contain build paths"; exit 1
-          fi
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: quotapilot-bottle
+          path: ${{ runner.temp }}/bottle/*
+          retention-days: 14

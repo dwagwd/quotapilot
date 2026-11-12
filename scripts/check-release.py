@@ -30,6 +30,12 @@ cli_path = re.search(r'bin\.install_symlink prefix/"QuotaPilot\.app/(Contents/[^
 assert cli_path, "Formula does not link the quotapilot command"
 assert f'"$APP/{cli_path.group(1)}"' in build, "build.sh does not place the CLI where the formula links it"
 assert f'tag: "v{version}"' in formula, "Formula does not build the current VERSION"
+# A bottle block belongs to one release: bumping the version must drop the old one (scripts/add-bottle.sh adds the new one).
+bottle_root = re.search(r'^  bottle do\n\s*root_url "([^"]+)"', formula, re.M)
+assert not re.search(r"^  bottle do$", formula, re.M) or bottle_root, "Formula bottle block has no root_url"
+if bottle_root:
+    expected_root = f"https://github.com/dwagwd/quotapilot/releases/download/v{version}"
+    assert bottle_root.group(1) == expected_root, f"Formula bottle is for {bottle_root.group(1)}, not v{version}; remove the bottle block when bumping the version"
 # The tag alone can be moved; the formula must also pin the commit.
 PLACEHOLDER_REVISION = "0" * 40
 revision = re.search(r'revision: "([0-9a-f]{40})"', formula)

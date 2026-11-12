@@ -1,8 +1,8 @@
 # Release checklist
 
-**From 0.6.3 releases are source only.** Bump `VERSION`, the plugin manifest, the CLI `version` constant, `CHANGELOG.md` and the `tag:` in [`Formula/quotapilot.rb`](../Formula/quotapilot.rb) (its `revision:` stays the all-zero placeholder until the tag exists), run `./scripts/check.sh`, then tag and pin as described in [Source-only release steps](#source-only-release-steps). Homebrew compiles the app on each user's Mac, so nothing is signed with a personal Developer ID and no binary carries the maintainer's machine paths. The signed-build notes below are kept only for a future organization account.
+**From 0.6.3 no signed app is published; the only prebuilt macOS package is the Homebrew bottle built on GitHub's runners.** Bump `VERSION`, the plugin manifest, the CLI `version` constant, `CHANGELOG.md` and the `tag:` in [`Formula/quotapilot.rb`](../Formula/quotapilot.rb) (its `revision:` stays the all-zero placeholder until the tag exists), run `./scripts/check.sh`, then tag and pin as described in [Source-only release steps](#source-only-release-steps). Homebrew compiles the app on each user's Mac, so nothing is signed with a personal Developer ID and no binary carries the maintainer's machine paths. The signed-build notes below are kept only for a future organization account.
 
-**CI does the heavy work on GitHub's free macOS runners (public repository):** pushing the `vX.Y.Z` tag runs `.github/workflows/release.yml` (checks, source archive, SHA-256, notes from this CHANGELOG section, GitHub Release) and `.github/workflows/formula.yml` (installs the formula exactly as users do, `brew test`, signature and build-path checks). Pull requests that touch the app or the formula run the same Homebrew build against the commit under test. CodeQL (JavaScript and Swift) and Dependabot (pinned actions) run from `.github/workflows/codeql.yml` and `.github/dependabot.yml`.
+**CI does the heavy work on GitHub's free macOS runners (public repository):** pushing the `vX.Y.Z` tag runs `.github/workflows/release.yml` (checks, source archive, SHA-256, notes from this CHANGELOG section, GitHub Release, Linux and Windows command-line builds, and the Homebrew bottle: built from the tag, installed again from the bottle, signature and build-path checks). Pull requests that touch the app or the formula run the same bottle build and install against the commit under test in `.github/workflows/formula.yml`. CodeQL (JavaScript and Swift) and Dependabot (pinned actions) run from `.github/workflows/codeql.yml` and `.github/dependabot.yml`.
 
 
 ## Source-only release steps
@@ -15,6 +15,10 @@ The formula lives in this repository, so it cannot contain the hash of the commi
 4. Run `./scripts/pin-formula.sh vX.Y.Z`. It resolves `git rev-parse "vX.Y.Z^{commit}"`, rewrites both `tag:` and `revision:` in the formula, and refuses to run if the tag does not exist.
 5. Commit the pinned formula (for example `Pin formula to vX.Y.Z`) and run `./scripts/check.sh` again; it now requires the formula's revision to equal the tag's commit.
 6. Push `main` and the tag.
+7. Wait for the `Release` workflow. Its `bottle` job builds the Homebrew bottle on GitHub's macOS runner (ad-hoc signed there, no personal identity), installs it again to prove it pours, and uploads it with `quotapilot-bottle.json` to the release.
+8. Run `./scripts/add-bottle.sh vX.Y.Z`. It downloads that JSON and writes the `bottle do` block (release URL and SHA-256) into the formula. Run `./scripts/check.sh`, commit (for example `Add the vX.Y.Z bottle`) and push `main`. From then on `brew install` downloads the bottle in seconds on the Macs it covers (Apple Silicon, the runner's macOS version or newer); other Macs keep building from source.
+
+When bumping to the next version (step 1), delete the `bottle do` block: it belongs to the previous release, and `scripts/check-release.py` fails while it points at another version. Between steps 6 and 8 the formula has no bottle, so installs build from source; nothing breaks.
 
 Never move or re-create a published tag. Homebrew refuses a tag/revision mismatch, and the check fails if the revision no longer matches.
 

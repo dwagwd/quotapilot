@@ -1,6 +1,8 @@
 # Publishes a source-only GitHub Release when a version tag is pushed: release notes from CHANGELOG.md,
 # the source archive and its SHA-256, plus command-line binaries for Linux and Windows built on GitHub's own runners
-# (no personal machine involved). The macOS app is still built from source by Homebrew on each Mac.
+# (no personal machine involved), and the Homebrew bottle for the macOS app, built and ad-hoc signed on the runner.
+# After this workflow finishes, scripts/add-bottle.sh writes the bottle into the formula (docs/releasing.md); until that
+# commit lands, and on Macs the bottle does not cover, Homebrew builds from source as before.
 name: Release
 on:
   push:
@@ -52,6 +54,23 @@ jobs:
           fi
           gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --title "QuotaPilot $VERSION" \
             --notes-file dist/notes.md --verify-tag "dist/QuotaPilot-$VERSION-source.zip" dist/SHA256SUMS.txt
+  bottle:
+    needs: release
+    runs-on: macos-15
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ env.TAG }}
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Build the bottle and install it
+        run: ./scripts/build-bottle.sh "https://github.com/${GITHUB_REPOSITORY}/releases/download/${TAG}" "$RUNNER_TEMP/bottle"
+      - name: Upload to the release
+        run: |
+          gh release upload "$TAG" "$RUNNER_TEMP"/bottle/* --repo "$GITHUB_REPOSITORY" --clobber
+          echo "Bottle uploaded. Next: scripts/add-bottle.sh $TAG, then commit the formula." >> "$GITHUB_STEP_SUMMARY"
   cli:
     needs: release
     strategy:

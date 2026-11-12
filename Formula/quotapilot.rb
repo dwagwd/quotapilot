@@ -1,8 +1,9 @@
 # Homebrew formula. This repository is its own tap:
 #   brew tap dwagwd/quotapilot https://github.com/dwagwd/quotapilot
 #   brew install dwagwd/quotapilot/quotapilot
-# QuotaPilot is built from source on your Mac (about two minutes) and ad-hoc signed there; no prebuilt
-# binaries are published.
+# When the formula has a `bottle do` block, Homebrew downloads that prebuilt package (built and ad-hoc signed
+# on GitHub's runners, never on a personal machine). Otherwise, and on Macs the bottle does not cover,
+# QuotaPilot is built from source on your Mac (about two minutes) and ad-hoc signed there.
 class Quotapilot < Formula
   desc "Desktop card and CLI for Codex and Claude Code plan quota, tokens and resets"
   homepage "https://github.com/dwagwd/quotapilot"

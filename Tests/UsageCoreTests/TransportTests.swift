@@ -3,6 +3,9 @@ import Foundation
 import UsageTransport
 @testable import UsageCore
 
+// These tests start a fake Codex app server from a shell script and check process ids with POSIX kill,
+// so they run on macOS and Linux only. Windows builds the transport and runs the other suites.
+#if !os(Windows)
 final class TransportTests: XCTestCase {
     private var directories: [URL] = []
     override func tearDown() {
@@ -142,3 +145,4 @@ final class TransportTests: XCTestCase {
         XCTAssertEqual(Portable.sha256Hex(String(repeating: "a", count: 1000)).count, 64)
     }
 }
+#endif

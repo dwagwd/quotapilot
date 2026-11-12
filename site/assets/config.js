@@ -37,7 +37,7 @@ window.SITE_CONFIG = {
     collector: "https://aiquotawatch.pages.dev/api",
     // Cloudflare Turnstile public site key for the report form. Empty = Turnstile off (the collector then never labels reports "site").
     // The script from challenges.cloudflare.com loads only when someone opens the report preview.
-    turnstileSiteKey: ""
+    turnstileSiteKey: "0x4AAAAAAF9ySEmR7K9bHJN-"
   },
   officialPricing: {
     chatgpt: "https://chatgpt.com/pricing",

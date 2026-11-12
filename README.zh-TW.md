@@ -1,8 +1,8 @@
 # QuotaPilot
 
-[![最新版本](https://img.shields.io/github/v/tag/dwagwd/quotapilot?label=version)](https://github.com/dwagwd/quotapilot/tags) [![授權：MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE) ![macOS 13+](https://img.shields.io/badge/macOS-13%2B-lightgrey)
+[![最新版本](https://img.shields.io/github/v/tag/dwagwd/quotapilot?label=version)](https://github.com/dwagwd/quotapilot/releases/latest) [![授權：MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE) ![macOS 13+](https://img.shields.io/badge/macOS-13%2B-lightgrey) ![CLI：macOS · Linux · Windows](https://img.shields.io/badge/CLI-macOS%20%C2%B7%20Linux%20%C2%B7%20Windows-lightgrey)
 
-**在撞到上限之前，就知道 Codex 和 Claude Code 還剩多少額度。** 原生 macOS 桌面用量小卡，顯示 Codex、Claude Code、Antigravity、Cursor、DeepSeek 的方案額度、帳號 token 速度與重置倒數。使用 AppKit／Swift，不需要瀏覽器執行環境，不透過模型對話輪詢。
+**在撞到上限之前，就知道 Codex 和 Claude Code 還剩多少額度。** 原生 macOS 桌面小卡與選單列圖示，另有可在 macOS、Linux、Windows 使用的 `quotapilot` 指令。顯示每個 5 小時與每週窗口用了多少、消耗速度多快、什麼時候重置。
 
 <img src="assets/screenshot-card.png" width="380" alt="QuotaPilot 卡片：Claude 與 Codex 額度、token 速度與重置倒數">
 
@@ -12,38 +12,45 @@ brew install dwagwd/quotapilot/quotapilot
 open "$(brew --prefix quotapilot)/QuotaPilot.app"
 ```
 
-Homebrew 會在你的 Mac 上從原始碼編譯（約兩分鐘，需要 Xcode Command Line Tools），之後用 `brew upgrade quotapilot` 更新。不提供預先編譯的 App。
+Apple Silicon 且 macOS 15 以上的 Mac，Homebrew 會直接安裝預先編譯的套件，幾秒完成。其他 Mac 會從原始碼編譯（約兩分鐘，需要 Xcode Command Line Tools）。之後用 `brew upgrade quotapilot` 更新。
 
 <!-- sponsor:start --><!-- sponsor:end -->
 
-[English](README.md) · [AI Quota Watch 網站](https://aiquotawatch.pages.dev/zh/) · [MIT 授權](LICENSE) · [隱私](PRIVACY.md) · [其他 agent 連接指南](docs/providers.md)
+**[AI Quota Watch](https://aiquotawatch.pages.dev/zh/)** 是本專案的網站：ChatGPT、Claude、Gemini、Grok 的方案額度、重置紀錄與社群實測速度，每個數字都附來源（[網站原始碼](site/)）。
+
+[English](README.md) · [完整功能](docs/features.zh-TW.md) · [隱私](PRIVACY.md) · [其他 agent 連接指南](docs/providers.md) · [MIT 授權](LICENSE)
 
 非官方社群專案，與 OpenAI、Anthropic、Google、Cursor 無隸屬或背書關係。
 
+## 為什麼用 QuotaPilot
+
+- **原生、輕量。** 使用 AppKit 與 Swift，沒有瀏覽器執行環境。本機一分鐘的量測約使用 27 MiB 記憶體、單核 0.05% CPU（[量測方式](docs/validation.md#resource-measurement)）。
+- **先問再做。** 第一次啟動會先詢問，才讀取 Claude Code 存在本機的登入資訊或修改其他 agent 的設定檔。只看 Codex 額度兩者都不需要。
+- **沒有你的同意，資料不會離開你的 Mac。** 沒有遙測。匿名分享預設關閉，送出前會顯示完整內容，之後可以刪除。[隱私說明](PRIVACY.md)
+- **不會花掉你的額度。** 只讀取用量，不會自行啟動模型對話（除非你開啟自動續跑），也不會兌換重置額度。
+
 ## 功能
 
-- 主卡 260 × 128 pt；收合為 182 × 32 pt。支援拖曳、記住位置、置頂、選單列與齒輪設定。
-- 可以只顯示一個額度，或勾選最多四個額外額度一起顯示；卡片隨選擇增高，各來源分開計算。
-- `%/時` 是額度「百分點／小時」的簡寫：一小時由 20% 至 25%，顯示 5%/時，不是相對成長率 25%。
-- **連接什麼由你決定**：第一次啟動會詢問是否讀取 Claude Code 存在本機的登入資訊來顯示 Claude 方案用量（使用 Claude Code 自己的未公開介面，Anthropic 可能更改或限制），以及是否自動連接偵測到的 agent。兩項在你同意之前都是關閉的，之後可從選單列的「連接與隱私…」更改。
-- **額度排序**（設定）：可依偵測順序、用量高到低、最快重置或名稱排序，也可把某個 agent 置頂。
-- **依工作分派**：可分別指定需要網路／研究、程式碼審查、規劃、實作與其他工作交給 Codex、Claude 或自動，該 agent 額度不足時自動改派。
-- **Orchestrator 模式**（Agent 協作…）：一個 agent 負責規劃與驗收，另一個只負責實作。可選 Claude Code → Codex（`orchestrate-codex`）或 Codex → Claude Code（`orchestrate-claude`），最多三輪修正，並先檢查額度。
-- **小卡樣式**（設定）：詳細、精簡（每個 agent 一行，含各額度、速度、Token；標題列顯示全部總用量）或進度條（每個額度一條小進度條）。
-- **Agent 協作**（選單列 → Agent 協作…）：可選擇給 Claude Code 加 `codex-review` skill（以 `codex exec` 唯讀獨立審查）、給 Codex 加 `claude-review` skill（以 `claude -p` plan 模式審查），以及另外讓 Codex 透過 MCP 使用 Claude Code 的工具。**額度路由**（自動／Codex 優先／Claude 優先）同時考慮 5 小時與週額度及重置時間；skill 委派前會先查路由，且不會重複往外委派。
-- **用量統計** 視窗（選單列 → 用量統計…）：24h／7d／30d 的 Token 總量與每小時用量、各家曲線圖，以及各額度窗口的已用 % 曲線與每小時平均消耗百分點。首次啟動會回填本機紀錄中過去 30 天的資料。
-- **全部 agent** 列：從本機紀錄統計 Codex 與 Claude Code（以及透過 Claude Code 使用的 DeepSeek、Kimi、GLM、Qwen）的 Token 總量，提示框列出各家的輸入／快取讀取／快取寫入／輸出／推理。只讀取 Token 數字，可在設定關閉。
-- 重置列顯示剩餘額度與倒數（例如 `剩餘 57% · 重置 02:10:00`）。
-- 可選的 Codex **自動繼續**（設定中，預設關閉）：額度用滿的窗口重置後，對中斷的 session 執行一次 `codex exec resume`，在原專案資料夾、沿用你的 Codex 設定，會啟動一次模型回合；輸出寫入 `auto-continue.log`。
-- **自動連接 agent**（設定 → 自動連接偵測到的 agent，預設開啟）：偵測到 Claude Code、Antigravity 時自動安裝額度橋接；Claude Code 設定為 DeepSeek 或已存金鑰時顯示 DeepSeek 餘額。另可在設定開啟 **登入時自動開啟**。選單列的 **連接 agent…** 顯示狀態並可手動連接：一鍵連接 Claude Code 或 Antigravity 額度，或填入 DeepSeek API 金鑰（存於鑰匙圈）顯示餘額。
-- 可選的額度提醒（設定 → 額度提醒，預設關閉）：額度達 90%，或照目前速度會在重置前用完時，每個重置週期發一次系統通知。需使用安裝後的 App。
-- 速度預估：滑鼠移到額度速度上，可看到照目前速度在重置時的預估用量，或多久會達 100%。若會在重置前用完，速度文字會變橘色。這是線性外推，不是保證。
-- 觀測期間可設 1 分鐘至 30 天；數值以分鐘／小時／天輸入，速度顯示單位獨立設定。
-- 繁中、簡中、英文、日文、韓文、西班牙文、法文、德文、巴西葡萄牙文、義大利文與跟隨系統。任務與診斷新增文字目前提供中英文，其他語言會回退為英文。
-- 文字與背景 RGB 三原色自訂（0–255），或使用系統外觀。
-- 省電模式：每 120 秒讀取 Codex，每 15 秒更新畫面；一般模式為 60 秒／1 秒。隱藏時停止畫面計時，有新資料才重算速度。
-- Claude Code 與 Antigravity CLI 官方 status-line 橋接。Cursor Teams 支援額外付費支出上限，並非個人方案額度。接入前請看[連接指南](docs/providers.md)。
-- 新增 Codex 與橋接來源診斷、長期帳號用量事件帳本（資料缺口、帳號切換、額度重置與來源更正），以及本機任務起訖、專案／issue、模型／推理強度、重試次數和驗收結果紀錄。沒有 session 直接歸因來源時，任務 Token 用量保持未提供。
+**看額度**
+- Codex 與 Claude Code 每個 5 小時與每週窗口的方案額度、剩餘百分比與重置倒數。
+- 可選：Antigravity、Cursor Teams 額度與 DeepSeek 餘額；Gemini CLI 與 Grok CLI 的 token 用量。
+- 可拖曳的小卡，可收合成小膠囊，有詳細、精簡、進度條三種樣式，最多同時顯示五個額度。
+
+**用完之前先知道**
+- 每小時消耗幾個百分點，以及照目前速度到重置時會用到多少。
+- 可選的提醒：用到 90%，或照目前速度會在重置前用完時通知。
+- 可選的自動續跑：窗口重置後接續被中斷的 Codex 工作。
+
+**把工作交給還有額度的 agent**
+- 額度路由：網路研究、審查、規劃、實作各自指定 Codex 或 Claude，額度不足時自動改派。
+- 審查與 orchestrator skill：一個 agent 規劃與驗收，另一個實作。
+- `quotapilot route review` 會印出該用哪個 agent，方便寫進自己的腳本。
+
+**回頭看**
+- 24 小時、7 天、30 天的用量統計，依 agent 與模型列出 token。
+- 本機任務紀錄與帳號事件紀錄，可以匯出。
+
+十種介面語言。完整列表見 [docs/features.zh-TW.md](docs/features.zh-TW.md)。
 
 ## 建置與安裝
 
@@ -51,7 +58,7 @@ Homebrew 會在你的 Mac 上從原始碼編譯（約兩分鐘，需要 Xcode Co
 
 **Windows／Linux：`quotapilot` 命令列工具。**選單列 App 只支援 macOS；在 macOS、Linux、Windows 都可以用 `quotapilot status`（各 agent 額度、24 小時 Token、依工作分派）、`quotapilot watch`（終端機即時更新）、`quotapilot route review`（輸出 codex 或 claude）、`quotapilot stats --hours 168`、`quotapilot config rule web codex`，加上 `--json` 可供腳本與 skill 使用。macOS 上 Homebrew 會把 `quotapilot` 放進 `PATH`（工具位於 `QuotaPilot.app/Contents/Helpers/quotapilot`）；其他平台以 Swift 6.2 以上執行 `swift build -c release --product quotapilot` 建置。
 
-**快速安裝：**使用上方的 Homebrew 指令，會在本機編譯並安裝。
+**快速安裝：**使用上方的 Homebrew 指令。
 
 **從原始碼建置：**先執行 `git clone https://github.com/dwagwd/quotapilot.git quotapilot`，再 `cd quotapilot`。
 
@@ -75,7 +82,7 @@ Codex 額度來自 `account/rateLimits/read`，tokens 來自 `account/usage/read
 
 ## 開源準備
 
-採 MIT。包含貢獻、安全回報、隱私、變更記錄、CI、手動打包 workflow 與來源匯出檢查。v0.5.0 更名為 QuotaPilot，並新增可在 macOS、Linux、Windows 使用的 `quotapilot` 命令列工具。0.6.3 起只提供原始碼，由 Homebrew 在你的 Mac 上編譯。Codex 已實測；其他 agent 橋接仍屬實驗性功能，通過資料格式測試但尚未完成真實帳號驗證。
+採 MIT。包含貢獻、安全回報、隱私、變更記錄、CI、手動打包 workflow 與來源匯出檢查。v0.5.0 更名為 QuotaPilot，並新增可在 macOS、Linux、Windows 使用的 `quotapilot` 命令列工具。不發布簽章的 App；唯一預先編譯的 macOS 套件是在 GitHub 的機器上建置的 Homebrew bottle。Codex 已實測；其他 agent 橋接仍屬實驗性功能，通過資料格式測試但尚未完成真實帳號驗證。
 
 ```sh
 ./scripts/package.sh

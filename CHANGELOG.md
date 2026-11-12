@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.6.6
 
 - First launch now asks before QuotaPilot reads Claude Code's saved login (Claude plan usage) or edits other agents' settings files (automatic connection). A new install starts with both off; an existing install keeps its choices and is asked to confirm them once. **Connections and privacy…** in the menu bar changes them later.
 - Homebrew bottle: releases now include a prebuilt package built on GitHub's runners, so `brew install` no longer has to compile on Macs the bottle covers.
@@ -9,6 +9,8 @@
 - Windows CI now runs the test suite.
 - Website: third-party benchmark numbers (intelligence, speed, cost per task) are no longer republished. The model radar, effort ladder and effort pages are gone; the calculator now compares monthly API cost from each vendor's own price list and links to Artificial Analysis for benchmarks.
 - Website report form: Cloudflare Turnstile is on.
+- README rewritten around what the app does, with the full feature list moved to `docs/features.md`; both READMEs link the live website.
+- Website data re-checked on 2026-11-12: Claude Fable 5.2 and Gemini 4 Carbon API prices, the announced Gemini price increases, and two reported plan tiers.
 
 ## 0.6.5
 

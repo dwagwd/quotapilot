@@ -1,32 +1,139 @@
 {
-  "lastReviewed": "2026-11-02",
+  "lastReviewed": "2026-11-12",
   "changes": [
-    { "date": "2026-12-01", "provider": "gemini", "kind": "price", "direction": "down", "upcoming": true,
-      "text": { "en": "Gemini 4 Argon API price doubles to $4 in / $20 out per 1M tokens.", "zh": "Gemini 4 Argon API 價格加倍為每百萬 tokens 輸入 $4 / 輸出 $20。" },
-      "confidence": "official", "source": "https://ai.google.dev/gemini-api/docs/pricing" },
-    { "date": "2026-09-30", "provider": "chatgpt", "kind": "quota", "direction": "down",
-      "text": { "en": "Pro (200) included usage reportedly lowered for new subscribers; price unchanged.", "zh": "據報 Pro (200) 新訂閱者內含用量下調，價格不變。" },
-      "confidence": "reported", "source": "https://overchat.ai/ai-hub/chatgpt-price-plans" },
-    { "date": "2026-08-06", "provider": "chatgpt", "kind": "quota", "direction": "up",
-      "text": { "en": "Unlimited plain text chat reported for Free and Go.", "zh": "據報 Free 與 Go 一般文字聊天改為不限量。" },
-      "confidence": "reported", "source": "https://elephas.app/resources/chatgpt-message-limit" },
-    { "date": "2026-07-13", "provider": "claude", "kind": "quota", "direction": "down",
-      "text": { "en": "Scheduled end of the temporary +50% weekly limit bump (extension status unconfirmed).", "zh": "暫時性每週額度 +50% 預定結束（是否延長尚未確認）。" },
-      "confidence": "reported", "source": "https://www.verdent.ai/guides/claude-code-limits-doubled-may-2026" },
-    { "date": "2026-06-01", "provider": "grok", "kind": "quota", "direction": "neutral",
-      "text": { "en": "Paid plans move to one weekly pool shared across Chat, Imagine and Voice.", "zh": "付費方案改為 Chat、Imagine、Voice 共用一個每週額度池。" },
-      "confidence": "reported", "source": "https://www.ai-toolbox.co/grok-management-and-productivity/grok-usage-limits-2026" },
-    { "date": "2026-05-17", "provider": "gemini", "kind": "quota", "direction": "neutral",
-      "text": { "en": "Gemini app switches from fixed daily prompts to compute-based limits (5-hour refresh, weekly cap).", "zh": "Gemini App 由每日固定提示數改為依運算量計算（每 5 小時重置、每週上限）。" },
-      "confidence": "official", "source": "https://support.google.com/gemini/answer/16275805?hl=en" },
-    { "date": "2026-05-13", "provider": "claude", "kind": "quota", "direction": "up",
-      "text": { "en": "Weekly limits raised 50% on Pro, Max, Team and seat-based Enterprise (temporary).", "zh": "Pro、Max、Team 與席位制 Enterprise 每週額度暫時提高 50%。" },
-      "confidence": "reported", "source": "https://www.verdent.ai/guides/claude-code-limits-doubled-may-2026" },
-    { "date": "2026-05-06", "provider": "claude", "kind": "quota", "direction": "up",
-      "text": { "en": "Claude Code 5-hour limits permanently doubled on paid plans.", "zh": "付費方案 Claude Code 5 小時額度永久加倍。" },
-      "confidence": "reported", "source": "https://www.verdent.ai/guides/claude-code-limits-doubled-may-2026" },
-    { "date": "2026-04-09", "provider": "chatgpt", "kind": "plan", "direction": "neutral",
-      "text": { "en": "New $100 Pro tier between Plus and the $200 Pro.", "zh": "新增介於 Plus 與 $200 Pro 之間的 $100 Pro 方案。" },
-      "confidence": "reported", "source": "https://www.nocode.mba/articles/chatgpt-pricing" }
+    {
+      "date": "2026-12-01",
+      "provider": "gemini",
+      "kind": "price",
+      "direction": "down",
+      "upcoming": true,
+      "text": {
+        "en": "Gemini 4 Carbon and Gemini 4 Argon API prices double to $4 in / $20 out per 1M tokens.",
+        "zh": "Gemini 4 Carbon 與 Gemini 4 Argon 的 API 價格加倍為每百萬 tokens 輸入 $4 / 輸出 $20。"
+      },
+      "confidence": "official",
+      "source": "https://ai.google.dev/gemini-api/docs/pricing"
+    },
+    {
+      "date": "2026-09-30",
+      "provider": "chatgpt",
+      "kind": "quota",
+      "direction": "down",
+      "text": {
+        "en": "Pro (200) included usage reportedly lowered for new subscribers; price unchanged.",
+        "zh": "據報 Pro (200) 新訂閱者內含用量下調，價格不變。"
+      },
+      "confidence": "reported",
+      "source": "https://overchat.ai/ai-hub/chatgpt-price-plans"
+    },
+    {
+      "date": "2026-08-06",
+      "provider": "chatgpt",
+      "kind": "quota",
+      "direction": "up",
+      "text": {
+        "en": "Unlimited plain text chat reported for Free and Go.",
+        "zh": "據報 Free 與 Go 一般文字聊天改為不限量。"
+      },
+      "confidence": "reported",
+      "source": "https://elephas.app/resources/chatgpt-message-limit"
+    },
+    {
+      "date": "2026-07-13",
+      "provider": "claude",
+      "kind": "quota",
+      "direction": "down",
+      "text": {
+        "en": "Scheduled end of the temporary +50% weekly limit bump (extension status unconfirmed).",
+        "zh": "暫時性每週額度 +50% 預定結束（是否延長尚未確認）。"
+      },
+      "confidence": "reported",
+      "source": "https://www.verdent.ai/guides/claude-code-limits-doubled-may-2026"
+    },
+    {
+      "date": "2026-06-01",
+      "provider": "grok",
+      "kind": "quota",
+      "direction": "neutral",
+      "text": {
+        "en": "Paid plans move to one weekly pool shared across Chat, Imagine and Voice.",
+        "zh": "付費方案改為 Chat、Imagine、Voice 共用一個每週額度池。"
+      },
+      "confidence": "reported",
+      "source": "https://www.ai-toolbox.co/grok-management-and-productivity/grok-usage-limits-2026"
+    },
+    {
+      "date": "2026-05-17",
+      "provider": "gemini",
+      "kind": "quota",
+      "direction": "neutral",
+      "text": {
+        "en": "Gemini app switches from fixed daily prompts to compute-based limits (5-hour refresh, weekly cap).",
+        "zh": "Gemini App 由每日固定提示數改為依運算量計算（每 5 小時重置、每週上限）。"
+      },
+      "confidence": "official",
+      "source": "https://support.google.com/gemini/answer/16275805?hl=en"
+    },
+    {
+      "date": "2026-05-13",
+      "provider": "claude",
+      "kind": "quota",
+      "direction": "up",
+      "text": {
+        "en": "Weekly limits raised 50% on Pro, Max, Team and seat-based Enterprise (temporary).",
+        "zh": "Pro、Max、Team 與席位制 Enterprise 每週額度暫時提高 50%。"
+      },
+      "confidence": "reported",
+      "source": "https://www.verdent.ai/guides/claude-code-limits-doubled-may-2026"
+    },
+    {
+      "date": "2026-05-06",
+      "provider": "claude",
+      "kind": "quota",
+      "direction": "up",
+      "text": {
+        "en": "Claude Code 5-hour limits permanently doubled on paid plans.",
+        "zh": "付費方案 Claude Code 5 小時額度永久加倍。"
+      },
+      "confidence": "reported",
+      "source": "https://www.verdent.ai/guides/claude-code-limits-doubled-may-2026"
+    },
+    {
+      "date": "2026-04-09",
+      "provider": "chatgpt",
+      "kind": "plan",
+      "direction": "neutral",
+      "text": {
+        "en": "New $100 Pro tier between Plus and the $200 Pro.",
+        "zh": "新增介於 Plus 與 $200 Pro 之間的 $100 Pro 方案。"
+      },
+      "confidence": "reported",
+      "source": "https://www.nocode.mba/articles/chatgpt-pricing"
+    },
+    {
+      "date": "2027-01-01",
+      "provider": "gemini",
+      "kind": "price",
+      "direction": "down",
+      "upcoming": true,
+      "text": {
+        "en": "Gemini 3.8 Flash and 3.6 Flash API prices double to $1.50 in / $7.50 out per 1M tokens.",
+        "zh": "Gemini 3.8 Flash 與 3.6 Flash 的 API 價格加倍為每百萬 tokens 輸入 $1.50 / 輸出 $7.50。"
+      },
+      "confidence": "official",
+      "source": "https://ai.google.dev/gemini-api/docs/pricing"
+    },
+    {
+      "date": "2026-10-29",
+      "provider": "chatgpt",
+      "kind": "quota",
+      "direction": "up",
+      "text": {
+        "en": "Codex usage limits reported doubled for Pro and Business Premium, per a tracker of Tibo's announcements.",
+        "zh": "追蹤 Tibo 公告的網站指出，Pro 與 Business Premium 的 Codex 用量上限加倍。"
+      },
+      "confidence": "reported",
+      "source": "https://tibo.modelyard.dev/"
+    }
   ]
 }

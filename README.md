@@ -1,8 +1,8 @@
 # QuotaPilot
 
-[![Latest version](https://img.shields.io/github/v/tag/dwagwd/quotapilot?label=version)](https://github.com/dwagwd/quotapilot/tags) [![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE) ![macOS 13+](https://img.shields.io/badge/macOS-13%2B-lightgrey) ![CLI: macOS · Linux · Windows](https://img.shields.io/badge/CLI-macOS%20%C2%B7%20Linux%20%C2%B7%20Windows-lightgrey)
+[![Latest version](https://img.shields.io/github/v/tag/dwagwd/quotapilot?label=version)](https://github.com/dwagwd/quotapilot/releases/latest) [![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE) ![macOS 13+](https://img.shields.io/badge/macOS-13%2B-lightgrey) ![CLI: macOS · Linux · Windows](https://img.shields.io/badge/CLI-macOS%20%C2%B7%20Linux%20%C2%B7%20Windows-lightgrey)
 
-**Know how much Codex and Claude Code quota you have left before you hit the limit.** QuotaPilot is a small, native macOS desktop widget for **plan quota**, **account token consumption**, and **reset countdowns** across Codex, Claude Code, Antigravity, Cursor and DeepSeek, plus token usage from Gemini CLI and Grok CLI. Built with AppKit and Swift, without a browser runtime or model-turn polling.
+**See how much Codex and Claude Code quota you have left before you hit the limit.** A small native macOS card and menu bar item, plus a `quotapilot` command for macOS, Linux and Windows. It shows the quota used in each 5-hour and weekly window, how fast you are burning it, and when it resets.
 
 <img src="assets/screenshot-card.png" width="380" alt="QuotaPilot card showing Claude and Codex quota, token rates and reset countdowns">
 
@@ -12,43 +12,45 @@ brew install dwagwd/quotapilot/quotapilot
 open "$(brew --prefix quotapilot)/QuotaPilot.app"
 ```
 
-Homebrew builds QuotaPilot from source on your Mac (about two minutes, needs the Xcode Command Line Tools); update with `brew upgrade quotapilot`. No prebuilt binaries are published.
+On Apple Silicon Macs with macOS 15 or later, Homebrew installs a prebuilt package in a few seconds. On other Macs it builds QuotaPilot from source (about two minutes, needs the Xcode Command Line Tools). Update with `brew upgrade quotapilot`. Linux and Windows: [get the command-line tool](#windows-and-linux-the-quotapilot-cli).
 
 <!-- sponsor:start --><!-- sponsor:end -->
 
-[繁體中文](README.zh-TW.md) · [AI Quota Watch website](https://aiquotawatch.pages.dev/) ([source](site/)) · [Privacy](PRIVACY.md) · [Contributing](CONTRIBUTING.md) · [MIT license](LICENSE)
+**[AI Quota Watch](https://aiquotawatch.pages.dev/)** is the project's website: plan limits, reset history and community-measured speed for ChatGPT, Claude, Gemini and Grok, every number with its source ([site source](site/)).
+
+[繁體中文](README.zh-TW.md) · [All features](docs/features.md) · [Privacy](PRIVACY.md) · [Contributing](CONTRIBUTING.md) · [MIT license](LICENSE)
 
 Unofficial community project. Not affiliated with or endorsed by OpenAI, Anthropic, Google, or Cursor. Product names belong to their respective owners.
 
+## Why QuotaPilot
+
+- **Native and light.** AppKit and Swift, no browser runtime. In a one-minute local measurement the app used about 27 MiB of memory and 0.05% of one CPU core ([how it was measured](docs/validation.md#resource-measurement)).
+- **It asks first.** The first launch asks before it reads Claude Code's saved login or touches another agent's settings file. Codex quota needs neither.
+- **Nothing leaves your Mac unless you say so.** No telemetry. Anonymous sharing is off by default, shows exactly what it would send, and can be deleted later. [Privacy details](PRIVACY.md)
+- **It never spends your quota.** It reads usage; it does not start model turns (unless you turn on auto-continue) and never redeems reset credits.
+
 ## Features
 
-- Draggable 260 × 128 pt card; collapsible 182 × 32 pt capsule, with a settings gear in both modes.
-- Separate plan-quota and Codex account token rates. Compact `%/h` notation means percentage points per hour (20% → 25% in one hour = 5%/h).
-- Keep one selected quota or add up to four additional quotas. The card grows vertically; collapse returns to one compact capsule.
-- Custom text/background RGB values (0–255) or automatic system appearance.
-- Energy saver: 120-second network polling and 15-second display updates. Hidden cards stop the UI timer; rate calculations are cached until new samples arrive.
-- Optional Claude Code and Antigravity CLI status-line bridges; Cursor Teams on-demand spend-cap collector. [Provider support and setup](docs/providers.md)
-- **Quota order** (Settings): sort agents by detection order, usage, next reset or name, and pin one agent to the top.
-- **Task routing rules**: pick who handles web/research, review, planning and implementation (Codex, Claude or Automatic), with automatic fallback when that agent is low on quota.
-- **Orchestrator mode** (Agent collaboration…): one agent plans and verifies while the other only implements — Claude Code → Codex (`orchestrate-codex`) or Codex → Claude Code (`orchestrate-claude`), with up to three fix rounds and quota checks.
-- **Card style** (Settings): Detailed, Compact (one line per agent with every limit, rate and tokens; total usage in the title) or Bars (one small bar per limit).
-- **Agent collaboration** (menu bar → Agent collaboration…): choose a `codex-review` skill for Claude Code (independent read-only review via `codex exec`), a `claude-review` skill for Codex (review via `claude -p` in plan mode), and, separately, Codex access to Claude Code's tools over MCP. A **quota router** (Automatic / Codex first / Claude first) weighs every 5-hour and weekly window and their reset times; skills consult it before delegating and never delegate twice.
-- **Usage statistics** window (menu bar → Usage statistics…): 24h / 7d / 30d token totals and tokens per hour, curves per provider, and quota-used curves with the average percentage points consumed per hour. The first launch backfills 30 days from local logs.
-- **All agents** row: total tokens across Codex and Claude Code (plus DeepSeek, Kimi, GLM or Qwen models used through Claude Code) read from local session logs, with an input / cache read / cache write / output / reasoning breakdown per provider in the tooltip. Only token counts are read; turn it off in Settings.
-- **Updates** (menu bar): checks GitHub's version tags once a day (turn off with **Check for updates automatically**) and notifies once per new version; update with `brew upgrade quotapilot`.
-- **Share anonymous stats daily** (menu bar, off by default): once a day sends the same numbers `quotapilot share` previews to [AI Quota Watch](https://aiquotawatch.pages.dev/) anonymously (no account; the collector keeps only a hashed id of this computer). `quotapilot share --yes` does the same from cron or launchd, and `quotapilot share --forget` deletes everything this computer sent.
-- Remaining quota and countdown on the reset line (for example `57% left · reset 02:10:00`).
-- Optional **auto-continue** for Codex (Settings, off by default): when a quota window that was full resets, the interrupted session is resumed once with `codex exec resume` in its project folder. This starts a model turn using your Codex configuration; output is written to `auto-continue.log`.
-- **You choose what it connects to**: the first launch asks whether QuotaPilot may read Claude Code's saved login to show Claude plan usage (through the unpublished endpoint Claude Code itself uses, which Anthropic may change or restrict) and whether it may connect detected agents. Both are off until you say yes; change them later under **Connections and privacy…** in the menu bar.
-- **Agents connect automatically** (when you allowed it; Settings → Connect detected agents automatically): Claude Code and Antigravity quota bridges are installed when those agents are found, and a DeepSeek balance appears when Claude Code is configured for DeepSeek or a key is saved. **Connect agents…** in the menu bar shows the status and does the same manually: connect Claude Code or Antigravity quota with one click, or add a DeepSeek API key (stored in the login keychain) to show the balance.
-- Optional quota alerts (Settings → Quota alerts, off by default): one notification per reset cycle when a quota reaches 90% or would run out before reset at the current pace. Requires the installed app bundle.
-- Pace forecast: hover the quota rate to see the projected usage at reset, or how long until 100% at the current pace. The rate turns orange when the window would run out before it resets. This is a linear projection, not a promise.
-- Observation window: **1 minute to 30 days**, entered as a whole number of minutes, hours, or days.
-- Independent rate display unit: per minute, hour, or day.
-- English, Traditional/Simplified Chinese, Japanese, Korean, Spanish, French, German, Brazilian Portuguese, Italian, or follow the system language. New task/diagnostic labels are translated in English and Chinese and fall back to English in the other languages.
-- Actual backend quota windows and plan names, including distinct model buckets when available.
-- Local sample history, saved position/settings, stale-data indicators, automatic reconnection, and manual startup.
-- Source diagnostics for Codex and optional bridges; a long-term account usage event ledger for gaps, account switches, resets, and source corrections; and local task records with verification outcomes. Task-specific token attribution stays unavailable unless a source can directly identify a session.
+**See your quota**
+- Plan quota per 5-hour and weekly window for Codex and Claude Code, with remaining percentage and reset countdown.
+- Optional quota from Antigravity, Cursor Teams and a DeepSeek balance; token usage from Gemini CLI and Grok CLI. [Provider support](docs/providers.md)
+- A draggable card that collapses to a small capsule, in Detailed, Compact or Bars style, with up to five quotas at once.
+
+**Know before it runs out**
+- Burn rate in percentage points per hour, and a forecast of where you will be at reset.
+- Optional alerts at 90% used or when the current pace would run out before the reset.
+- Optional auto-continue: resume an interrupted Codex session once the window resets.
+
+**Use the agent that has room**
+- A quota router that picks Codex or Claude for web research, review, planning and implementation, and falls back when one is low.
+- Review and orchestrator skills so one agent plans and checks while the other implements.
+- `quotapilot route review` prints the agent to use, for your own scripts.
+
+**Look back**
+- Usage statistics for 24 hours, 7 days and 30 days, with token totals per agent and model.
+- Local task records and an account event log you can export.
+
+Ten interface languages. The complete list is in [docs/features.md](docs/features.md).
 
 ## Windows and Linux: the `quotapilot` CLI
 
@@ -123,7 +125,7 @@ Missing or unsupported token data shows `—` while quota continues to work. API
 
 Builds use `~/Library/Caches/QuotaPilot/` by default. Override `QUOTAPILOT_BUILD_CACHE`, `QUOTAPILOT_TEST_CACHE`, or `QUOTAPILOT_DIST_DIR` as needed. `CODEX_USAGE_CODEX_PATH` selects a custom Codex executable when launching the native executable directly.
 
-Builds are ad-hoc signed on the machine that compiles them (set `QUOTAPILOT_SIGN_IDENTITY` to sign with your own Developer ID). From 0.6.3 no prebuilt app is published: Homebrew and `./scripts/build.sh` compile it locally. The manual GitHub Actions packaging workflow only creates ad-hoc artifacts for testing. [Release checklist](docs/releasing.md)
+Builds are ad-hoc signed on the machine that compiles them (set `QUOTAPILOT_SIGN_IDENTITY` to sign with your own Developer ID). No signed app is published. The only prebuilt macOS package is the Homebrew bottle, built on GitHub's runners; `./scripts/build.sh` compiles locally. The manual GitHub Actions packaging workflow only creates ad-hoc artifacts for testing. [Release checklist](docs/releasing.md)
 
 ## Local data and removal
 
@@ -133,4 +135,6 @@ To remove: quit the widget, remove its app, optionally remove its local data and
 
 ## Status
 
-Version 0.5.0 (QuotaPilot) adds the cross-platform `quotapilot` CLI for macOS, Linux and Windows. From 0.6.3 QuotaPilot is distributed as source only and compiled by Homebrew on your Mac. Codex is the live-tested provider. Optional Claude/Antigravity/Cursor bridges are experimental and fixture-tested; see their support boundaries before setup. CI tests and builds on macOS 15 (GitHub no longer offers macOS 14 runners), Linux x64 and ARM64, and Windows x64. See [validation scope](docs/validation.md) for local checks and limitations.
+The current version is on the badge at the top; changes are in [CHANGELOG.md](CHANGELOG.md). Codex and Claude Code are used daily by the maintainers. The Antigravity and Cursor bridges are experimental and tested with fixtures only. CI builds and tests on macOS 15, Linux x64 and ARM64, and Windows x64; macOS 13 and 14, Intel Macs and Windows on ARM should work but are not tested by CI. See [validation scope](docs/validation.md).
+
+If QuotaPilot is useful to you, a star helps other people find it. Problems and ideas are welcome in [issues](https://github.com/dwagwd/quotapilot/issues).

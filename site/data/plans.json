@@ -1,5 +1,5 @@
 {
-  "lastReviewed": "2026-11-02",
+  "lastReviewed": "2026-11-12",
   "note": "Every plan row carries its own source URL, the date we checked it, and a confidence level. 'official' = read on the vendor's own page; 'reported' = third-party coverage we could not confirm on an official page. A row can override this per field with 'fields' (price, multiple) when, for example, the usage multiple is on the vendor's page but the price only appears in third-party coverage.",
   "providers": [
     {
@@ -72,6 +72,18 @@
           "confidence": "reported",
           "source": "https://overchat.ai/ai-hub/chatgpt-price-plans",
           "checked": "2026-11-02"
+        },
+        {
+          "name": "Pro (500)",
+          "priceUsd": 500,
+          "multiple": null,
+          "summary": {
+            "en": "Reported top tier with the most included usage and an Ultrafast mode that spends usage eight times faster. No multiple published.",
+            "zh": "據報為最高方案，內含用量最多，並有 Ultrafast 模式（消耗用量的速度為八倍）。未公布倍數。"
+          },
+          "confidence": "reported",
+          "source": "https://overchat.ai/ai-hub/chatgpt-price-plans",
+          "checked": "2026-11-12"
         }
       ],
       "support": "full"
@@ -97,7 +109,7 @@
           },
           "confidence": "official",
           "source": "https://claude.com/pricing",
-          "checked": "2026-11-02"
+          "checked": "2026-11-12"
         },
         {
           "name": "Pro",
@@ -109,7 +121,7 @@
           },
           "confidence": "official",
           "source": "https://claude.com/pricing",
-          "checked": "2026-11-02"
+          "checked": "2026-11-12"
         },
         {
           "name": "Max",
@@ -121,7 +133,7 @@
           },
           "confidence": "official",
           "source": "https://claude.com/pricing",
-          "checked": "2026-11-02"
+          "checked": "2026-11-12"
         },
         {
           "name": "Ultra",
@@ -133,7 +145,7 @@
           },
           "confidence": "official",
           "source": "https://claude.com/pricing",
-          "checked": "2026-11-02"
+          "checked": "2026-11-12"
         }
       ],
       "support": "full"
@@ -159,7 +171,7 @@
           },
           "confidence": "official",
           "source": "https://support.google.com/gemini/answer/16275805?hl=en",
-          "checked": "2026-11-02"
+          "checked": "2026-11-12"
         },
         {
           "name": "AI Plus",
@@ -171,7 +183,7 @@
           },
           "confidence": "official",
           "source": "https://support.google.com/gemini/answer/16275805?hl=en",
-          "checked": "2026-11-02"
+          "checked": "2026-11-12"
         },
         {
           "name": "AI Pro",
@@ -186,7 +198,7 @@
             "price": "reported"
           },
           "source": "https://support.google.com/gemini/answer/16275805?hl=en",
-          "checked": "2026-11-02"
+          "checked": "2026-11-12"
         },
         {
           "name": "AI Ultra",
@@ -201,7 +213,7 @@
             "price": "reported"
           },
           "source": "https://support.google.com/gemini/answer/16275805?hl=en",
-          "checked": "2026-11-02"
+          "checked": "2026-11-12"
         },
         {
           "name": "AI Ultra (top)",
@@ -216,7 +228,7 @@
             "price": "reported"
           },
           "source": "https://support.google.com/gemini/answer/16275805?hl=en",
-          "checked": "2026-11-02"
+          "checked": "2026-11-12"
         }
       ],
       "support": "tokens",
@@ -313,6 +325,18 @@
           "checked": "2026-11-02"
         },
         {
+          "name": "SuperGrok Lite",
+          "priceUsd": 10,
+          "multiple": null,
+          "summary": {
+            "en": "Reported entry tier: longer chats and higher limits than Free. May not be offered in every region.",
+            "zh": "據報為入門方案：比 Free 更長的對話與更高的上限。不一定每個地區都有。"
+          },
+          "confidence": "reported",
+          "source": "https://krater.ai/blog/grok-pricing",
+          "checked": "2026-11-12"
+        },
+        {
           "name": "SuperGrok",
           "priceUsd": 30,
           "multiple": 1,
@@ -322,7 +346,7 @@
           },
           "confidence": "reported",
           "source": "https://krater.ai/blog/grok-pricing",
-          "checked": "2026-11-02"
+          "checked": "2026-11-12"
         },
         {
           "name": "SuperGrok Plus",
@@ -334,7 +358,7 @@
           },
           "confidence": "reported",
           "source": "https://krater.ai/blog/grok-pricing",
-          "checked": "2026-11-02"
+          "checked": "2026-11-12"
         },
         {
           "name": "SuperGrok Heavy",
@@ -374,7 +398,7 @@
               },
               "confidence": "official",
               "source": "https://cursor.com/pricing",
-              "checked": "2026-11-02"
+              "checked": "2026-11-12"
             },
             {
               "name": "Plus",
@@ -386,7 +410,7 @@
               },
               "confidence": "official",
               "source": "https://cursor.com/pricing",
-              "checked": "2026-11-02"
+              "checked": "2026-11-12"
             },
             {
               "name": "Premium",
@@ -398,7 +422,7 @@
               },
               "confidence": "official",
               "source": "https://cursor.com/pricing",
-              "checked": "2026-11-02"
+              "checked": "2026-11-12"
             },
             {
               "name": "Super",
@@ -410,7 +434,7 @@
               },
               "confidence": "official",
               "source": "https://cursor.com/pricing",
-              "checked": "2026-11-02"
+              "checked": "2026-11-12"
             },
             {
               "name": "Ultra",
@@ -422,7 +446,7 @@
               },
               "confidence": "official",
               "source": "https://cursor.com/pricing",
-              "checked": "2026-11-02"
+              "checked": "2026-11-12"
             }
           ],
           "noteSource": "https://www.techzine.eu/news/devops/142197/spacex-acquires-cursor-for-60-billion/"

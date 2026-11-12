@@ -1,22 +1,22 @@
 {
-  "lastReviewed": "2026-11-02",
+  "lastReviewed": "2026-11-12",
   "sources": {
     "anthropic": {
-      "name": "Claude pricing",
-      "url": "https://claude.com/pricing",
-      "checked": "2026-11-02",
+      "name": "Claude API pricing",
+      "url": "https://platform.claude.com/docs/en/about-claude/pricing",
+      "checked": "2026-11-12",
       "covers": "Claude API prices"
     },
     "google": {
       "name": "Gemini API pricing",
       "url": "https://ai.google.dev/gemini-api/docs/pricing",
-      "checked": "2026-11-02",
+      "checked": "2026-11-12",
       "covers": "Gemini API prices (≤200k prompt bracket)"
     },
     "xai": {
       "name": "xAI models & pricing",
       "url": "https://docs.x.ai/docs/models",
-      "checked": "2026-11-02",
+      "checked": "2026-11-12",
       "covers": "Grok API prices (<200k prompt bracket)"
     },
     "openai3p": {
@@ -31,13 +31,13 @@
       "id": "gemini-4-carbon",
       "name": "Gemini 4 Carbon",
       "provider": "gemini",
-      "input": null,
-      "output": null,
+      "input": 2,
+      "output": 10,
       "context": "1M",
-      "priceSrc": null,
+      "priceSrc": "google",
       "priceNote": {
-        "en": "API price not listed on Google's pricing page",
-        "zh": "Google 價格頁未列出 API 價格"
+        "en": "Doubles to $4 / $20 on 2026-12-01",
+        "zh": "2026-12-01 起加倍為 $4 / $20"
       }
     },
     {
@@ -102,9 +102,18 @@
       "context": "1M",
       "priceSrc": "google",
       "priceNote": {
-        "en": "Doubles to $4 / $20 on 1 Dec 2026",
-        "zh": "2026/12/1 起調漲為 $4 / $20"
+        "en": "Doubles to $4 / $20 on 2026-12-01",
+        "zh": "2026-12-01 起加倍為 $4 / $20"
       }
+    },
+    {
+      "id": "claude-fable-5-2",
+      "name": "Claude Fable 5.2",
+      "provider": "claude",
+      "input": 8,
+      "output": 40,
+      "context": "1M",
+      "priceSrc": "anthropic"
     },
     {
       "id": "claude-fable-5-1",
@@ -133,8 +142,8 @@
       "context": "1M",
       "priceSrc": "google",
       "priceNote": {
-        "en": "Intro price; doubles on 1 Jan 2027",
-        "zh": "優惠價；2027/1/1 起加倍"
+        "en": "Doubles to $1.50 / $7.50 on 2027-01-01",
+        "zh": "2027-01-01 起加倍為 $1.50 / $7.50"
       }
     },
     {

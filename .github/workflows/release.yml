@@ -41,7 +41,7 @@ jobs:
           (cd dist && shasum -a 256 "QuotaPilot-$VERSION-source.zip" > SHA256SUMS.txt)
           # The CHANGELOG section for this version, up to the next "## " heading.
           awk -v v="## $VERSION" '$0==v {on=1; next} /^## / && on {exit} on' CHANGELOG.md > dist/notes.md
-          printf '\n\nInstall or update:\n\n```sh\nbrew tap dwagwd/quotapilot https://github.com/dwagwd/quotapilot\nbrew install dwagwd/quotapilot/quotapilot   # or: brew upgrade quotapilot\n```\n\nBuilt from source on your Mac (about 2 minutes, needs the Xcode Command Line Tools).\n' >> dist/notes.md
+          printf '\n\nInstall or update:\n\n```sh\nbrew tap dwagwd/quotapilot https://github.com/dwagwd/quotapilot\nbrew install dwagwd/quotapilot/quotapilot   # or: brew upgrade quotapilot\n```\n\nApple Silicon Macs on macOS 15 or later get a prebuilt package; other Macs build from source (about 2 minutes, needs the Xcode Command Line Tools).\n' >> dist/notes.md
       - name: Publish
         env:
           GH_TOKEN: ${{ github.token }}

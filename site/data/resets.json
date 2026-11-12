@@ -1,5 +1,5 @@
 {
-  "lastReviewed": "2026-11-02",
+  "lastReviewed": "2026-11-12",
   "note": "Usage-limit resets announced by vendors. 'at' is the UTC time of the announcing or confirming post, decoded from the X post ID; the moment each account was reset can differ. official = the vendor's own post, cross-checked; tracker = only third-party trackers report it.",
   "trackers": [
     {

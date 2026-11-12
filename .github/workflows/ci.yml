@@ -1,6 +1,9 @@
 name: CI
 on:
   push:
+    # Branches only: a version tag points at the release commit, whose formula is pinned by the next commit, so the
+    # release hygiene check cannot pass there. release.yml checks the tag commit itself.
+    branches: ["**"]
     paths-ignore: ["site/**", ".github/workflows/community-data.yml", ".github/workflows/site-pages.yml"]
   pull_request:
     paths-ignore: ["site/**", ".github/workflows/community-data.yml", ".github/workflows/site-pages.yml"]

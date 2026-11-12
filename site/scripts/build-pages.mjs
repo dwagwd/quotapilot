@@ -1,5 +1,4 @@
-// Generates static, search-friendly pages from site/data: one page per product's plans,
-// one per model's effort levels, and the reset history, in English and Traditional Chinese,
+// Generates static, search-friendly pages from site/data: one page per product's plans and the reset history, in English and Traditional Chinese,
 // plus sitemap.xml and robots.txt. No JavaScript is needed to read them.
 // Usage: node scripts/build-pages.mjs [outDir] [--base https://example.com/path/]
 import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
@@ -13,7 +12,7 @@ const BASE = (baseIndex >= 0 ? args[baseIndex + 1] : process.env.SITE_URL || "ht
 const OUT = args.find((a, i) => !a.startsWith("--") && args[i - 1] !== "--base") || root;
 
 const load = (f) => JSON.parse(readFileSync(join(root, "data", f), "utf8"));
-const plans = load("plans.json"), changes = load("changes.json"), resets = load("resets.json"), efforts = load("efforts.json"), models = load("models.json");
+const plans = load("plans.json"), changes = load("changes.json"), resets = load("resets.json"), models = load("models.json");
 
 // Sponsor link comes from the same config the home page uses (assets/config.js); empty or non-https = no sponsor link.
 const runBrowserScript = (file) => { const w = {}; new Function("window", readFileSync(join(root, "assets", file), "utf8"))(w); return w; };
@@ -46,10 +45,7 @@ const T = {
     resetsTitle: "Codex usage limit reset history", resetsIntro: "Every Codex usage-limit reset we can trace to a post by OpenAI's Codex lead Tibo (@thsottiaux), with the time of the post. Your account may update a little later.",
     when: "Posted (UTC)", kind: "Type", what: "What happened", full: "Full reset", banked: "Banked reset card",
     stats: (n, m, gap) => `${n} resets on record, ${m} in the last 30 days. Average gap over the last 90 days: ${gap} days.`,
-    effortTitle: (n) => `${n} reasoning effort levels: intelligence, cost and speed`,
-    effortIntro: (n) => `How much smarter ${n} gets at each reasoning effort, what each level costs per task, and how fast it answers. Benchmarks from Artificial Analysis.`,
-    effort: "Effort", iq: "Intelligence Index", step: "Gain vs. previous", cost: "Cost per task", speed: "Output tokens/s",
-    bestValue: "Best intelligence per dollar", openTool: "Open the live dashboard", lang: "中文", effortIndex: "Effort levels by model", plansIndex: "Plans by product",
+    openTool: "Open the live dashboard", lang: "中文", plansIndex: "Plans by product",
     resetsNav: "Reset history", notAffiliated: "Independent tracker, not affiliated with OpenAI, Anthropic, Google or xAI.",
     privacy: "Privacy", method: "How the numbers are made", sourceCode: "Source on GitHub", sponsor: "Sponsor",
     resetsFoot: "Codex reset history", installLine: "Free macOS app: QuotaPilot",
@@ -72,10 +68,7 @@ const T = {
     resetsTitle: "Codex 額度重置紀錄", resetsIntro: "整理所有能對應到 OpenAI Codex 負責人 Tibo（@thsottiaux）貼文的 Codex 額度重置，時間為貼文發布時間，實際帳號生效可能稍晚。",
     when: "發布時間（UTC）", kind: "類型", what: "內容", full: "完整重置", banked: "可儲存重置卡",
     stats: (n, m, gap) => `共 ${n} 筆紀錄，近 30 天 ${m} 次。近 90 天平均間隔 ${gap} 天。`,
-    effortTitle: (n) => `${n} 推理強度比較：智力、成本與速度`,
-    effortIntro: (n) => `${n} 在不同推理強度下智力增加多少、每任務成本多少、輸出多快。基準數據來自 Artificial Analysis。`,
-    effort: "推理強度", iq: "智力分數", step: "比上一級增加", cost: "每任務成本", speed: "輸出 tokens/秒",
-    bestValue: "每美元智力最高", openTool: "開啟即時儀表板", lang: "English", effortIndex: "各模型推理強度", plansIndex: "各產品方案",
+    openTool: "開啟即時儀表板", lang: "English", plansIndex: "各產品方案",
     resetsNav: "重置紀錄", notAffiliated: "獨立追蹤網站，與 OpenAI、Anthropic、Google、xAI 無關。",
     privacy: "隱私政策", method: "數據怎麼來的", sourceCode: "GitHub 原始碼", sponsor: "贊助",
     resetsFoot: "Codex 重置紀錄", installLine: "免費 macOS App：QuotaPilot",
@@ -120,7 +113,7 @@ ${jsonLd ? `<script type="application/ld+json">${JSON.stringify(jsonLd)}</script
 <body>
 <header class="topbar"><div class="wrap topbar-inner">
   <a class="brand" href="${home}"><span class="brand-mark" aria-hidden="true"></span><span>${t.home}</span></a>
-  <nav class="nav"><a href="${up}${zh}plans/">${t.plansIndex}</a><a href="${up}${zh}resets/codex">${t.resetsNav}</a><a href="${up}${zh}effort/">${t.effortIndex}</a></nav>
+  <nav class="nav"><a href="${up}${zh}plans/">${t.plansIndex}</a><a href="${up}${zh}resets/codex">${t.resetsNav}</a></nav>
   <div class="topbar-actions">
     ${sponsorChip}
     <button class="icon-btn theme-toggle" id="themeToggle" type="button" data-mode="auto" aria-label="${t.theme}: ${t.themeAuto}" title="${t.theme}: ${t.themeAuto}" data-l-label="${t.theme}" data-l-auto="${t.themeAuto}" data-l-light="${t.themeLight}" data-l-dark="${t.themeDark}">${THEME_ICONS}</button>
@@ -134,7 +127,7 @@ ${body}
 <footer class="footer"><div class="wrap footer-inner">
   <p class="foot-row"><strong>AI Quota Watch</strong> · ${t.notAffiliated}</p>
   <nav class="footer-links"><a href="${REPO}/blob/main/PRIVACY.md" rel="noopener">${t.privacy}</a><a href="${REPO}/blob/main/collector/README.md" rel="noopener">${t.method}</a><a href="${REPO}" rel="noopener">${t.sourceCode}</a>${SPONSOR ? `<a class="foot-sponsor" href="${esc(SPONSOR)}" target="_blank" rel="noopener">♥ ${t.sponsor}</a>` : ""}</nav>
-  <nav class="footer-links"><a href="${up}${zh}plans/">${t.plansIndex}</a><a href="${up}${zh}resets/codex">${t.resetsFoot}</a><a href="${up}${zh}effort/">${t.effortIndex}</a></nav>
+  <nav class="footer-links"><a href="${up}${zh}plans/">${t.plansIndex}</a><a href="${up}${zh}resets/codex">${t.resetsFoot}</a></nav>
   <p class="foot-install"><a href="${home}#install">${t.installLine} ↗</a></p>
   <div class="foot-controls"><label class="foot-theme"><span>${t.theme}</span><select id="themeSelect"><option value="auto">${t.themeAuto}</option><option value="light">${t.themeLight}</option><option value="dark">${t.themeDark}</option></select></label></div>
 </div></footer>
@@ -204,26 +197,6 @@ ${rs.map((r) => `<tr><td class="num">${esc(r.timeKnown === false ? r.at.slice(0,
   page({ lang, path: `${prefix}resets/index.html`, alt: `${other}resets/index.html`, title: `${t.resetsNav} · AI Quota Watch`, description: t.resetsIntro, lastmod: resets.lastReviewed,
     body: `<h1>${t.resetsNav}</h1><ul class="plain"><li><a href="codex">${esc(t.resetsTitle)}</a></li></ul>` });
 
-  // effort levels per model
-  const effortLinks = [];
-  for (const f of efforts.models.filter((m) => m.efforts.length > 1)) {
-    const path = `${prefix}effort/${f.model}.html`;
-    effortLinks.push(`<li><a href="${f.model}">${esc(t.effortTitle(f.name))}</a></li>`);
-    const best = f.efforts.reduce((b, e) => (e.costPerTask && (!b || e.intelligence / e.costPerTask > b.intelligence / b.costPerTask) ? e : b), null);
-    const rows = f.efforts.map((e, i) => {
-      const d = i ? e.intelligence - f.efforts[i - 1].intelligence : null;
-      return `<tr${e === best ? ' class="best"' : ""}><td><strong>${esc(e.effort)}</strong>${e === best ? ` <span class="badge official">${t.bestValue}</span>` : ""}</td><td class="num">${e.intelligence}</td><td class="num">${d == null ? "—" : (d > 0 ? "+" : "") + d}</td><td class="num">${e.costPerTask ? "$" + e.costPerTask.toFixed(2) : "—"}</td><td class="num">${e.speed ?? "—"}</td></tr>`;
-    }).join("");
-    const m = models.models.find((x) => x.id === f.model);
-    page({ lang, path, alt: `${other}effort/${f.model}.html`, title: t.effortTitle(f.name), description: t.effortIntro(f.name),
-      lastmod: efforts.source.checked,
-      body: `<p class="crumbs"><a href="./">${t.effortIndex}</a> › ${esc(f.name)}</p><h1>${esc(t.effortTitle(f.name))}</h1><p class="lede">${esc(t.effortIntro(f.name))}</p>
-<div class="table-scroll"><table class="models ef-table"><thead><tr><th>${t.effort}</th><th class="num">${t.iq}</th><th class="num">${t.step}</th><th class="num">${t.cost}</th><th class="num">${t.speed}</th></tr></thead><tbody>${rows}</tbody></table></div>
-${m && m.input != null ? `<p>API: $${m.input} / $${m.output} ${lang === "zh" ? "每百萬輸入／輸出 tokens" : "per 1M input / output tokens"}.</p>` : ""}
-<p class="fine">${t.source}: <a href="${esc(efforts.source.url)}" rel="noopener">${esc(efforts.source.name)}</a>, ${t.checked} ${esc(efforts.source.checked)}.</p>` });
-  }
-  page({ lang, path: `${prefix}effort/index.html`, alt: `${other}effort/index.html`, title: `${t.effortIndex} · AI Quota Watch`, description: t.effortIndex, lastmod: efforts.source.checked,
-    body: `<h1>${t.effortIndex}</h1><ul class="plain">${effortLinks.join("")}</ul>` });
 }
 
 // Traditional Chinese home page at /zh/: the English home page with its metadata, canonical and asset paths rewritten,
@@ -246,7 +219,7 @@ ${m && m.input != null ? `<p>API: $${m.input} / $${m.output} ${lang === "zh" ? "
   h = swap(h, /<link rel="canonical" href="[^"]*">/, `<link rel="canonical" href="${BASE}zh/">`);
   h = swap(h, /<link rel="alternate" hreflang="en" href="[^"]*">\s*<link rel="alternate" hreflang="zh-Hant" href="[^"]*">\s*<link rel="alternate" hreflang="x-default" href="[^"]*">/,
     `<link rel="alternate" hreflang="en" href="${BASE}">\n  <link rel="alternate" hreflang="zh-Hant" href="${BASE}zh/">\n  <link rel="alternate" hreflang="x-default" href="${BASE}">`);
-  h = h.replace(/(href|src)="assets\//g, '$1="/assets/').replace(/href="plans\/"/g, 'href="/zh/plans/"').replace(/href="effort\/"/g, 'href="/zh/effort/"').replace(/href="resets\//g, 'href="/zh/resets/');
+  h = h.replace(/(href|src)="assets\//g, '$1="/assets/').replace(/href="plans\/"/g, 'href="/zh/plans/"').replace(/href="resets\//g, 'href="/zh/resets/');
   mkdirSync(join(OUT, "zh"), { recursive: true });
   writeFileSync(join(OUT, "zh", "index.html"), h);
   pages.push({ path: "zh/index.html", lastmod: plans.lastReviewed });

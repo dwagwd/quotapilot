@@ -7,6 +7,8 @@
 - Website: `/resets/` index pages, the Chinese home page links the Chinese reset history, and a test checks every internal link.
 - Privacy policy: who runs the service and how to reach us, where data is processed, and what changed.
 - Windows CI now runs the test suite.
+- Website: third-party benchmark numbers (intelligence, speed, cost per task) are no longer republished. The model radar, effort ladder and effort pages are gone; the calculator now compares monthly API cost from each vendor's own price list and links to Artificial Analysis for benchmarks.
+- Website report form: Cloudflare Turnstile is on.
 
 ## 0.6.5
 

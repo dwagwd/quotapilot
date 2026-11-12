@@ -65,9 +65,9 @@
 
   <main class="wrap" id="main">
     <noscript>
-      <p class="error">The comparison tools on this page need JavaScript. The same plan, reset and effort data is available as plain pages:
-        <a href="/plans/">Plans</a> · <a href="/resets/codex">Reset history</a> · <a href="/effort/">Reasoning effort</a> ·
-        <a href="/zh/plans/">方案（繁體中文）</a> · <a href="/zh/effort/">思考強度（繁體中文）</a>. Source code: <a href="https://github.com/dwagwd/quotapilot">GitHub</a>.</p>
+      <p class="error">The comparison tools on this page need JavaScript. The same plan and reset data is available as plain pages:
+        <a href="/plans/">Plans</a> · <a href="/resets/codex">Reset history</a> ·
+        <a href="/zh/plans/">方案（繁體中文）</a> · <a href="/zh/resets/codex">重置紀錄（繁體中文）</a>. Source code: <a href="https://github.com/dwagwd/quotapilot">GitHub</a>.</p>
     </noscript>
     <section id="hero" class="hero">
       <div class="hero-grid">
@@ -223,8 +223,8 @@ brew install dwagwd/quotapilot/quotapilot</code></pre>
 
     <section id="calculator" class="section">
       <div class="section-head">
-        <h2 data-i18n="calc.title">Model calculator</h2>
-        <p data-i18n="calc.sub">Enter your workload to compare monthly API cost, response time, intelligence and value. Click a column to sort.</p>
+        <h2 data-i18n="calc.title">API cost calculator</h2>
+        <p data-i18n="calc.sub">Enter your workload to compare the monthly API cost of each model at its vendor's list price. Click a column to sort.</p>
       </div>
       <div class="calc">
         <form class="calc-inputs" id="calcForm">
@@ -232,7 +232,6 @@ brew install dwagwd/quotapilot/quotapilot</code></pre>
           <label><span data-i18n="calc.out">Output tokens per request</span><input type="number" id="outTok" min="0" step="100" value="800"></label>
           <label><span data-i18n="calc.req">Requests per day</span><input type="number" id="reqDay" min="0" step="1" value="100"></label>
           <label><span data-i18n="calc.days">Days per month</span><input type="number" id="days" min="1" max="31" step="1" value="30"></label>
-          <label><span data-i18n="calc.minIq">Minimum intelligence</span><input type="range" id="minIq" min="0" max="60" step="1" value="0"><output id="minIqOut">0</output></label>
           <fieldset class="prov-filter" id="provFilter"><legend data-i18n="calc.providers">Providers</legend></fieldset>
           <div class="presets">
             <span data-i18n="calc.presets">Presets:</span>
@@ -242,64 +241,24 @@ brew install dwagwd/quotapilot/quotapilot</code></pre>
           </div>
         </form>
         <div class="calc-results">
-          <section class="pick" id="pick" aria-live="polite"></section>
           <div class="kpis" id="kpis"></div>
           <div class="table-scroll" tabindex="0" role="region" aria-label="Scrollable table">
             <table class="models" id="modelTable">
               <thead>
                 <tr>
                   <th data-sort="name" aria-sort="none"><button type="button" class="sort-btn" data-i18n="col.model">Model</button></th>
-                  <th data-sort="intelligence" class="num" aria-sort="none"><button type="button" class="sort-btn" data-i18n="col.iq">Intelligence</button></th>
-                  <th data-sort="speed" class="num" aria-sort="none"><button type="button" class="sort-btn" data-i18n="col.speed">Tokens/s</button></th>
+                  <th data-sort="ctx" class="num" aria-sort="none"><button type="button" class="sort-btn" data-i18n="col.ctx">Context window</button></th>
                   <th data-sort="input" class="num" aria-sort="none"><button type="button" class="sort-btn" data-i18n="col.price">$ in / out per 1M</button></th>
                   <th data-sort="monthly" class="num" aria-sort="none"><button type="button" class="sort-btn" data-i18n="col.monthly">Monthly cost</button></th>
-                  <th data-sort="latency" class="num" aria-sort="none"><button type="button" class="sort-btn" data-i18n="col.latency">Sec / reply</button></th>
-                  <th data-sort="value" class="num" aria-sort="none"><button type="button" class="sort-btn" data-i18n="col.value">IQ per $ task</button></th>
                 </tr>
               </thead>
               <tbody></tbody>
             </table>
           </div>
-          <p class="fine" data-i18n="calc.notes">Monthly cost = (input × in-price + output × out-price) × requests × days, list price, no caching or batch discounts. Sec / reply = output tokens ÷ measured tokens/s (excludes time to first token). IQ per $ task = Intelligence Index ÷ Artificial Analysis cost per task.</p>
-          <div class="chart-card">
-            <h3 data-i18n="chart.title">Intelligence vs cost per task</h3>
-            <div id="scatter"></div>
-          </div>
+          <p class="fine" data-i18n="calc.notes">Monthly cost = (input × in-price + output × out-price) × requests × days, at each vendor's list price, with no caching or batch discounts.</p>
+          <p class="fine"><span data-i18n="calc.bench">Price is only half the picture. For independent intelligence and speed benchmarks, see</span> <a href="https://artificialanalysis.ai/leaderboards/models" target="_blank" rel="noopener">Artificial Analysis ↗</a></p>
         </div>
       </div>
-    </section>
-
-    <section id="radar" class="section">
-      <div class="section-head">
-        <h2 data-i18n="radar.title">Model radar</h2>
-        <p data-i18n="radar.sub">Pick up to four models to compare intelligence, speed, cost efficiency, how far your budget goes, and context size. Each axis is scored 0–100 against the best model in the list. The workload comes from the calculator above.</p>
-      </div>
-      <div class="radar">
-        <div class="radar-controls">
-          <label class="budget"><span data-i18n="radar.budget">Monthly budget (USD)</span><input type="number" id="budget" min="1" step="5" value="50"></label>
-          <div class="radar-pick" id="radarPick"></div>
-          <p class="fine" data-i18n="radar.max">Up to 4 models at once.</p>
-        </div>
-        <div class="radar-chart" id="radarChart"></div>
-      </div>
-      <div class="table-scroll" tabindex="0" role="region" aria-label="Scrollable table">
-        <table class="models radar-table" id="radarTable"><thead></thead><tbody></tbody></table>
-      </div>
-      <p class="fine" data-i18n="radar.notes">Scoring: Intelligence and Speed are divided by the top value. Cost efficiency and Budget reach use a log scale, so 100 is the cheapest model and 0 the most expensive.</p>
-    </section>
-
-    <section id="effort" class="section">
-      <div class="section-head">
-        <h2 data-i18n="ef.title">Effort ladder</h2>
-        <p data-i18n="ef.sub">The same model at different reasoning efforts: how much smarter each step gets, what it costs, and how many tokens it really burns. Benchmarks come from Artificial Analysis; real usage comes from people who share QuotaPilot data.</p>
-      </div>
-      <div class="filters" id="efPick"></div>
-      <div class="chart-card"><h3 data-i18n="ef.chartTitle">Intelligence vs cost per task, by effort</h3><div id="efChart"></div></div>
-      <div class="seg ef-family" id="efFamily" role="tablist"></div>
-      <div class="table-scroll" tabindex="0" role="region" aria-label="Scrollable table">
-        <table class="models ef-table" id="efTable"><thead></thead><tbody></tbody></table>
-      </div>
-      <p class="fine" id="efNote"></p>
     </section>
 
     <section id="sponsor" class="section" data-sponsor hidden>
@@ -355,7 +314,6 @@ brew install dwagwd/quotapilot/quotapilot</code></pre>
       <nav class="footer-links" aria-label="Pages">
         <a href="plans/" data-i18n="foot.plans">Plans by product</a>
         <a href="resets/codex" data-i18n="foot.resets">Codex reset history</a>
-        <a href="effort/" data-i18n="foot.effort">Effort levels by model</a>
       </nav>
       <div class="foot-controls">
         <label class="foot-theme"><span id="themeSelectLabel" data-i18n="theme.label">Theme</span>

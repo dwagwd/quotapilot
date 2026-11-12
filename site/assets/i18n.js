@@ -176,28 +176,17 @@ window.I18N = {
     "live.loaded": "Page loaded", "live.loadedNote": "re-reads every minute, not a new measurement",
     "live.justNow": "just now",
     "live.minAgo": "{m} min ago",
-    "foot.plans": "Plans by product", "foot.resets": "Codex reset history", "foot.effort": "Effort levels by model",
-    "ef.title": "Effort ladder",
-    "ef.sub": "The same model at different reasoning efforts: how much smarter each step gets, what it costs, and how many tokens it really burns. Benchmarks come from Artificial Analysis; real usage comes from people who share QuotaPilot data.",
-    "ef.chartTitle": "Intelligence vs cost per task, by effort",
-    "ef.legend": "Each line is one model; dots go from low (L) to max effort. A flat step means paying more for little gain.",
-    "ef.col.effort": "Effort",
-    "ef.col.cost": "Cost per task",
-    "ef.col.aaSpeed": "Benchmark tok/s",
-    "ef.col.realSpeed": "Measured tok/s",
-    "ef.col.perCall": "Output tokens / call",
-    "ef.col.reason": "Reasoning share", "ef.col.share": "Share of calls",
-    "ef.bestValue": "best value",
-    "ef.note": "Intelligence, cost per task and benchmark speed from",
-    "ef.sampleNote": "Measured columns show example data in this preview.",
-    "ef.noUsage": "No shared usage for this model yet.",
-    "radar.title": "Model radar",
-    "radar.sub": "Pick up to four models to compare intelligence, speed, cost efficiency, how far your budget goes, and context size. Each axis is scored 0–100 against the best model in the list. The workload comes from the calculator above.",
-    "radar.budget": "Monthly budget (USD)", "radar.max": "Up to 4 models at once.",
-    "radar.notes": "Scoring: Intelligence and Speed are divided by the top value. Cost efficiency and Budget reach use a log scale, so 100 is the cheapest model and 0 the most expensive. Budget reach = budget ÷ API cost per request with your calculator workload. A value we don't have is not scored: the axis shows a dashed \"?\" marker and the shape is drawn as a dashed outline without fill, so an incomplete model can't win or lose on area.",
-    "radar.unknown": "not scored, no data", "radar.incomplete": "incomplete",
-    "axis.iq": "Intelligence", "axis.speed": "Speed", "axis.cost": "Cost efficiency", "axis.budget": "Budget reach", "axis.ctx": "Context",
-    "radar.raw": "Raw value", "radar.req": "requests/mo", "radar.task": "per task",
+    "foot.plans": "Plans by product", "foot.resets": "Codex reset history", 
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
     "sup.full": "QuotaPilot: quota %, tokens, speed, effort", "sup.tokens": "QuotaPilot: tokens only, no plan quota", "sup.limits": "QuotaPilot: limit hits only",
     "plan.alsoFrom": "also from", "sup.none": "",
     "nav.plans": "Plans", "nav.sources": "Sources",
@@ -216,26 +205,21 @@ window.I18N = {
     "changes.title": "What changed",
     "changes.sub": "Quota and price changes, newest first. Green means users get more, red means less or pricier.",
     "changes.all": "All", "changes.upcoming": "Upcoming",
-    "calc.title": "Model calculator",
-    "calc.sub": "Enter your workload to compare monthly API cost, response time, intelligence and value. Click a column to sort.",
+    "calc.bench": "Price is only half the picture. For independent intelligence and speed benchmarks, see", "col.ctx": "Context window", "kpi.dearest": "Most expensive", "kpi.unpriced": "No published API price", "calc.title": "API cost calculator",
+    "calc.sub": "Enter your workload to compare the monthly API cost of each model at its vendor's list price. Click a column to sort.",
     "calc.in": "Input tokens per request", "calc.out": "Output tokens per request", "calc.req": "Requests per day",
-    "calc.days": "Days per month", "calc.minIq": "Minimum intelligence", "calc.providers": "Providers", "calc.presets": "Presets:",
+    "calc.days": "Days per month", "calc.providers": "Providers", "calc.presets": "Presets:",
     "preset.chat": "Chat", "preset.code": "Coding agent", "preset.bulk": "Bulk summaries",
-    "col.model": "Model", "col.iq": "Intelligence", "col.speed": "Tokens/s", "col.price": "$ in / out per 1M",
-    "col.monthly": "Monthly cost", "col.latency": "Sec / reply", "col.value": "IQ per $ task",
-    "kpi.cheapest": "Cheapest monthly", "kpi.smartest": "Highest intelligence", "kpi.fastest": "Fastest output", "kpi.value": "Best IQ per $",
-    "kpi.tokens": "Tokens per month", "kpi.qualityUnknown": "quality score unknown",
-    "pick.title": "Pick for this workload", "pick.step1": "Quality bar:", "pick.bar": "Intelligence ≥ {n}", "pick.noBar": "none set (any model with a known score). Set Minimum intelligence on the left.",
-    "pick.perReply": "per reply", "pick.cheapest": "Cheapest that clears the bar", "pick.fastest": "Fastest that clears the bar", "pick.both": "Cheapest and fastest that clear the bar",
-    "pick.whyCheap": "Lowest monthly cost among {k} priced models that clear the bar.", "pick.whyFast": "Replies {s}s sooner than the cheapest pick for {c} more a month.", "pick.whyFastSame": "Replies {s}s sooner than the cheapest pick at the same monthly cost.", "pick.whyBoth": "Lowest cost and shortest reply time among {k} priced models that clear the bar.",
-    "pick.none": "No priced model clears this quality bar. Lower the bar or add providers.",
-    "pick.more": "Why, and what this doesn't cover", "pick.noPrice": "Clears the bar but no verified API price, not compared", "pick.noQuality": "No quality score, not compared",
-    "pick.limitIq": "Intelligence is Artificial Analysis' composite index, not the success rate on your own tasks. Check a few real tasks before you commit.",
-    "pick.limitCost": "Cost is API list price for your inputs, without caching, batch discounts or subscription plans.",
-    "pick.limitSpeed": "Reply time is output tokens ÷ benchmark tokens/s; it leaves out time to first token, queueing and tool calls.",
-    "calc.notes": "Monthly cost = (input × in-price + output × out-price) × requests × days, list price, no caching or batch discounts. Sec / reply = output tokens ÷ measured tokens/s (excludes time to first token). IQ per $ task = Intelligence Index ÷ Artificial Analysis cost per task. Sec / reply is only the time to generate the output, not a full response time (reasoning, tools and network are extra). The “fastest” figure ranks measured output speed across every selected model; the workload pick above only compares models that have a quality score and a verified price. Prices are the list prices on the source page (for long prompts above the listed bracket the real price can be higher).",
+    "col.model": "Model", "col.price": "$ in / out per 1M",
+    "col.monthly": "Monthly cost", 
+    "kpi.cheapest": "Cheapest monthly", 
+    "kpi.tokens": "Tokens per month", 
+    
+    
+    
+    
+    "calc.notes": "Monthly cost = (input × in-price + output × out-price) × requests × days, at each vendor's list price, with no caching or batch discounts.",
     "calc.na": "n/a", "calc.empty": "No models match these filters.",
-    "chart.title": "Intelligence vs cost per task", "chart.x": "Cost per task (USD, log scale)", "chart.y": "Intelligence Index",
     "partners.title": "Get a plan", "partners.sub": "Links go to each vendor's official pricing page.",
     "partners.cta": "See plans", "partners.from": "Paid plans from",
     "partners.disclosure": "Some links may be affiliate links. We may earn a commission at no extra cost to you.",
@@ -420,28 +404,17 @@ window.I18N = {
     "live.loaded": "頁面讀取", "live.loadedNote": "每分鐘重新讀取，不是新的量測",
     "live.justNow": "剛剛",
     "live.minAgo": "{m} 分鐘前",
-    "foot.plans": "各產品方案", "foot.resets": "Codex 重置紀錄", "foot.effort": "各模型推理強度",
-    "ef.title": "推理強度階梯",
-    "ef.sub": "同一個模型在不同推理強度下：每升一級智力增加多少、要多花多少，以及實際會用掉多少 tokens。智力分數來自 Artificial Analysis，實際用量來自分享 QuotaPilot 數據的使用者。",
-    "ef.chartTitle": "不同推理強度的智力分數 vs 每任務成本",
-    "ef.legend": "每條線是一個模型，點由 low（L）排到 max。線段越平，代表多花錢卻幾乎沒變聰明。",
-    "ef.col.effort": "推理強度",
-    "ef.col.cost": "每任務成本",
-    "ef.col.aaSpeed": "基準 tok/s",
-    "ef.col.realSpeed": "實測 tok/s",
-    "ef.col.perCall": "每次輸出 tokens",
-    "ef.col.reason": "推理占比", "ef.col.share": "呼叫占比",
-    "ef.bestValue": "性價比最高",
-    "ef.note": "智力分數、每任務成本與基準速度來自",
-    "ef.sampleNote": "預覽中的實測欄位為範例資料。",
-    "ef.noUsage": "這個模型還沒有分享的實際用量。",
-    "radar.title": "模型雷達站",
-    "radar.sub": "最多選 4 個模型，比較智力、速度、成本效率、預算能用多久與 context 大小。每個軸以清單中最佳模型為 100 分。使用量沿用上方計算器的設定。",
-    "radar.budget": "每月預算（美元）", "radar.max": "一次最多 4 個模型。",
-    "radar.notes": "計分方式：智力與速度除以最高值。成本效率與預算可用次數採對數刻度，最便宜為 100、最貴為 0。預算可用次數 = 預算 ÷ 依計算器使用量算出的每次 API 成本。缺少的數值不計分：該軸顯示虛線「?」，整個形狀改為虛線外框、不填色，避免不完整的模型以面積勝出或吃虧。",
-    "radar.unknown": "無資料，不計分", "radar.incomplete": "資料不完整",
-    "axis.iq": "智力", "axis.speed": "速度", "axis.cost": "成本效率", "axis.budget": "預算可用次數", "axis.ctx": "Context",
-    "radar.raw": "原始數值", "radar.req": "次/月", "radar.task": "每任務",
+    "foot.plans": "各產品方案", "foot.resets": "Codex 重置紀錄", 
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
     "sup.full": "QuotaPilot：額度 %、tokens、速度、推理強度", "sup.tokens": "QuotaPilot：只有 tokens，沒有方案額度", "sup.limits": "QuotaPilot：只有撞上限事件",
     "plan.alsoFrom": "同屬", "sup.none": "",
     "nav.plans": "方案", "nav.sources": "來源",
@@ -460,26 +433,21 @@ window.I18N = {
     "changes.title": "近期變動",
     "changes.sub": "額度與價格變動，由新到舊。綠色代表使用者拿到更多，紅色代表變少或變貴。",
     "changes.all": "全部", "changes.upcoming": "即將生效",
-    "calc.title": "模型計算器",
-    "calc.sub": "輸入你的使用量，比較每月 API 成本、回應時間、智力分數與性價比。點欄位標題可排序。",
+    "calc.bench": "價格只是一半。獨立的智力與速度評測請見", "col.ctx": "上下文長度", "kpi.dearest": "最貴", "kpi.unpriced": "未公布 API 價格", "calc.title": "API 費用計算機",
+    "calc.sub": "輸入你的工作量，比較各模型依官方牌價計算的每月 API 費用。點欄位標題可排序。",
     "calc.in": "每次輸入 tokens", "calc.out": "每次輸出 tokens", "calc.req": "每日請求數",
-    "calc.days": "每月天數", "calc.minIq": "最低智力分數", "calc.providers": "廠商", "calc.presets": "預設情境：",
+    "calc.days": "每月天數", "calc.providers": "廠商", "calc.presets": "預設情境：",
     "preset.chat": "聊天", "preset.code": "程式代理", "preset.bulk": "大量摘要",
-    "col.model": "模型", "col.iq": "智力分數", "col.speed": "Tokens/秒", "col.price": "每百萬 $ 輸入 / 輸出",
-    "col.monthly": "每月成本", "col.latency": "每次回應秒數", "col.value": "每 $ 任務智力",
-    "kpi.cheapest": "每月最便宜", "kpi.smartest": "智力最高", "kpi.fastest": "輸出最快", "kpi.value": "性價比最高",
-    "kpi.tokens": "每月 tokens", "kpi.qualityUnknown": "品質分數未知",
-    "pick.title": "這個工作量該選誰", "pick.step1": "品質門檻：", "pick.bar": "智力 ≥ {n}", "pick.noBar": "未設定（任何有分數的模型）。可在左側設定最低智力分數。",
-    "pick.perReply": "每次回應", "pick.cheapest": "過門檻中最便宜", "pick.fastest": "過門檻中最快", "pick.both": "過門檻中最便宜也最快",
-    "pick.whyCheap": "在 {k} 個有價格且過門檻的模型中，每月成本最低。", "pick.whyFast": "比最便宜的選擇每次快 {s} 秒，每月多 {c}。", "pick.whyFastSame": "比最便宜的選擇每次快 {s} 秒，每月成本相同。", "pick.whyBoth": "在 {k} 個有價格且過門檻的模型中，成本最低、回應也最快。",
-    "pick.none": "沒有已知價格的模型達到這個門檻。請降低門檻或加入更多廠商。",
-    "pick.more": "理由與限制", "pick.noPrice": "過門檻但沒有查證過的 API 價格，未比較", "pick.noQuality": "沒有品質分數，未比較",
-    "pick.limitIq": "智力是 Artificial Analysis 的綜合指數，不是你自己任務的成功率。決定前請用幾個真實任務試跑。",
-    "pick.limitCost": "成本以你的輸入量和 API 牌價計算，不含快取、批次折扣或訂閱方案。",
-    "pick.limitSpeed": "回應時間 = 輸出 tokens ÷ 基準 tokens/秒，不含首字延遲、排隊與工具呼叫。",
-    "calc.notes": "每月成本 =（輸入 × 輸入價 + 輸出 × 輸出價）× 請求數 × 天數，使用牌價，不含快取或批次折扣。每次回應秒數 = 輸出 tokens ÷ 實測 tokens/秒（不含首字延遲）。每 $ 任務智力 = Intelligence Index ÷ Artificial Analysis 每任務成本。。每次回應秒數只是產生輸出的時間，不是完整回應時間（推理、工具與網路另計）。「最快」是在所有勾選模型中比較實測輸出速度；上方的工作量建議只比較有品質分數且價格已驗證的模型。價格為來源頁的牌價，提示詞超過頁面列出的區間時實際價格可能更高。",
+    "col.model": "模型", "col.price": "每百萬 $ 輸入 / 輸出",
+    "col.monthly": "每月成本", 
+    "kpi.cheapest": "每月最便宜", 
+    "kpi.tokens": "每月 tokens", 
+    
+    
+    
+    
+    "calc.notes": "每月費用 =（輸入 × 輸入價 + 輸出 × 輸出價）× 請求數 × 天數，使用各廠商牌價，不含快取或批次折扣。",
     "calc.na": "無資料", "calc.empty": "沒有符合條件的模型。",
-    "chart.title": "智力分數 vs 每任務成本", "chart.x": "每任務成本（美元，對數刻度）", "chart.y": "Intelligence Index",
     "partners.title": "選購方案", "partners.sub": "連結前往各廠商官方價格頁。",
     "partners.cta": "查看方案", "partners.from": "付費方案起價",
     "partners.disclosure": "部分連結可能為推廣連結，我們可能因此獲得佣金，你不需多付費用。",

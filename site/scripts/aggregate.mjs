@@ -53,8 +53,8 @@ export function clean(r, models) {
     if (!model || tokens == null || secs == null) return null;
     const calls = num(r.calls, 1, 1e7) || 1;
     // Plausibility, so one sender cannot drag a row with impossible numbers: speed must be in a range real
-    // agents reach (and at most 4× the model's benchmark speed when known), and calls must look like real calls.
-    const tps = tokens / secs, cap = model.speed ? Math.min(2000, model.speed * 4) : 2000;
+    // agents reach, and calls must look like real calls.
+    const tps = tokens / secs, cap = 2000;
     if (tps < 1 || tps > cap || tokens / calls > 200000 || secs / calls > 900 || secs / calls < 0.2) return null;
     const effort = EFFORTS.includes(r.effort) ? r.effort : null;
     const reasoning = num(r.reasoningTokens, 0, tokens);

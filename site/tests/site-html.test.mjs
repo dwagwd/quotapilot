@@ -77,7 +77,7 @@ test("every sponsor element starts hidden until config.js provides a URL", () =>
 });
 
 test("sections follow the redesign order", () => {
-  const order = ["hero", "glance", "plans", "community", "changes", "resets", "calculator", "radar", "effort", "sponsor", "partners", "sources"];
+  const order = ["hero", "glance", "plans", "community", "changes", "resets", "calculator", "sponsor", "partners", "sources"];
   const pos = order.map((id) => html.indexOf(`id="${id}"`));
   pos.forEach((p, i) => assert.ok(p > 0, order[i]));
   for (let i = 1; i < pos.length; i++) assert.ok(pos[i] > pos[i - 1], `${order[i]} after ${order[i - 1]}`);
@@ -95,7 +95,7 @@ test("nav, install box and footer have the elements app.js needs", () => {
   // footer links use pretty paths (no .html redirects)
   assert.match(html, /href="plans\/"/);
   assert.match(html, /href="resets\/codex"/);
-  assert.match(html, /href="effort\/"/);
+  assert.doesNotMatch(html, /href="effort\/"/);  // the effort pages republished third-party benchmark numbers and are gone
   assert.doesNotMatch(html, /href="[^"#:]*\.html"/);
 });
 
@@ -104,7 +104,7 @@ test("generated pages: same CSP rules, theme scripts, sponsor from config and pr
   try {
     const script = fileURLToPath(new URL("../scripts/build-pages.mjs", import.meta.url));
     execFileSync(process.execPath, [script, out, "--base", "https://example.test/"], { stdio: "pipe" });
-    for (const f of ["plans/claude.html", "plans/index.html", "resets/codex.html", "effort/index.html", "zh/plans/claude.html"]) {
+    for (const f of ["plans/claude.html", "plans/index.html", "resets/codex.html", "resets/index.html", "zh/plans/claude.html"]) {
       const p = join(out, f);
       assert.ok(existsSync(p), f);
       const doc = readFileSync(p, "utf8");

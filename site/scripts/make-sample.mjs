@@ -13,19 +13,19 @@ const when = (days) => new Date(now.getTime() - rnd() * days * 864e5).toISOStrin
 const raw = [];
 const rated = ["claude-opus-5-5", "gpt-6-1-sol", "gemini-4-carbon", "claude-sonnet-5-5", "gpt-6-astra", "grok-4-7"];
 rated.forEach((id, k) => {
-  const m = models.find((x) => x.id === id);
+  const base = 55 + k * 12, liked = 8.5 - k * 0.5;  // invented starting points, not measurements
   for (let i = 0; i < 6 + k; i++) {
-    raw.push({ type: "speed", model: id, outputTokens: 1500, seconds: 1500 / jitter(m.speed * 0.7, 0.25), client: ["CLI", "Desktop", "API"][i % 3], date: when(7), reporter: `demo${i}` });
-    raw.push({ type: "rating", model: id, score: Math.round(jitter(m.intelligence / 7, 0.15)), degraded: id === "gpt-6-astra" ? i % 2 === 0 : i === 0, date: when(7), reporter: `demo${i}` });
+    raw.push({ type: "speed", model: id, outputTokens: 1500, seconds: 1500 / jitter(base, 0.25), client: ["CLI", "Desktop", "API"][i % 3], date: when(7), reporter: `demo${i}` });
+    raw.push({ type: "rating", model: id, score: Math.round(jitter(liked, 0.15)), degraded: id === "gpt-6-astra" ? i % 2 === 0 : i === 0, date: when(7), reporter: `demo${i}` });
   }
 });
-const efforts = JSON.parse(readFileSync(new URL("data/efforts.json", root))).models;
+const EFFORTS = ["low", "medium", "high", "xhigh", "max"];
 const perCallBase = { low: 250, medium: 420, high: 650, xhigh: 980, max: 1500 };
 const reasonBase = { low: 0.2, medium: 0.4, high: 0.55, xhigh: 0.68, max: 0.78 };
-for (const fam of efforts.filter((f) => ["claude-opus-5-5", "gpt-6-1-sol", "gpt-6-astra", "claude-sonnet-5-5"].includes(f.model))) {
-  for (const e of fam.efforts) {
+for (const fam of ["claude-opus-5-5", "gpt-6-1-sol", "gpt-6-astra", "claude-sonnet-5-5"].map((model) => ({ model }))) {
+  for (const e of EFFORTS.map((effort) => ({ effort }))) {
     for (let i = 0; i < 4; i++) {
-      const calls = 40 + Math.round(rnd() * 200), per = jitter(perCallBase[e.effort], 0.2), tps = jitter((e.speed || 80) * 0.75, 0.2);
+      const calls = 40 + Math.round(rnd() * 200), per = jitter(perCallBase[e.effort], 0.2), tps = jitter(60, 0.2);
       const out = Math.round(per * calls), prompt = out * jitter(40, 0.4), hit = Math.min(0.97, jitter(0.88, 0.06)), write = 0.04;
       raw.push({ type: "speed", model: fam.model, effort: e.effort, calls, outputTokens: out, reasoningTokens: Math.round(per * calls * jitter(reasonBase[e.effort], 0.1)), seconds: per * calls / tps, client: "Codex", date: when(7), reporter: `eff${i}`,
         inputTokens: Math.round(prompt * (1 - hit - write)), cacheReadTokens: Math.round(prompt * hit), cacheWriteTokens: Math.round(prompt * write) });

@@ -15,7 +15,7 @@ css += '\nbody::before { content: ""; position: fixed; inset: 0 0 auto; height: 
 html = (root / "index.html").read_text()
 body = re.search(r"<body>(.*)</body>", html, re.S).group(1)
 body = re.sub(r'\s*<script src="assets/(i18n|community-state|theme-toggle|app|hit)\.js"></script>', "", body)
-data = {f"data/{n}.json": json.loads((root / f"data/{n}.json").read_text()) for n in ["plans", "models", "changes", "community", "community.sample", "resets", "efforts"]}
+data = {f"data/{n}.json": json.loads((root / f"data/{n}.json").read_text()) for n in ["plans", "models", "changes", "community", "community.sample", "resets"]}
 app = (root / "assets/app.js").read_text()
 fetch_line = 'const get = (f) => fetch(f).then((r) => { if (!r.ok) throw new Error(f + " " + r.status); return r.json(); });'
 assert fetch_line in app
@@ -23,7 +23,7 @@ app = app.replace(fetch_line, "const get = (f) => Promise.resolve(window.__AQW_D
 
 page = f"""<title>AI Quota Watch</title>
 <meta name="claude:viewport-fit-sides" content="cover">
-<meta name="description" content="Usage limits, plan changes, API prices, intelligence scores and speed for ChatGPT, Claude, Gemini and Grok.">
+<meta name="description" content="Usage limits, plan changes, API prices and community-measured speed for ChatGPT, Claude, Gemini and Grok.">
 <style>
 {css}
 </style>

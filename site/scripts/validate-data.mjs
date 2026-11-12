@@ -2,7 +2,7 @@
 // Run: node scripts/validate-data.mjs
 import { readFileSync } from "node:fs";
 const load = (f) => JSON.parse(readFileSync(new URL("../data/" + f, import.meta.url)));
-const plans = load("plans.json"), models = load("models.json"), changes = load("changes.json"), resets = load("resets.json"), efforts = load("efforts.json");
+const plans = load("plans.json"), models = load("models.json"), changes = load("changes.json"), resets = load("resets.json");
 const errors = [];
 const isDate = (d) => /^\d{4}-\d{2}-\d{2}$/.test(d || "");
 const isUrl = (u) => /^https:\/\//.test(u || "");
@@ -23,8 +23,8 @@ for (const [k, s] of Object.entries(models.sources)) {
 }
 for (const m of models.models) {
   if (!providers.has(m.provider)) errors.push(`${m.id}: unknown provider`);
-  const hasMetric = m.intelligence != null || m.speed != null || m.costPerTask != null;
-  if (hasMetric && !models.sources[m.metricSrc]) errors.push(`${m.id}: metrics without metricSrc`);
+  // Benchmark scores are not republished here (third-party terms); only vendor list prices and context sizes.
+  for (const k of ["intelligence", "speed", "costPerTask", "metricSrc"]) if (k in m) errors.push(`${m.id}: ${k} must not be stored`);
   if ((m.input != null || m.output != null) && !models.sources[m.priceSrc]) errors.push(`${m.id}: price without priceSrc`);
   if (m.priceNote && (!m.priceNote.en || !m.priceNote.zh)) errors.push(`${m.id}: priceNote needs en + zh`);
 }
@@ -40,11 +40,6 @@ for (const r of resets.resets) {
   if (!["full", "banked"].includes(r.kind)) errors.push(`${id}: bad kind`);
   if (!["official", "tracker"].includes(r.confidence)) errors.push(`${id}: bad confidence`);
   if (!r.text?.en || !r.text?.zh) errors.push(`${id}: text needs en + zh`);
-}
-if (!isUrl(efforts.source?.url) || !isDate(efforts.source?.checked)) errors.push("efforts: needs source url + checked date");
-for (const f of efforts.models) {
-  if (!providers.has(f.provider)) errors.push(`efforts ${f.model}: unknown provider`);
-  for (const e of f.efforts) if (!efforts.effortOrder.includes(e.effort) || !Number.isFinite(e.intelligence)) errors.push(`efforts ${f.model}/${e.effort}: bad row`);
 }
 if (errors.length) { console.error(errors.join("\n")); process.exit(1); }
 console.log(`OK: ${plans.providers.reduce((n, p) => n + p.plans.length, 0)} plans, ${models.models.length} models, ${changes.changes.length} changes, ${resets.resets.length} resets, all sourced and dated.`);

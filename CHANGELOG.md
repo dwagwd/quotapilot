@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- `quotapilot open` starts the menu bar app from the terminal after a Homebrew install; `quotapilot open --link` also adds it to `~/Applications` so Spotlight finds it.
+- Menu bar: items are grouped (card, everyday windows, tasks and records, anonymous sharing, updates), and a new **About QuotaPilot** submenu links the website, the GitHub page and the issue form.
+- After sharing, the app and `quotapilot share` point to the community numbers on AI Quota Watch.
+- Website: every plan and reset page shows how to install the app; the empty community section says how many more people are needed and links example data.
 - Faster statistics backfills: avoid copying the growing call-deduplication table and quota history for every observation; preserve streamed updates and independent snapshots.
 - Compact and Bars cache shared token/speed totals until their time window or source data changes, and avoid resetting unchanged titles and progress bars.
 - Optional system readings poll only the selected sensors, reuse the temperature client and skip hidden/sleeping-card polling.

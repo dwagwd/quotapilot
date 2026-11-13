@@ -49,6 +49,14 @@
     return { parts: parts, compiled: compiled, stale: stale, text: parts.concat([compiled]).join(" · ") };
   }
 
+  // How far the community is from its first published row: people sharing now and how many more are needed.
+  // `need` people must report the same model or plan, so this is the best case, not a promise.
+  function inviteProgress(c, need) {
+    var have = Math.max(0, Math.floor(Number(c && c.totals && c.totals.reporters) || 0));
+    var n = Math.max(1, Math.floor(Number(need) || 3));
+    return { have: have, need: n, missing: Math.max(0, n - have) };
+  }
+
   // Only https:// links from config are used; anything else hides the sponsor elements.
   function safeHttps(url) {
     if (typeof url !== "string" || !url.trim()) return "";
@@ -81,6 +89,7 @@
   window.AQW_STATE = {
     readDataset: readDataset,
     publishedCount: publishedCount,
+    inviteProgress: inviteProgress,
     eventTotal: eventTotal,
     fmtUtc: fmtUtc,
     isStale: isStale,

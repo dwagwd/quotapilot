@@ -373,6 +373,7 @@ USAGE
                                              you confirm, send them anonymously to AI Quota Watch.
                                              `share --yes` in cron shares daily.
                                              `share --forget` deletes everything this computer sent.
+  quotapilot open [--link]                   macOS: start the menu bar app (--link also adds it to ~/Applications)
   quotapilot version
 
 On macOS the router mode and rules come from the QuotaPilot app when it is installed;
@@ -398,6 +399,39 @@ case "help", "-h":
     print(usage)
 case "version":
     print("quotapilot " + version)
+case "open":
+    // Starts the menu bar app this tool ships inside (Homebrew keeps it in the Cellar, where Spotlight does not look).
+    // `open --link` also puts a link in ~/Applications so Spotlight and Launchpad find it.
+    #if os(macOS)
+    let tool = URL(fileURLWithPath: Bundle.main.executablePath ?? CommandLine.arguments[0]).resolvingSymlinksInPath()
+    guard let app = ProjectLinks.appBundle(containing: tool) else {
+        fail("This quotapilot is not inside QuotaPilot.app. Install the app with Homebrew, or open it from where you built it.")
+    }
+    if arguments.contains("--link") {
+        let folder = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Applications", isDirectory: true)
+        let link = folder.appendingPathComponent("QuotaPilot.app")
+        try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        // Replace only an earlier link; never a real app someone installed there.
+        if let existing = try? FileManager.default.destinationOfSymbolicLink(atPath: link.path) {
+            if existing != app.path { try? FileManager.default.removeItem(at: link) }
+        } else if FileManager.default.fileExists(atPath: link.path) {
+            fail(link.path + " is already an app, not a link; it was left alone.")
+        }
+        if (try? FileManager.default.destinationOfSymbolicLink(atPath: link.path)) == nil {
+            do { try FileManager.default.createSymbolicLink(at: link, withDestinationURL: app) }
+            catch { fail("Could not create " + link.path + ": " + error.localizedDescription) }
+        }
+        print("Linked " + link.path)
+    }
+    let launcher = Process()
+    launcher.executableURL = URL(fileURLWithPath: "/usr/bin/open")
+    launcher.arguments = [app.path]
+    do { try launcher.run(); launcher.waitUntilExit() } catch { fail("Could not open " + app.path + ": " + error.localizedDescription) }
+    if launcher.terminationStatus != 0 { fail("Could not open " + app.path) }
+    print("Opened " + app.path + ". Look for the gauge icon in the menu bar.")
+    #else
+    fail("The menu bar app is for macOS. On this system use `quotapilot status` or `quotapilot watch`.", code: 2)
+    #endif
 case "status":
     let snapshot = collect(tokenHours: hours)
     if wantsJSON { printJSON(statusObject(snapshot)) } else { print(renderText(snapshot)) }
@@ -478,6 +512,7 @@ case "share":
     }
     switch ShareSubmitter.postAnonymous(reports: reports) {
     case .success(let n): print("Shared \(n) data points anonymously. Thank you.")
+        print("See the community numbers: " + ProjectLinks.community.absoluteString)
     case .failure(let error): fail("Could not share: " + error.localizedDescription)
     }
 case "config":

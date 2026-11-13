@@ -49,6 +49,7 @@ const T = {
     resetsNav: "Reset history", notAffiliated: "Independent tracker, not affiliated with OpenAI, Anthropic, Google or xAI.",
     privacy: "Privacy", method: "How the numbers are made", sourceCode: "Source on GitHub", sponsor: "Sponsor",
     resetsFoot: "Codex reset history", installLine: "Free macOS app: QuotaPilot",
+    installTitle: "See your own quota before you hit the limit", installBody: "QuotaPilot is a free, open-source macOS app that shows how much Codex and Claude Code quota you have left and when it resets. No account; nothing leaves your Mac unless you choose to share.", installCta: "Install notes and other systems",
     theme: "Theme", themeAuto: "Auto", themeLight: "Light", themeDark: "Dark"
   },
   zh: {
@@ -72,9 +73,20 @@ const T = {
     resetsNav: "重置紀錄", notAffiliated: "獨立追蹤網站，與 OpenAI、Anthropic、Google、xAI 無關。",
     privacy: "隱私政策", method: "數據怎麼來的", sourceCode: "GitHub 原始碼", sponsor: "贊助",
     resetsFoot: "Codex 重置紀錄", installLine: "免費 macOS App：QuotaPilot",
+    installTitle: "在撞到上限之前，先看到自己的額度", installBody: "QuotaPilot 是免費、開源的 macOS App，顯示 Codex 與 Claude Code 還剩多少額度、什麼時候重置。不需要帳號；除非你選擇分享，資料不會離開你的 Mac。", installCta: "安裝說明與其他系統",
     theme: "主題", themeAuto: "自動", themeLight: "淺色", themeDark: "深色"
   }
 };
+
+// The app's install commands on every generated page (the pages people land on from search), from the same config
+// the home page uses. Plain text, no script: these pages allow no inline JavaScript.
+const INSTALL = (SITE_CONFIG.install && Array.isArray(SITE_CONFIG.install.commands) ? SITE_CONFIG.install.commands : []).filter((c) => typeof c === "string" && c.trim());
+const installCard = (t, home) => !INSTALL.length ? "" : `<aside class="page-install" aria-label="${esc(t.installTitle)}">
+  <h2>${esc(t.installTitle)}</h2>
+  <p>${esc(t.installBody)}</p>
+  <div class="table-scroll" tabindex="0"><pre><code>${esc(INSTALL.join("\n"))}</code></pre></div>
+  <p><a class="btn btn-primary" href="${home}#install">${esc(t.installCta)}</a></p>
+</aside>`;
 
 const pages = [];
 // Cloudflare Pages (and GitHub Pages) serve "plans/claude.html" at "plans/claude"; link to that form.
@@ -122,6 +134,7 @@ ${jsonLd ? `<script type="application/ld+json">${JSON.stringify(jsonLd)}</script
 </div></header>
 <main class="wrap article">
 ${body}
+${installCard(t, home)}
 <p class="cta-row"><a class="btn" href="${home}">${t.openTool} →</a></p>
 </main>
 <footer class="footer"><div class="wrap footer-inner">

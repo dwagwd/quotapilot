@@ -655,45 +655,40 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
         if status == nil { status = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength) }
         status.button?.image = NSImage(systemSymbolName: "gauge.with.dots.needle.50percent", accessibilityDescription: "QuotaPilot")
         let menu = NSMenu()
-        func add(_ name: String, _ action: Selector) {
-            let item = NSMenuItem(title: name, action: action, keyEquivalent: ""); item.target = self; menu.addItem(item)
+        @discardableResult func add(_ name: String, _ action: Selector, to target: NSMenu? = nil) -> NSMenuItem {
+            let item = NSMenuItem(title: name, action: action, keyEquivalent: ""); item.target = self; (target ?? menu).addItem(item)
+            return item
         }
+        func submenu(_ name: String) -> NSMenu {
+            let sub = NSMenu(); let item = NSMenuItem(title: name, action: nil, keyEquivalent: ""); item.submenu = sub; menu.addItem(item)
+            return sub
+        }
+        // 1. The card itself.
         add(l.text("toggleVisible"), #selector(toggleVisible))
         add(l.text("refresh"), #selector(refresh))
-        add(l.text(taskLedger.activeTask == nil ? "startTask" : "finishTask"), #selector(toggleTask))
-        add(l.text("taskHistory"), #selector(showTaskHistory))
-        add(l.text("exportTaskLedger"), #selector(exportTaskLedger))
-        add(l.text("usageEventHistory"), #selector(showUsageEventHistory))
-        add(l.text("exportUsageEvents"), #selector(exportUsageEvents))
+        add(l.text("toggleCollapsed"), #selector(toggleCollapsed))
+        add(l.text("pin"), #selector(togglePinned)).state = pinned ? .on : .off
+        menu.addItem(.separator())
+        // 2. What people open most.
         add(l.text("usageStats"), #selector(showStats))
         add(l.text("connectAgents"), #selector(connectAgents))
         add(l.text("consentMenu"), #selector(reviewConnectionConsent))
         add(l.text("agentCollaboration") + "…", #selector(configureCollaboration))
-        add(l.text("sourceDiagnostics"), #selector(showSourceDiagnostics))
-        add(l.text("toggleCollapsed"), #selector(toggleCollapsed))
-        add(l.text("pin"), #selector(togglePinned))
-        menu.items.last?.state = pinned ? .on : .off
         add(l.text("settings") + "…", #selector(openSettings))
         menu.addItem(.separator())
-        switch updater.state {
-        case .idle:
-            add(l.text("checkUpdates"), #selector(checkUpdatesNow))
-        case .available(let release):
-            add(String(format: l.text("installUpdate"), release.version), #selector(installUpdate))
-        case .downloading(let release, let progress):
-            add(String(format: l.text("downloadingUpdate"), release.version, Int(progress * 100)), #selector(installUpdate))
-            menu.items.last?.isEnabled = false
-        case .ready(let release):
-            add(String(format: l.text("restartToUpdate"), release.version), #selector(installUpdate))
-        case .failed(let release, let reason):
-            add(String(format: l.text("retryUpdate"), release.version), #selector(installUpdate))
-            menu.items.last?.toolTip = reason
-        }
-        add(l.text("autoUpdateChecks"), #selector(toggleUpdateChecks))
-        menu.items.last?.state = settings.updateChecksEnabled ? .on : .off
-        add(l.text("autoShare"), #selector(toggleAutoShare))
-        menu.items.last?.state = settings.autoShareEnabled ? .on : .off
-        // What the daily share may contain, each kind on its own switch.
+        // 3. Task records, event log and diagnostics: used rarely, so one level down.
+        let records = submenu(l.text("recordsMenu"))
+        add(l.text(taskLedger.activeTask == nil ? "startTask" : "finishTask"), #selector(toggleTask), to: records)
+        add(l.text("taskHistory"), #selector(showTaskHistory), to: records)
+        add(l.text("exportTaskLedger"), #selector(exportTaskLedger), to: records)
+        records.addItem(.separator())
+        add(l.text("usageEventHistory"), #selector(showUsageEventHistory), to: records)
+        add(l.text("exportUsageEvents"), #selector(exportUsageEvents), to: records)
+        records.addItem(.separator())
+        add(l.text("sourceDiagnostics"), #selector(showSourceDiagnostics), to: records)
+        // 4. Anonymous sharing, each kind on its own switch.
+        let sharing = submenu(l.text("sharingMenu"))
+        add(l.text("autoShare"), #selector(toggleAutoShare), to: sharing).state = settings.autoShareEnabled ? .on : .off
         let kinds = NSMenu()
         for category in ShareCategory.allCases {
             let item = NSMenuItem(title: l.text("shareKind." + category.rawValue), action: #selector(toggleShareCategory(_:)), keyEquivalent: "")
@@ -702,8 +697,34 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
             kinds.addItem(item)
         }
         let kindsItem = NSMenuItem(title: l.text("shareKinds"), action: nil, keyEquivalent: ""); kindsItem.submenu = kinds
-        menu.addItem(kindsItem)
-        add(l.text("forgetShared"), #selector(forgetSharedData))
+        sharing.addItem(kindsItem)
+        add(l.text("forgetShared"), #selector(forgetSharedData), to: sharing)
+        sharing.addItem(.separator())
+        add(l.text("openCommunity"), #selector(openCommunityStats), to: sharing)
+        menu.addItem(.separator())
+        // 5. Updates.
+        switch updater.state {
+        case .idle:
+            add(l.text("checkUpdates"), #selector(checkUpdatesNow))
+        case .available(let release):
+            add(String(format: l.text("installUpdate"), release.version), #selector(installUpdate))
+        case .downloading(let release, let progress):
+            add(String(format: l.text("downloadingUpdate"), release.version, Int(progress * 100)), #selector(installUpdate)).isEnabled = false
+        case .ready(let release):
+            add(String(format: l.text("restartToUpdate"), release.version), #selector(installUpdate))
+        case .failed(let release, let reason):
+            add(String(format: l.text("retryUpdate"), release.version), #selector(installUpdate)).toolTip = reason
+        }
+        add(l.text("autoUpdateChecks"), #selector(toggleUpdateChecks)).state = settings.updateChecksEnabled ? .on : .off
+        // 6. The project: website, source, problems, and a sponsor page once one exists.
+        let about = submenu(l.text("aboutMenu"))
+        for (key, link) in [("linkWebsite", ProjectLinks.website), ("linkGitHub", ProjectLinks.repository), ("linkIssue", ProjectLinks.newIssue)] {
+            add(l.text(key), #selector(openProjectLink(_:)), to: about).representedObject = link
+        }
+        if let sponsor = ProjectLinks.sponsor { add(l.text("linkSponsor"), #selector(openProjectLink(_:)), to: about).representedObject = sponsor }
+        about.addItem(.separator())
+        let versionItem = NSMenuItem(title: "QuotaPilot " + updater.currentVersion, action: nil, keyEquivalent: ""); versionItem.isEnabled = false
+        about.addItem(versionItem)
         menu.addItem(.separator())
         add(l.text("quit"), #selector(quit))
         status.menu = menu
@@ -1181,6 +1202,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
         defaults.set(try? JSONEncoder().encode(next), forKey: "settings")
         defaults.set(true, forKey: "connectionConsentAsked")
     }
+
+    @objc private func openProjectLink(_ sender: NSMenuItem) {
+        guard let link = sender.representedObject as? URL else { return }
+        NSWorkspace.shared.open(link)
+    }
+
+    @objc private func openCommunityStats() { NSWorkspace.shared.open(ProjectLinks.community) }
 
     @objc private func reviewConnectionConsent() {
         askConnectionConsentIfNeeded(force: true)

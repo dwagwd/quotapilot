@@ -1,7 +1,7 @@
 #!/bin/bash
 # Turns on every sponsor entry point once a payout-capable page exists:
 #   scripts/set-sponsor.sh https://polar.sh/<org>   or   https://ko-fi.com/<name>
-# Sets site/assets/config.js (nav, hero, support card, footer, generated pages), .github/FUNDING.yml (the GitHub
+# Sets site/assets/config.js (nav, hero, support card, footer, generated pages), the app's About menu, .github/FUNDING.yml (the GitHub
 # "Sponsor" button) and the sponsor line in both READMEs, then rebuilds the generated pages and runs the site tests.
 set -euo pipefail
 URL="${1:-}"
@@ -17,6 +17,11 @@ s = cfg.read_text()
 s2 = re.sub(r'sponsor:\s*\{\s*url:\s*"[^"]*"', f'sponsor: {{ url: "{url}"', s, count=1)
 assert s2 != s or url in s, "sponsor url not found in config.js"
 cfg.write_text(s2)
+links = root / "Sources/UsageCore/ProjectLinks.swift"
+t = links.read_text()
+t2 = re.sub(r'static let sponsorAddress = "[^"]*"', f'static let sponsorAddress = "{url}"', t, count=1)
+assert t2 != t or url in t, "sponsorAddress not found in ProjectLinks.swift"
+links.write_text(t2)
 if "polar.sh" in url: funding = f"polar: {name}\n"
 elif "ko-fi.com" in url: funding = f"ko_fi: {name}\n"
 else: funding = f"github: {name}\n"

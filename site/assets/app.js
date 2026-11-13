@@ -525,10 +525,14 @@
   // Shown instead of the card grid while no row has reached the threshold: no empty charts, no "0 reports".
   function renderInvite(c) {
     const n = minPeople(), date = S.fmtUtc(c.generated);
+    const pr = S.inviteProgress(c, n);
+    const progressText = (pr.have === 0 ? t("empty.progress0") : pr.missing > 0 ? t("empty.progress") : t("empty.progressSpread"))
+      .replace("{have}", pr.have).replace("{need}", pr.need).replace("{missing}", pr.missing);
     const s2 = esc(t("empty.s2")).replace("quotapilot share", "<code>quotapilot share</code>");
     $("#comInvite").innerHTML = `
       <h3>${esc(t("empty.title").replace("{n}", n))}</h3>
       <p>${esc(t("empty.sub").replace("{n}", n).replace("{d}", c.windowDays || 7))}</p>
+      <p class="invite-progress"><strong>${esc(progressText)}</strong>${state.demo ? "" : ` <a href="?demo=1#community">${esc(t("empty.demo"))} →</a>`}</p>
       <ol class="invite-steps">
         <li><span>${esc(t("empty.s1"))}</span>${installBox("invite")}</li>
         <li><span>${s2}</span></li>

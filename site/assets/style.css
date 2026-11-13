@@ -554,3 +554,10 @@ a.lang-toggle { text-decoration: none; display: inline-flex; align-items: center
 
 .skip-link { position: absolute; left: 8px; top: -48px; z-index: 100; padding: 10px 14px; background: var(--text); color: var(--bg); border-radius: var(--r-s); }
 .skip-link:focus { top: 8px; }
+
+/* Install card on the generated pages, and the progress line in the community invite. */
+.page-install { margin: var(--s-5) 0 var(--s-4); padding: var(--s-5); background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-l); display: grid; gap: var(--s-3); min-width: 0; }
+.page-install h2 { margin: 0; font-size: var(--t-l); }
+.page-install p { margin: 0; max-width: 72ch; }
+.page-install pre { margin: 0; padding: var(--s-3); background: var(--surface-2); border-radius: var(--r-m, 8px); font-size: var(--t-s); width: max-content; min-width: 100%; box-sizing: border-box; }
+.invite-progress strong { color: var(--text); }

@@ -76,3 +76,10 @@ test("sponsor link is used only when it is a valid https URL", () => {
   assert.equal(S.sponsorHref({}), "");
   assert.equal(S.sponsorHref(undefined), "");
 });
+
+test("inviteProgress says how many people are still needed", () => {
+  assert.deepEqual(S.inviteProgress({ totals: { reporters: 1 } }, 3), { have: 1, need: 3, missing: 2 });
+  assert.deepEqual(S.inviteProgress({ totals: { reporters: 5 } }, 3), { have: 5, need: 3, missing: 0 });
+  assert.deepEqual(S.inviteProgress(null, 3), { have: 0, need: 3, missing: 3 });
+  assert.deepEqual(S.inviteProgress({ totals: { reporters: "x" } }, 0), { have: 0, need: 3, missing: 3 });
+});

@@ -30,7 +30,6 @@ let featureTranslations: [String: [String: String]] = [
         "forgetDoneBody": ["en": "Daily sharing is off. You can turn it on again any time.", "zh-Hant": "每日分享已關閉，之後可以隨時再開啟。", "zh-Hans": "每日分享已关闭，之后可以随时再开启。"],
         "forgetFailed": ["en": "Could not delete your shared stats", "zh-Hant": "無法刪除你分享過的統計", "zh-Hans": "无法删除你分享过的统计"],
         "autoShareOn": ["en": "Turn on", "zh-Hant": "開啟", "zh-Hans": "开启"],
-        "ghMissing": ["en": "Install the GitHub CLI and run `gh auth login` first.", "zh-Hant": "請先安裝 GitHub CLI 並執行 `gh auth login`。", "zh-Hans": "请先安装 GitHub CLI 并运行 `gh auth login`。"],
         "sourceDiagnostics": ["en": "Source diagnostics…", "zh-Hant": "資料來源診斷…", "zh-Hans": "数据来源诊断…"],
         "sourceDiagnosticIntro": ["en": "Freshness is based on each source's last successful sample. A recent sample may coexist with a failed refresh; both are shown. No credentials or transcript content is included.", "zh-Hant": "新鮮度依各來源最近一次成功取樣計算。即使資料仍新，最近更新失敗也會另外列出。診斷不含憑證或對話內容。", "zh-Hans": "新鲜度按各来源最近一次成功采样计算。即使数据仍新，最近更新失败也会另行显示。诊断不包含凭证或对话内容。"],
         "sourceFresh": ["en": "Fresh", "zh-Hant": "新鮮", "zh-Hans": "新鲜"],

@@ -1175,8 +1175,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
         let existing = asked || defaults.object(forKey: "settings") != nil
         let plan = NSButton(checkboxWithTitle: l.text("consentClaudePlan"), target: nil, action: nil)
         let connect = NSButton(checkboxWithTitle: l.text("consentAutoConnect"), target: nil, action: nil)
+        let share = NSButton(checkboxWithTitle: l.text("autoShare"), target: nil, action: nil)
         plan.state = existing && settings.claudePlanEnabled ? .on : .off
         connect.state = existing && settings.autoConnectEnabled ? .on : .off
+        // Sharing has always been off by default, so its current value is shown as is (off for a new install).
+        share.state = settings.autoShareEnabled ? .on : .off
         func note(_ key: String) -> NSTextField {
             let field = NSTextField(wrappingLabelWithString: l.text(key))
             field.font = .systemFont(ofSize: 11); field.textColor = .secondaryLabelColor
@@ -1184,9 +1187,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
             field.widthAnchor.constraint(equalToConstant: 400).isActive = true
             return field
         }
-        let stack = NSStackView(views: [plan, note("consentClaudePlanNote"), connect, note("consentAutoConnectNote")])
+        let stack = NSStackView(views: [plan, note("consentClaudePlanNote"), connect, note("consentAutoConnectNote"), share, note("consentShareNote")])
         stack.orientation = .vertical; stack.alignment = .leading; stack.spacing = 6
-        stack.setCustomSpacing(14, after: stack.views[1])
+        stack.setCustomSpacing(14, after: stack.views[1]); stack.setCustomSpacing(14, after: stack.views[3])
         stack.layoutSubtreeIfNeeded()
         stack.setFrameSize(stack.fittingSize)
         let alert = NSAlert()
@@ -1198,9 +1201,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
         var next = settings
         next.claudePlanEnabled = plan.state == .on
         next.autoConnectEnabled = connect.state == .on
+        let startedSharing = share.state == .on && !settings.autoShareEnabled
+        next.autoShareEnabled = share.state == .on
         settings = next
         defaults.set(try? JSONEncoder().encode(next), forKey: "settings")
         defaults.set(true, forKey: "connectionConsentAsked")
+        setupStatus()
+        // The first share waits a couple of minutes so the first quota and speed readings are in.
+        if startedSharing { DispatchQueue.main.asyncAfter(deadline: .now() + 120) { [weak self] in self?.autoShareIfDue() } }
     }
 
     @objc private func openProjectLink(_ sender: NSMenuItem) {

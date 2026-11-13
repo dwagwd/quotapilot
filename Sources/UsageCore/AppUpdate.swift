@@ -105,8 +105,8 @@ public struct ShareFailure: Error, Equatable, LocalizedError, CustomNSError {
     public var errorUserInfo: [String: Any] { [NSLocalizedDescriptionKey: message] }
 }
 
-/// Sends `quotapilot share` reports without a browser by filing the issue with the GitHub CLI (`gh`),
-/// which the user has already signed in to. Nothing is sent unless the user turned sharing on.
+/// Sends `quotapilot share` reports to the anonymous AI Quota Watch collector (no account of any kind).
+/// Nothing is sent unless the user confirmed the preview or turned daily sharing on.
 public enum ShareSubmitter {
     /// Anonymous collector (Cloudflare Worker in `collector/`). Override with QUOTAPILOT_COLLECTOR_URL.
     public static var collectorURL: URL {

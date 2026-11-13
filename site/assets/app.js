@@ -523,6 +523,17 @@
       <button type="button" class="btn btn-copy" data-copy-target="${id}Cmd" data-copy-status="${id}Copied">${esc(t("install.copy"))}</button>
       <span class="sr-only" id="${id}Copied" aria-live="polite"></span></div>`;
   }
+  // Rows from 1 or 2 people: a rounded median and n only, clearly labelled as preliminary.
+  function preliminaryHtml(c) {
+    const p = c.preliminary || {};
+    const speed = Array.isArray(p.speed) ? p.speed : [], quota = Array.isArray(p.quota) ? p.quota : [];
+    if (!speed.length && !quota.length) return "";
+    const badge = `<span class="badge reported">${esc(t("prelim.badge"))}</span>`;
+    const rows = speed.map((r) => `<li><span class="com-name">${esc(modelName(r.model))} ${badge}</span><span class="com-val">≈${esc(r.median)} <small>tok/s · n=${esc(r.n)}</small></span></li>`)
+      .concat(quota.map((q) => { const pv = providerById(q.provider); return `<li><span class="com-name">${esc(pv ? pv.name : q.provider)} ${esc(q.plan)} · ${q.window === "5h" ? t("com.w5h") : t("com.wweek")} ${badge}</span><span class="com-val">≥${fmtTokens(Number(q.medianTokens) || 0)} <small>${esc(t("com.tokens"))} · n=${esc(q.n)}</small></span></li>`; }));
+    return `<section class="prelim"><h4>${esc(t("prelim.title"))}</h4><p class="fine">${esc(t("prelim.note").replace("{n}", minPeople()))}</p><ul class="com-list">${rows.join("")}</ul></section>`;
+  }
+
   // Shown instead of the card grid while no row has reached the threshold: no empty charts, no "0 reports".
   function renderInvite(c) {
     const n = minPeople(), date = S.fmtUtc(c.generated);
@@ -532,8 +543,9 @@
     const s2 = esc(t("empty.s2")).replace("quotapilot share", "<code>quotapilot share</code>");
     $("#comInvite").innerHTML = `
       <h3>${esc(t("empty.title").replace("{n}", n))}</h3>
-      <p>${esc(t("empty.sub").replace("{n}", n).replace("{d}", c.windowDays || 7))}</p>
+      <p>${esc(t(S.preliminaryCount(c) ? "empty.subPrelim" : "empty.sub").replace("{n}", n).replace("{d}", c.windowDays || 7))}</p>
       <p class="invite-progress"><strong>${esc(progressText)}</strong>${state.demo ? "" : ` <a href="?demo=1#community">${esc(t("empty.demo"))} →</a>`}</p>
+      ${preliminaryHtml(c)}
       <ol class="invite-steps">
         <li><span>${esc(t("empty.s1"))}</span>${installBox("invite")}</li>
         <li><span>${s2}</span></li>
@@ -562,6 +574,9 @@
       return;
     }
     $("#comInvite").innerHTML = "";
+    // Preliminary rows for models and plans that have not reached the threshold yet, under the published cards.
+    const prelim = preliminaryHtml(c);
+    if (prelim) { $("#comInvite").innerHTML = prelim; $("#comInvite").hidden = false; }
     const reporters = c.totals.reporters;
     $("#comTotals").innerHTML = `<span><strong>${esc(c.totals.reports)}</strong> ${t("com.reports").replace("{d}", c.windowDays)}</span>
       <span><strong>${esc(reporters)}</strong> ${t(reporters === 1 ? "com.reporters1" : "com.reportersN")}</span>

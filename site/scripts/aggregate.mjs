@@ -12,6 +12,17 @@ export const ALERT_MIN_PEOPLE = 5;
 export const TYPES = ["speed", "rating", "quota", "event"];
 export const PROVIDERS = ["chatgpt", "claude", "gemini", "grok"];
 export const EFFORTS = ["minimal", "low", "medium", "high", "xhigh", "max", "ultra"];
+// Preliminary rows: speed and plan quota for a model or plan that 1 or 2 established people report, so the page is
+// not empty while the community is small. They carry only a coarse median and the people count: no quartiles, no
+// clients, no dollar figure, speed rounded to 5 tok/s and tokens to 2 significant figures, so one person's exact
+// numbers are never published. Ratings, token mix, effort usage and limit events (which would show one person's
+// working hours) stay behind MIN_SAMPLES.
+export const PRELIM_SPEED_STEP = 5;
+export const roundSig = (v, digits = 2) => {
+  if (!Number.isFinite(v) || v <= 0) return null;
+  const p = 10 ** (Math.floor(Math.log10(v)) - digits + 1);
+  return Math.round(v / p) * p;
+};
 
 const quantile = (sorted, q) => {
   if (!sorted.length) return null;
@@ -257,6 +268,25 @@ export function aggregate(raw, models, now = new Date(), blocked = []) {
     })
     .filter((s) => s.reporters >= MIN_SAMPLES && s.n >= MIN_SAMPLES).sort((a, b) => a.provider.localeCompare(b.provider) || b.medianTokens - a.medianTokens);
 
+  // Preliminary rows (see PRELIM_SPEED_STEP): 1 to MIN_SAMPLES - 1 established people, never a one-shot site sender
+  // alone. The value is the median of each person's own median, the same statistic as a published row.
+  const preliminarySpeed = Object.entries(groupBy(counted.filter((r) => r.type === "speed"), (r) => r.model))
+    .filter(([model, rs]) => anchored(rs) && !speed.some((s) => s.model === model))
+    .map(([model, rs]) => {
+      const values = perPerson(rs, (r) => r.tps).sort((a, b) => a - b);
+      const median = quantile(values, 0.5);
+      return { model, n: values.length, median: median == null ? null : Math.max(PRELIM_SPEED_STEP, Math.round(median / PRELIM_SPEED_STEP) * PRELIM_SPEED_STEP) };
+    })
+    .filter((s) => s.median != null && s.n >= 1 && s.n < MIN_SAMPLES).sort((a, b) => b.median - a.median);
+  const preliminaryQuota = Object.entries(groupBy(counted.filter((r) => r.type === "quota"), (r) => [r.provider, r.plan, r.window].join("|")))
+    .filter(([k, rs]) => anchored(rs) && !quota.some((q) => [q.provider, q.plan, q.window].join("|") === k))
+    .map(([k, rs]) => {
+      const [provider, plan, window] = k.split("|");
+      const values = perPerson(rs, (r) => r.estTokens).sort((a, b) => a - b);
+      return { provider, plan, window, n: values.length, medianTokens: roundSig(quantile(values, 0.5)), lowerBound: true };
+    })
+    .filter((q) => q.medianTokens != null && q.n >= 1 && q.n < MIN_SAMPLES).sort((a, b) => a.provider.localeCompare(b.provider) || b.medianTokens - a.medianTokens);
+
   // Events use a 30-day window: they are rarer than other reports.
   const eventSince = new Date(now.getTime() - 30 * 864e5);
   // Like every other row, a provider's events are published only once MIN_SAMPLES established people report
@@ -275,6 +305,7 @@ export function aggregate(raw, models, now = new Date(), blocked = []) {
     minSamples: MIN_SAMPLES,
     totals: { reports: recent.length, reporters: new Set(recent.map((r) => r.reporter).filter((r) => r !== "anon")).size, established: reporterUnits(counted).length, rejected },
     speed, effortUsage, tokenMix, ratings, quota,
+    preliminary: { speed: preliminarySpeed, quota: preliminaryQuota },
     events: { byHourUtc: byHour, counts: eventCounts }
   };
 }
@@ -299,5 +330,5 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
     if (JSON.stringify({ ...previous, generated: null }) === JSON.stringify({ ...result, generated: null })) result.generated = previous.generated;
   }
   writeFileSync(out, JSON.stringify(result, null, 2) + "\n");
-  console.log(`community.json: ${result.totals.reports} reports in window, ${result.speed.length} speed rows, ${result.ratings.length} rating rows, ${result.quota.length} quota rows, ${result.totals.rejected} rejected`);
+  console.log(`community.json: ${result.totals.reports} reports in window, ${result.speed.length} speed rows, ${result.ratings.length} rating rows, ${result.quota.length} quota rows, ${result.preliminary.speed.length + result.preliminary.quota.length} preliminary rows, ${result.totals.rejected} rejected`);
 }

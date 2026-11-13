@@ -11,6 +11,13 @@
     return len(c.speed) + len(c.ratings) + len(c.quota) + len(c.tokenMix);
   }
 
+  // Rows from 1 or 2 people (coarse medians only), shown with a "preliminary" label.
+  function preliminaryCount(c) {
+    var p = c && c.preliminary;
+    if (!p) return 0;
+    return (Array.isArray(p.speed) ? p.speed.length : 0) + (Array.isArray(p.quota) ? p.quota.length : 0);
+  }
+
   // Total limit/reset events across providers (the events card has its own empty state).
   function eventTotal(c) {
     var by = c && c.events && c.events.byHourUtc;
@@ -89,6 +96,7 @@
   window.AQW_STATE = {
     readDataset: readDataset,
     publishedCount: publishedCount,
+    preliminaryCount: preliminaryCount,
     inviteProgress: inviteProgress,
     eventTotal: eventTotal,
     fmtUtc: fmtUtc,

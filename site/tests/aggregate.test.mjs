@@ -298,3 +298,24 @@ test("an optional metric is published only when 3 people supplied it, even if th
   const withThree = [1, 2, 3].map((i) => ({ ...raw[i - 1], reasoningTokens: 3600 }));
   assert.equal(aggregate(withThree, models, now).effortUsage[0].reasoningShare, 0.6);
 });
+
+test("1 or 2 people give a coarse preliminary row, never quartiles, and 3 people move it to the published rows", () => {
+  const sp = (who, tokens, d) => ({ type: "speed", model: "claude-opus-5-5", outputTokens: tokens, seconds: 10, calls: 4, date: day(d), reporter: who, reporterFirstSeen: day(9).slice(0, 10), receivedDay: day(d).slice(0, 10) });
+  const qu = (who, d) => ({ type: "quota", provider: "claude", plan: "Max 5x", window: "weekly", percentUsed: 40, tokensUsed: 12345678, date: day(d), reporter: who, reporterFirstSeen: day(9).slice(0, 10), receivedDay: day(d).slice(0, 10) });
+  const one = aggregate([sp("a", 860, 1), sp("a", 864, 2), qu("a", 1)], models, now);
+  assert.equal(one.speed.length, 0);
+  assert.deepEqual(one.preliminary.speed, [{ model: "claude-opus-5-5", n: 1, median: 85 }]);
+  assert.deepEqual(Object.keys(one.preliminary.speed[0]).sort(), ["median", "model", "n"]);
+  assert.equal(one.preliminary.quota.length, 1);
+  assert.equal(one.preliminary.quota[0].medianTokens, 31000000);  // 12,345,678 / 40% = 30.9M, 2 significant figures
+  assert.equal(one.preliminary.quota[0].p25Tokens, undefined);
+  assert.equal(one.events.counts.length, 0);
+  const three = aggregate(["a", "b", "c"].map((w) => sp(w, 870, 1)), models, now);
+  assert.equal(three.speed.length, 1);
+  assert.equal(three.preliminary.speed.length, 0);
+});
+
+test("a one-shot website report alone never makes a preliminary row", () => {
+  const r = { type: "speed", model: "claude-opus-5-5", outputTokens: 900, seconds: 10, calls: 4, date: day(1), reporter: "site1", via: "site", ipGroup: "abcdef12", reporterFirstSeen: day(1).slice(0, 10), receivedDay: day(1).slice(0, 10) };
+  assert.equal(aggregate([r], models, now).preliminary.speed.length, 0);
+});

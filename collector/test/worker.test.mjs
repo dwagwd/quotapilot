@@ -545,7 +545,7 @@ test("the hit path re-lists today's keys every 50 accepted hits, so the global o
     let lists = 0;
     const list = e.REPORTS.list.bind(e.REPORTS);
     e.REPORTS.list = async (o) => { lists++; return list(o); };
-    // Distinct visitors: repeat visitors are counted in the cache only and do not count as accepted (written) hits.
+    // Every accepted view is persisted, including repeats.
     const hit = (n) => worker.fetch(new Request("https://x/api/v1/hit", { method: "POST", headers: { "CF-Connecting-IP": "20.0.0." + n } }), e);
     await hit(0);
     // Other data centers fill the day up to the cap while this one only counts its own hits.
@@ -626,7 +626,7 @@ test("forgets for unknown ids delete nothing, use no counters, and do not block 
   assert.equal(e.REPORTS.m.get("rl:forget-day:" + new Date().toISOString().slice(0, 10)), "1");
 });
 
-test("50 hits from one IP write one key", async () => {
+test("repeat views survive cache eviction and next-day rollup", async () => {
   fakeCache();
   try {
     const e = env();
@@ -634,11 +634,19 @@ test("50 hits from one IP write one key", async () => {
     const put = e.REPORTS.put.bind(e.REPORTS);
     e.REPORTS.put = async (k, v, o) => { writes++; return put(k, v, o); };
     for (let i = 0; i < 50; i++) assert.equal((await worker.fetch(new Request("https://x/api/v1/hit", { method: "POST", headers: { "CF-Connecting-IP": "1.1.1.1" } }), e)).status, 200);
-    assert.equal(writes, 1);
-    assert.equal([...e.REPORTS.m.keys()].filter((k) => k.startsWith("hit:")).length, 1);
+    assert.equal(writes, 50);
+    assert.equal([...e.REPORTS.m.keys()].filter((k) => k.startsWith("hit:")).length, 50);
     const stats = await visitStats(e);
     assert.equal(stats.views, 50);
     assert.equal(stats.visitors, 1);
+    // Eviction must not erase any accepted view.
+    fakeCache();
+    assert.equal((await visitStats(e)).views, 50);
+    const day = new Date().toISOString().slice(0, 10);
+    const tomorrow = new Date(Date.parse(day) + 86400000 + 6 * 60000);
+    const rolled = (await visitStats(e, tomorrow)).days.find((r) => r.day === day);
+    assert.equal(rolled.views, 50);
+    assert.equal(rolled.visitors, 1);
   } finally {
     delete globalThis.caches;
   }

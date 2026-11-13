@@ -18,8 +18,8 @@ imports `worker.js`; bindings in `site/wrangler.toml`). It receives `quotapilot 
   One network can introduce at most 2 new reporters (install ids never seen before) a day; that counter is keyed
   by `HMAC(SALT, "ip-new:" + network + day)`, holds only a number and expires after 2 days. Reporters already on
   record are never held back by it, and they do not write the per-network counter (one KV write saved per batch). The collector budgets KV writes by worst case with two daily batch counters:
-  `rl:day:new:<day>` for batches from reporters not yet on record (20 a day, up to 6 writes each) and
-  `rl:day:known:<day>` for reporters on record (60 a day, 3 writes each), so minted install ids cannot crowd out
+  `rl:day:new:<day>` for batches from reporters not yet on record (15 a day, up to 6 writes each) and
+  `rl:day:known:<day>` for reporters on record (40 a day, 3 writes each), so minted install ids cannot crowd out
   real reporters. Beyond a cap it answers HTTP 429 `{error: "collector is full for today", full: true}` before
   writing anything, so clients can detect it without matching the message. Free plan arithmetic (1,000 writes a day):
   15 x 6 + 40 x 3 + forget 5 x 96 + visit cap 150 + slack 160 = 1000 (worst case; deletes count as writes).
@@ -45,7 +45,7 @@ imports `worker.js`; bindings in `site/wrangler.toml`). It receives `quotapilot 
 - `POST /v1/hit` / `GET /v1/visits`: cookie-free 7-day visitor stats. Each visit is stored as its own key named
   with `HMAC(SALT, ip + day)` (12 characters; the user agent is left out so changing it can't add visitors) that
   expires after 8 days; finished days are rolled up
-  into totals without hashes (`visits:<day>`), kept for 400 days. At most 150 visit writes a day. A repeat visit from a visitor hash already in the data center's cached today entry (a bounded set of up to 2,000 hashes) is counted in that entry only and writes no key, so writes scale with distinct visitors, not requests. A finished day is rolled up only once it is at least 5 minutes past its UTC midnight end; before that it is served from the running counter. The cap is global but each data center only
+  into totals without hashes (`visits:<day>`), kept for 400 days. At most 150 visit writes a day. Every accepted view, including repeat visits, writes its own durable key, so cache eviction and the next-day rollup cannot erase accepted views. The cached today entry keeps up to 2,000 visitor hashes for approximate live unique counts. At the daily cap, additional views are not counted and `capped` is true. A finished day is rolled up only once it is at least 5 minutes past its UTC midnight end; before that it is served from the running counter. The cap is global but each data center only
   counts its own hits, so it lists today's hit keys when it has no counter and again after every 50 accepted hits;
   the global overshoot is therefore bounded by 50 x the number of data centers. `GET /v1/visits` reads only those
   rollup records (get, no list) plus today's views and visitors from the running counter, which is approximate until the

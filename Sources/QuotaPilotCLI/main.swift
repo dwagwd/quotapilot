@@ -37,7 +37,9 @@ func loadSettings() -> WidgetSettings {
        let settings = try? JSONDecoder().decode(WidgetSettings.self, from: data) { return settings }
     #endif
     if let data = try? Data(contentsOf: configURL), let settings = try? JSONDecoder().decode(WidgetSettings.self, from: data) { return settings }
-    return WidgetSettings()
+    var settings = WidgetSettings()
+    settings.claudePlanEnabled = false // Standalone CLI must opt in before reading saved credentials.
+    return settings
 }
 
 func saveCLISettings(_ settings: WidgetSettings) {
@@ -124,6 +126,10 @@ func speedText() -> [String] {
 }
 
 func tokenSummary(hours: Double) -> [String: TokenBreakdown] {
+    guard loadSettings().agentLogsEnabled else {
+        modelTracker = AgentModelTracker(); speedSamples = []
+        return [:]
+    }
     let now = Date().timeIntervalSince1970
     let scanner = AgentLogScanner(sources: AgentLogScanner.defaultSources(home: FileManager.default.homeDirectoryForCurrentUser))
     var ledger = AgentTokenLedger()
@@ -176,14 +182,15 @@ struct Snapshot {
 }
 
 func collect(tokenHours: Double, includeTokens: Bool = true) -> Snapshot {
+    let settings = loadSettings()
     var errors: [String: String] = [:]
     let codex = fetchCodexWindows()
     if let error = codex.error { errors["codex"] = error }
-    let claude: (windows: [WindowItem], error: String?) = AgentDetectionCLI.claudeInstalled ? fetchClaudeWindows() : ([], nil)
+    let claude: (windows: [WindowItem], error: String?) = (settings.claudePlanEnabled && AgentDetectionCLI.claudeInstalled) ? fetchClaudeWindows() : ([], nil)
     if let error = claude.error { errors["claude"] = error }
     return Snapshot(windows: codex.windows + claude.windows, errors: errors,
                     tokens: includeTokens ? tokenSummary(hours: tokenHours) : [:], tokenHours: tokenHours,
-                    settings: loadSettings(), now: Date().timeIntervalSince1970)
+                    settings: settings, now: Date().timeIntervalSince1970)
 }
 
 enum AgentDetectionCLI {
@@ -286,11 +293,12 @@ func shareKinds() -> Set<ShareCategory> {
 
 /// Collects the anonymous numbers for `share`. Reads the same sources as `status`; sends nothing.
 func shareReports(hours: Double) -> (reports: [[String: Any]], errors: [String: String]) {
+    let settings = loadSettings()
     let now = Date().timeIntervalSince1970
     var errors: [String: String] = [:]
     let codex = fetchCodexWindows()
     if let error = codex.error { errors["codex"] = error }
-    let claude: (windows: [WindowItem], error: String?) = AgentDetectionCLI.claudeInstalled ? fetchClaudeWindows() : ([], nil)
+    let claude: (windows: [WindowItem], error: String?) = (settings.claudePlanEnabled && AgentDetectionCLI.claudeInstalled) ? fetchClaudeWindows() : ([], nil)
     if let error = claude.error { errors["claude"] = error }
     let windows = (codex.windows + claude.windows).filter { ContributionReport.sharedProvider(windowID: $0.id) != nil }
     let starts = windows.compactMap { item -> Double? in
@@ -299,7 +307,7 @@ func shareReports(hours: Double) -> (reports: [[String: Any]], errors: [String: 
     }
     let earliest = min(now - hours * 3600, starts.min() ?? now)
     let scanner = AgentLogScanner(sources: AgentLogScanner.defaultSources(home: FileManager.default.homeDirectoryForCurrentUser))
-    let events = scanner.scan(windowStart: max(earliest, now - 8 * 86400), now: now)
+    let events = settings.agentLogsEnabled ? scanner.scan(windowStart: max(earliest, now - 8 * 86400), now: now) : []
     for model in scanner.lastModelEvents { modelTracker.observe(model) }
     let speed = scanner.lastSpeedSamples.filter { $0.timestamp >= now - hours * 3600 }
     // First-seen times of limits the menu bar app recorded (the CLI cannot see them itself).
@@ -356,6 +364,8 @@ USAGE
                                              Print the agent for a kind of task (exit 3 if none)
   quotapilot stats [--hours N] [--json]      Token totals by agent and purpose from local logs
   quotapilot config [show]                   Show router mode and task rules
+  quotapilot config <claude-plan|agent-logs> <on|off>
+                                             Choose credential access and local log collection
   quotapilot config mode <auto|preferCodex|preferClaude>
   quotapilot config rule <web|review|plan|implement> <auto|codex|claude>
   quotapilot share [--hours N] [--only speed,promptCache,quota,limitEvents] [--json] [--yes] | --forget
@@ -474,6 +484,13 @@ case "config":
     var settings = loadSettings()
     let rest = Array(arguments.drop { $0 != "config" }.dropFirst())
     switch rest.first ?? "show" {
+    case "claude-plan", "agent-logs":
+        guard rest.count == 2, ["on", "off"].contains(rest[1]) else {
+            fail("usage: quotapilot config <claude-plan|agent-logs> <on|off>", code: 2)
+        }
+        if rest[0] == "claude-plan" { settings.claudePlanEnabled = rest[1] == "on" }
+        else { settings.agentLogsEnabled = rest[1] == "on" }
+        saveCLISettings(settings); print("\(rest[0]) = \(rest[1])")
     case "mode":
         guard rest.count >= 2, let mode = RouterMode(rawValue: rest[1]) else { fail("usage: quotapilot config mode <auto|preferCodex|preferClaude>", code: 2) }
         settings.routerMode = mode; saveCLISettings(settings); print("mode = \(mode.rawValue)")
@@ -484,6 +501,8 @@ case "config":
         var rules = settings.taskRouting; rules[kind] = who; settings.taskRouting = rules
         saveCLISettings(settings); print("\(kind.rawValue) → \(who.rawValue)")
     default:
+        print("claude-plan: " + (settings.claudePlanEnabled ? "on" : "off"))
+        print("agent-logs: " + (settings.agentLogsEnabled ? "on" : "off"))
         print("mode: " + (settings.routerMode ?? .auto).rawValue)
         for kind in TaskKind.allCases { print("rule \(kind.rawValue): " + (settings.taskRouting[kind] ?? .auto).rawValue) }
         #if os(macOS)

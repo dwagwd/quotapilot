@@ -15,6 +15,10 @@ python3 -m http.server 8765
 
 The page loads `data/*.json` with `fetch`, so it must be served over HTTP (not opened as a file).
 
+## Standalone preview
+
+`python3 scripts/build-preview.py /tmp/ai-quota-watch-preview.html` bundles the current site, styles, scripts and datasets into one HTML document. Add `--demo` for labelled example community data. Dataset loading works without network access; external source links and the opt-in report form still require a connection.
+
 ## Update data
 
 1. Edit `data/plans.json` (plan quotas), `data/models.json` (calculator models), `data/changes.json` (timeline).
@@ -40,7 +44,7 @@ Visitors report speed, ratings, quota used and limit/reset events with the form 
 ## Sponsor, install box, ads (`assets/config.js`)
 
 - `sponsor.url`: GitHub Sponsors (or any `https://`) link used by the nav chip, the hero link, the support card, the footer and the community invite, and by the generated pages (read at build time). Empty, or anything that is not `https://`, hides every sponsor element. `sponsor.label` overrides the "Sponsor" text; empty = translated default. `.github/FUNDING.yml` drives the GitHub "Sponsor" button on the repo.
-- `install.commands` / `install.notesUrl` / `install.sourceUrl`: the Homebrew box in the hero and the community invite. index.html carries the same commands as a no-JS fallback (a test keeps them in sync). Copy joins the lines with ` && `.
+- `install.commands` / `install.notesUrl` / `install.sourceUrl`: the Homebrew box in the hero and the community invite. index.html carries the same commands as a no-JS fallback (a test keeps them in sync). Copy includes installation and the launch/status command, joined with ` && ` (`;` in Windows PowerShell).
 - `ads.enabled`: there are no placeholder boxes any more. One hidden slot (`#adTop`) appears only when this is `true`; add the network's hosts to the CSP in `_headers` and the meta tag in `index.html` first.
 - `affiliates.<provider>`: put an affiliate URL here to replace the official pricing link in "Get a plan". The disclosure line appears automatically and links get `rel="sponsored"`.
 
@@ -48,9 +52,9 @@ Visitors report speed, ratings, quota used and limit/reset events with the form 
 
 Light/dark follows the system. The nav button (auto → light → dark) and the footer select store the choice in `localStorage["aqw-theme"]`; `assets/theme.js` applies it in `<head>` before the stylesheet so there is no flash of the wrong theme. Colours are CSS variables in `assets/style.css`; the dark values appear twice there (system preference and forced dark) and must be kept in sync.
 
-## Deploy (later)
+## Deploy
 
-`site-pages.yml` deploys `site/` to GitHub Pages after Pages is enabled with source "GitHub Actions". Not deployed yet.
+`site-pages.yml` deploys `site/` to GitHub Pages after Pages is enabled with source "GitHub Actions". The primary deployment is Cloudflare Pages; GitHub Pages is the project-prefix backup. Data and assets resolve relative to the application script so both paths work.
 
 ## Data notes (2026-11-02)
 

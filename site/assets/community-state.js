@@ -66,7 +66,20 @@
     return String(text || "").split(/\r?\n/).map(function (l) { return l.trim(); }).filter(Boolean).join(" && ");
   }
 
+  // Both a root-hosted site and a project under /repo/ load data relative to app.js.
+  async function readDataset(file, options) {
+    if (options.embedded) {
+      if (!Object.prototype.hasOwnProperty.call(options.embedded, file)) throw new Error("Missing embedded dataset: " + file);
+      return options.embedded[file];
+    }
+    var fetcher = options.fetcher; // Native browser fetch must be called without an options-object receiver.
+    var response = await fetcher(new URL(file, options.base).href, options.refresh ? { cache: "no-cache" } : undefined);
+    if (!response.ok) throw new Error(file + " " + response.status);
+    return response.json();
+  }
+
   window.AQW_STATE = {
+    readDataset: readDataset,
     publishedCount: publishedCount,
     eventTotal: eventTotal,
     fmtUtc: fmtUtc,

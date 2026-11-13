@@ -24,7 +24,8 @@ test("ads have no placeholder switch and are off unless explicitly enabled", () 
 test("install box commands come from config and match the static fallback in index.html", () => {
   const cmds = cfg.install.commands;
   assert.ok(Array.isArray(cmds) && cmds.length >= 1);
-  for (const c of cmds) assert.match(c, /^brew /);
+  for (const c of cmds.slice(0, 2)) assert.match(c, /^brew /);
+  assert.equal(cmds.at(-1), 'open "$(brew --prefix quotapilot)/QuotaPilot.app"');
   const pre = html.match(/<pre id="installCmd"[^>]*><code>([\s\S]*?)<\/code><\/pre>/);
   assert.ok(pre, "installCmd block present");
   assert.equal(pre[1].trim(), cmds.join("\n"));

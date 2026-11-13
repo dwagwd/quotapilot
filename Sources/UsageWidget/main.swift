@@ -106,7 +106,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
     private var autoConnectTick: Timer?
     private var autoConnectResults: [String: String] = [:]
     private var claudePlanTick: Timer?
+    private var statsBackfill: Progress?
     private var statsStore = UsageStatsStore()
+    private var usageDisplayCache = UsageDisplayCache()
     private let updater = AppUpdater()
     /// Speed samples from the last 24 hours, with model and effort, for the daily anonymous share.
     private var recentSpeed: [OutputSpeedSample] = []
@@ -196,15 +198,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
     private func restartSystemTimer() {
         systemTick?.invalidate(); systemTick = nil
         guard !systemFieldsSelected.isEmpty else { return }
-        systemSnapshot = systemMonitor.sample()
+        systemSnapshot = systemMonitor.sample(fields: systemFieldsSelected)
         // CPU load needs two samples; take the second one right away instead of waiting a full interval.
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [weak self] in
-            guard let self, !self.systemFieldsSelected.isEmpty else { return }
-            self.systemSnapshot = self.systemMonitor.sample(); self.renderSystem()
+        if systemFieldsSelected.contains(.cpu) {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [weak self] in
+                guard let self, !self.sleeping, self.panel.isVisible, self.systemFieldsSelected.contains(.cpu) else { return }
+                self.systemSnapshot = self.systemMonitor.sample(fields: self.systemFieldsSelected); self.renderSystem()
+            }
         }
         systemTick = Timer(timeInterval: settings.options.energySaver ? 15 : 5, repeats: true) { [weak self] _ in
-            guard let self, !self.sleeping else { return }
-            self.systemSnapshot = self.systemMonitor.sample()
+            guard let self, !self.sleeping, self.panel.isVisible else { return }
+            self.systemSnapshot = self.systemMonitor.sample(fields: self.systemFieldsSelected)
             self.renderSystem()
         }
         systemTick?.tolerance = 1
@@ -241,6 +245,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
         return sortQuotaGroups(order.compactMap { groups[$0]?.sorted { ($0.window.windowDurationMins ?? .max) < ($1.window.windowDurationMins ?? .max) } },
                                sort: settings.quotaSort ?? .detected, pinned: settings.pinnedProviders ?? [], now: Date().timeIntervalSince1970)
     }
+    private func displaySnapshot(now: Double) -> UsageDisplaySnapshot {
+        usageDisplayCache.snapshot(ledger: agentLedger, stats: statsStore, lookback: settings.lookback, now: now)
+    }
     private func providerKey(_ group: [WindowItem]) -> String { String(group.first?.id.split(separator: ":").first ?? "") }
     /// Quota rate of the shortest window plus the provider's tokens in the observation window.
     private func providerExtras(_ group: [WindowItem], now: Double) -> String {
@@ -248,9 +255,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
         if settings.shows(.quotaRate), let first = group.first, !isStale(first, now: now), let rate = cachedRates[first.id] {
             parts.append("≈" + l.rateNumber(rate.value(per: settings.rateUnit)) + "%/" + l.unit(settings.rateUnit, short: true))
         }
-        let tokens = agentLedger.summary(since: now - settings.lookback, now: now)[providerKey(group)]?.total ?? 0
+        let tokens = displaySnapshot(now: now).tokens[providerKey(group)]?.total ?? 0
         if settings.shows(.tokens), tokens > 0 { parts.append(l.compact(tokens)) }
-        if settings.shows(.outputSpeed), let speed = statsStore.outputSpeed(since: now - max(settings.lookback, 3600), now: now)[providerKey(group)] {
+        if settings.shows(.outputSpeed), let speed = displaySnapshot(now: now).displaySpeeds[providerKey(group)] {
             parts.append(l.number(speed.tokensPerSecond, decimals: 0) + "t/s")
         }
         if let model = shortModel(providerKey(group)) { parts.append(model) }
@@ -258,7 +265,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
     }
     /// Output tokens per second of model-call time across agents (decode lower bound), or nil without samples.
     private func combinedOutputSpeed(now: Double) -> Double? {
-        let speeds = statsStore.outputSpeed(since: now - max(settings.lookback, 3600), now: now).values
+        let speeds = displaySnapshot(now: now).displaySpeeds.values
         let seconds = speeds.reduce(0) { $0 + $1.seconds }
         return seconds > 0 ? speeds.reduce(0) { $0 + $1.outputTokens } / seconds : nil
     }
@@ -266,7 +273,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
         combinedOutputSpeed(now: now).map { l.text("outputShort") + " ≈" + l.number($0, decimals: 0) + " tok/s" }
     }
     private func styledTitle(now: Double) -> String {
-        let total = agentLedger.total(since: now - settings.lookback, now: now).total
+        let total = displaySnapshot(now: now).total.total
         guard settings.agentLogsEnabled, agentLastScanAt != nil else { return l.text("allAgents") + " · " + l.text("collecting") + " ▾" }
         var parts: [String] = []
         if settings.shows(.total) { parts.append(l.text("allAgents") + " " + l.compact(total)) }
@@ -324,7 +331,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
     private func renderStyled(now: Double) {
         guard !collapsed, cardStyle != .detailed else { return }
         let groups = providerGroups
-        titleButton.title = styledTitle(now: now)
+        let titleText = styledTitle(now: now)
+        if titleButton.title != titleText { titleButton.title = titleText }
         for (field, index) in styledLines where index < groups.count {
             let group = groups[index]
             let extras = providerExtras(group, now: now)
@@ -341,7 +349,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
         for row in styledBars where row.group < groups.count && row.window < groups[row.group].count {
             let item = groups[row.group][row.window]
             let used = item.window.validUsedPercent
-            row.bar.doubleValue = used ?? 0
+            if row.bar.doubleValue != (used ?? 0) { row.bar.doubleValue = used ?? 0 }
             let text = (used.map { l.number($0, decimals: 0) + "%" } ?? "—") + " " + (isStale(item, now: now) ? "⚠︎" : shortCountdown(item.window.resetsAt, now: now))
             if row.text.stringValue != text { row.text.stringValue = text }
             row.text.textColor = (used ?? 0) >= 90 ? .systemOrange : foregroundColor
@@ -786,6 +794,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
             valueLabel.textColor = stale ? .secondaryLabelColor : (used >= 90 ? .systemOrange : .labelColor)
         } else { valueLabel.stringValue = "—"; progress.doubleValue = 0 }
         if ratesDirty {
+            usageDisplayCache.invalidate()
             cachedRates = [:]
             for window in items {
                 let provider = providerFor(window)
@@ -895,6 +904,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
 
     private func scanAgentLogs() {
         guard settings.agentLogsEnabled else {
+            statsBackfill?.cancel()
+            usageDisplayCache.invalidate()
             agentLedger = AgentTokenLedger(); agentLastScanAt = nil
             // Re-enabling must read the logs again, not continue from the old file offsets.
             if agentScanCoverage != nil && !agentScanning {
@@ -907,7 +918,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
         agentScanning = true
         let now = Date().timeIntervalSince1970
         // Read at least five hours so switching to a short window still has data; at most the 31-day retention.
-        let windowStart = now - min(max(settings.lookback, 5 * 3600), agentLedger.retention)
+        let windowStart = min(now - min(max(settings.lookback, 5 * 3600), agentLedger.retention), statsStore.scanStart(now: now))
         if let coverage = agentScanCoverage, windowStart < coverage - 60 {
             // The observation window grew past what was read; earlier events are behind the saved offsets.
             agentScanner = AgentLogScanner(sources: AgentLogScanner.defaultSources(home: FileManager.default.homeDirectoryForCurrentUser))
@@ -924,6 +935,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
             DispatchQueue.main.async {
                 guard let self else { return }
                 self.agentScanning = false
+                guard self.settings.agentLogsEnabled else { return }
                 for sample in speeds { self.statsStore.addSpeed(sample) }
                 self.recentSpeed = (self.recentSpeed + speeds).filter { $0.timestamp >= now - 86400 }.suffix(20_000).map { $0 }
                 // Notify each reroute once, across restarts: only events newer than the last one notified (or launch).
@@ -938,6 +950,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
                 }
                 guard self.settings.agentLogsEnabled else { return }
                 for event in events where self.agentLedger.add(event) { self.statsStore.add(event) }
+                self.statsStore.completeScan(at: now)
                 self.saveStats(now: now)
                 self.agentLedger.prune(now: now)
                 self.agentLastScanAt = now
@@ -968,10 +981,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
             agentsLabel.stringValue = l.text("allAgents") + " · " + l.text("collecting")
             agentsLabel.textColor = .secondaryLabelColor; agentsLabel.toolTip = l.text("agentLogsHelp"); return
         }
-        let since = now - settings.lookback
-        let total = agentLedger.total(since: since, now: now)
+        let snapshot = displaySnapshot(now: now)
+        let total = snapshot.total
         let perUnit = total.total / max(settings.lookback, 60) * settings.rateUnit.seconds
-        let perProvider = agentLedger.summary(since: since, now: now).sorted { $0.value.total > $1.value.total }
+        let perProvider = snapshot.tokens.sorted { $0.value.total > $1.value.total }
             .prefix(3).map { providerName($0.key) + " " + l.compact($0.value.total) }
         var parts: [String] = [l.text("allAgents") + " " + l.compact(total.total)]
         if settings.shows(.outputSpeed), let speed = outputSpeedText(now: now) { parts.append(speed) }
@@ -982,7 +995,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
         var lines = [l.text("allAgents") + " · " + observationLabel.stringValue,
                      l.text("tokenTotal") + " " + l.compact(total.total) + " · " + l.text("consumptionRate") + " ≈" + l.compact(perUnit) + "/" + l.unit(settings.rateUnit, short: true),
                      breakdownText(total)]
-        for (provider, usage) in agentLedger.summary(since: since, now: now).sorted(by: { $0.value.total > $1.value.total }) {
+        for (provider, usage) in snapshot.tokens.sorted(by: { $0.value.total > $1.value.total }) {
             lines.append(providerName(provider) + " " + l.compact(usage.total) + ": " + breakdownText(usage))
         }
         for balance in deepSeekBalances { lines.append(l.text("deepSeekBalance") + ": " + l.number(balance.total, decimals: 2) + " " + balance.currency) }
@@ -991,10 +1004,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
         lines.append(l.text("suggestedAgent") + " (" + l.text("router." + (settings.routerMode ?? .auto).rawValue) + "): "
             + (decision.agent.map(providerName) ?? l.text("routerNone"))
             + " · " + decision.agents.map { providerName($0.provider) + " " + l.number($0.headroom, decimals: 0) + "%" }.joined(separator: " / "))
-        for (provider, speed) in statsStore.outputSpeed(since: since, now: now).sorted(by: { $0.key < $1.key }) {
+        for (provider, speed) in snapshot.speeds.sorted(by: { $0.key < $1.key }) {
             lines.append(l.text("outputSpeed") + " · " + providerName(provider) + ": ≈" + l.number(speed.tokensPerSecond, decimals: 0) + " tok/s")
         }
-        if statsStore.outputSpeed(since: since, now: now).isEmpty == false { lines.append(l.text("outputSpeedHelp")) }
+        if snapshot.speeds.isEmpty == false { lines.append(l.text("outputSpeedHelp")) }
         for provider in modelTracker.current.keys.sorted() {
             lines.append(l.text("currentModel") + " · " + providerName(provider) + ": " + (modelLine(provider) ?? "—"))
         }
@@ -1006,6 +1019,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
     // MARK: Statistics
 
     private func saveStats(now: Double) {
+        usageDisplayCache.invalidate()
         statsStore.prune(now: now)
         if let data = try? JSONEncoder().encode(statsStore) {
             let url = support.appendingPathComponent("usage-stats.json")
@@ -1033,9 +1047,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
             }
             statsStore.finishQuotaBackfill(at: now)
         }
-        guard settings.agentLogsEnabled, statsStore.backfilledAt == nil else { return }
+        guard settings.agentLogsEnabled, statsStore.backfilledAt == nil, statsBackfill == nil else { return }
         statsModel.backfilling = true
-        let scanner = AgentLogScanner(sources: AgentLogScanner.defaultSources(home: FileManager.default.homeDirectoryForCurrentUser))
+        let progress = Progress(totalUnitCount: 0)
+        statsBackfill = progress
+        let scanner = AgentLogScanner(sources: AgentLogScanner.defaultSources(home: FileManager.default.homeDirectoryForCurrentUser),
+                                      isCancelled: { progress.isCancelled })
         // Separate queue: the regular one-minute scans keep running while the long backfill reads.
         // .utility, not .background: background QoS throttles disk reads heavily, which made a 30-day backfill take hours.
         let done = statsStore.backfilledFiles ?? []
@@ -1044,12 +1061,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
             // File by file, saving progress, so quitting the app does not lose what was already read.
             var lastSave = Date()
             for file in scanner.backfillCandidates(windowStart: windowStart) where !done.contains(file.path) {
+                if progress.isCancelled { break }
                 let events = scanner.backfillFile(file.path, source: file.source, windowStart: windowStart)
                 let speedBatch = scanner.takeSpeedSamples()
                 let save = Date().timeIntervalSince(lastSave) > 30
                 if save { lastSave = Date() }
                 DispatchQueue.main.sync {
                     guard let self else { return }
+                    guard self.settings.agentLogsEnabled, !progress.isCancelled else { return }
                     for event in events { self.statsStore.add(event) }
                     for sample in speedBatch { self.statsStore.addSpeed(sample) }
                     self.statsStore.markBackfilled(file: file.path)
@@ -1058,9 +1077,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
             }
             DispatchQueue.main.async {
                 guard let self else { return }
-                self.statsStore.finishBackfill(at: now)
+                self.statsBackfill = nil
                 self.statsModel.backfilling = false
+                if !progress.isCancelled { self.statsStore.finishBackfill(at: now) }
                 self.saveStats(now: Date().timeIntervalSince1970)
+                if progress.isCancelled && self.settings.agentLogsEnabled { self.backfillStats() }
             }
         }
     }
@@ -1209,6 +1230,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
     }
 
     private func fetchClaudePlan(login: (token: String, plan: String?, expiresAt: Double?)?) {
+        guard settings.claudePlanEnabled else { claudePlanFetching = false; claudeLogin = nil; return }
         guard let login else { claudePlanFetching = false; claudePlanError = "claudeLoginMissing"; return }
         if let expires = login.expiresAt, expires <= Date().timeIntervalSince1970 {
             claudePlanFetching = false; claudePlanError = "claudeLoginExpired"; return
@@ -1223,6 +1245,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
             DispatchQueue.main.async {
                 guard let self else { return }
                 self.claudePlanFetching = false
+                guard self.settings.claudePlanEnabled else { self.claudeLogin = nil; return }
                 guard let snapshot, let encoded = try? JSONEncoder().encode(snapshot) else {
                     if status == 401 { self.claudeLogin = nil }  // re-read the refreshed token next time
                     self.claudePlanError = status == 401 ? "claudeLoginExpired" : "claudePlanUnavailable"; self.writeStatus(); return
@@ -1473,7 +1496,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
             self.settings = next
             self.ratesDirty = true
             self.requestAlertAuthorizationIfNeeded()
-            self.scanAgentLogs(); self.autoConnectAgents(); self.restartSystemTimer()
+            if !next.claudePlanEnabled { self.claudeLogin = nil }
+            self.scanAgentLogs(); self.backfillStats(); self.autoConnectAgents(); self.refreshClaudePlan(); self.restartSystemTimer()
             self.client.pollInterval = next.options.energySaver ? 120 : 60
             self.startUITimer(); self.reloadBridges(); self.rebuildItems()
             self.defaults.set(try? JSONEncoder().encode(next), forKey: "settings")
@@ -2497,7 +2521,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
     func windowDidMove(_ notification: Notification) { if !adjustingFrame { savePosition(); writeStatus() } }
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool { showPanel(); return false }
     func applicationWillTerminate(_ notification: Notification) {
-        tick?.invalidate(); bridgeTick?.invalidate()
+        tick?.invalidate(); bridgeTick?.invalidate(); systemTick?.invalidate(); statsBackfill?.cancel()
+        saveStats(now: Date().timeIntervalSince1970)
         persistUsageEventChanges([], now: Date().timeIntervalSince1970)
         client.stop(); flock(lockFD, LOCK_UN); close(lockFD)
     }

@@ -222,7 +222,10 @@ public final class AgentLogScanner {
     public private(set) var lastScanBytes: UInt64 = 0
     private let chunkSize = 4 * 1_048_576
 
-    public init(sources: [Source]) { self.sources = sources }
+    private let isCancelled: () -> Bool
+    public init(sources: [Source], isCancelled: @escaping () -> Bool = { false }) {
+        self.sources = sources; self.isCancelled = isCancelled
+    }
 
     public static func defaultSources(home: URL) -> [Source] {
         [Source(provider: "codex", root: home.appendingPathComponent(".codex/sessions", isDirectory: true), parse: AgentLogParser.codexEvent,
@@ -249,14 +252,22 @@ public final class AgentLogScanner {
         let full = now - lastFullEnumeration >= fullEnumerationInterval
         if full { lastFullEnumeration = now }
         for (index, source) in sources.enumerated() {
+            if isCancelled() { break }
             let root = source.root.resolvingSymlinksInPath()
             var candidates = Set(knownFiles.filter { $0.value == index }.map(\.key))
             let roots = full ? [root] : recentDayFolders(root: root, now: now)
             for folder in roots { candidates.formUnion(jsonlFiles(in: folder)) }
             for path in candidates.sorted() {
+                if isCancelled() { break }
                 knownFiles[path] = index
                 events += scanFile(URL(fileURLWithPath: path), source: source, windowStart: windowStart)
             }
+        }
+        if isCancelled() {
+            // Discarding this batch must also rewind files completed earlier in the same scan.
+            offsets.removeAll(); timers.removeAll(); lastFullEnumeration = -.infinity
+            lastModelEvents = []; lastSpeedSamples = []
+            return []
         }
         return events
     }
@@ -265,7 +276,9 @@ public final class AgentLogScanner {
     public func backfillCandidates(windowStart: Double) -> [(path: String, source: Int)] {
         var result: [(String, Int, Double)] = []
         for (index, source) in sources.enumerated() {
+            if isCancelled() { break }
             for path in jsonlFiles(in: source.root.resolvingSymlinksInPath()) {
+                if isCancelled() { break }
                 guard let modified = Portable.status(path)?.modified else { continue }
                 if modified >= windowStart { result.append((path, index, modified)) }
             }
@@ -299,7 +312,10 @@ public final class AgentLogScanner {
         guard let enumerator = FileManager.default.enumerator(at: folder, includingPropertiesForKeys: [],
                                                               options: [.skipsHiddenFiles]) else { return [] }
         var result: [String] = []
-        for case let url as URL in enumerator where url.pathExtension == "jsonl" { result.append(url.path) }
+        for case let url as URL in enumerator where url.pathExtension == "jsonl" {
+            if isCancelled() { break }
+            result.append(url.path)
+        }
         return result
     }
 
@@ -311,11 +327,23 @@ public final class AgentLogScanner {
         }
         let size = info.size, modified = info.modified
         guard modified >= windowStart else { return [] }
+        let events: [AgentTokenEvent]
         if let offset = offsets[key] {
-            if size < offset { offsets[key] = 0; return readForward(url, from: 0, size: size, source: source, windowStart: windowStart) }
-            return size > offset ? readForward(url, from: offset, size: size, source: source, windowStart: windowStart) : []
+            if size < offset {
+                offsets[key] = 0
+                events = readForward(url, from: 0, size: size, source: source, windowStart: windowStart)
+            } else {
+                events = size > offset ? readForward(url, from: offset, size: size, source: source, windowStart: windowStart) : []
+            }
+        } else {
+            events = readBackward(url, size: size, source: source, windowStart: windowStart)
         }
-        return readBackward(url, size: size, source: source, windowStart: windowStart)
+        guard !isCancelled() else {
+            // A partially read file is retried in full; never persist an offset past unprocessed usage.
+            offsets.removeValue(forKey: key); timers.removeValue(forKey: key)
+            return []
+        }
+        return events
     }
 
     private func readForward(_ url: URL, from offset: UInt64, size: UInt64, source: Source, windowStart: Double) -> [AgentTokenEvent] {
@@ -324,7 +352,7 @@ public final class AgentLogScanner {
         var events: [AgentTokenEvent] = []
         var position = offset
         var carry = Data()
-        while position < size {
+        while position < size && !isCancelled() {
             guard (try? handle.seek(toOffset: position)) != nil,
                   let chunk = try? handle.read(upToCount: Int(min(UInt64(chunkSize), size - position))), !chunk.isEmpty else { break }
             position += UInt64(chunk.count)
@@ -349,7 +377,7 @@ public final class AgentLogScanner {
         // Bytes after the final newline belong to a line that is still being written.
         if size > 0, (try? handle.seek(toOffset: size - 1)) != nil, let last = try? handle.read(upToCount: 1), last != Data([0x0A]) {
             var probe = size
-            while probe > 0 {
+            while probe > 0 && !isCancelled() {
                 let start = probe > UInt64(chunkSize) ? probe - UInt64(chunkSize) : 0
                 guard (try? handle.seek(toOffset: start)) != nil, let chunk = try? handle.read(upToCount: Int(probe - start)) else { break }
                 if let newline = chunk.lastIndex(of: 0x0A) { end = start + UInt64(chunk.distance(from: chunk.startIndex, to: newline)) + 1; break }
@@ -359,7 +387,7 @@ public final class AgentLogScanner {
         }
         offsets[url.path] = end
         var cursor = end
-        while cursor > 0 {
+        while cursor > 0 && !isCancelled() {
             let start = cursor > UInt64(chunkSize) ? cursor - UInt64(chunkSize) : 0
             guard (try? handle.seek(toOffset: start)) != nil, var chunk = try? handle.read(upToCount: Int(cursor - start)) else { break }
             lastScanBytes += UInt64(chunk.count)
@@ -401,6 +429,7 @@ public final class AgentLogScanner {
         var timer = path.flatMap { timers[$0] } ?? CallTimer(provider: source.provider)
         defer { if let path { timers[path] = timer } }
         for line in text.split(separator: "\n", omittingEmptySubsequences: true) {
+            if isCancelled() { break }
             let string = String(line)
             if let event = source.parse(string) { events.append(event) }
             if let parseModel = source.parseModel, let model = parseModel(string) { lastModelEvents.append(model) }

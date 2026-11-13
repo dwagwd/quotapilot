@@ -39,7 +39,7 @@ test("index.html carries the SEO basics", () => {
   assert.match(html, /hreflang="zh-Hant" href="https:\/\/aiquotawatch\.pages\.dev\/zh\/"/);
 });
 
-test("generated /zh/ home page has its own language, canonical and root-relative assets", () => {
+test("generated /zh/ home page has its own language, canonical and relative assets", () => {
   const out = mkdtempSync(join(tmpdir(), "aqw-zh-"));
   let zh;
   try {
@@ -51,7 +51,7 @@ test("generated /zh/ home page has its own language, canonical and root-relative
   assert.match(zh, /hreflang="en"/);
   assert.match(zh, /hreflang="zh-Hant"/);
   assert.doesNotMatch(zh, /(?:href|src)="assets\//);
-  assert.match(zh, /src="\/assets\/app\.js"/);
+  assert.match(zh, /src="\.\.\/assets\/app\.js"/);
   assert.match(zh, /<title>[^<]*[\u4e00-\u9fff]/);
 });
 

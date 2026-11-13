@@ -219,7 +219,7 @@ ${rs.map((r) => `<tr><td class="num">${esc(r.timeKnown === false ? r.at.slice(0,
   h = swap(h, /<link rel="canonical" href="[^"]*">/, `<link rel="canonical" href="${BASE}zh/">`);
   h = swap(h, /<link rel="alternate" hreflang="en" href="[^"]*">\s*<link rel="alternate" hreflang="zh-Hant" href="[^"]*">\s*<link rel="alternate" hreflang="x-default" href="[^"]*">/,
     `<link rel="alternate" hreflang="en" href="${BASE}">\n  <link rel="alternate" hreflang="zh-Hant" href="${BASE}zh/">\n  <link rel="alternate" hreflang="x-default" href="${BASE}">`);
-  h = h.replace(/(href|src)="assets\//g, '$1="/assets/').replace(/href="plans\/"/g, 'href="/zh/plans/"').replace(/href="resets\//g, 'href="/zh/resets/');
+  h = h.replace(/(href|src)="assets\//g, '$1="../assets/').replace(/href="plans\/"/g, 'href="plans/"').replace(/href="resets\//g, 'href="resets/');
   mkdirSync(join(OUT, "zh"), { recursive: true });
   writeFileSync(join(OUT, "zh", "index.html"), h);
   pages.push({ path: "zh/index.html", lastmod: plans.lastReviewed });

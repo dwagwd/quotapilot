@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+- Faster statistics backfills: avoid copying the growing call-deduplication table and quota history for every observation; preserve streamed updates and independent snapshots.
+- Compact and Bars cache shared token/speed totals until their time window or source data changes, and avoid resetting unchanged titles and progress bars.
+- Optional system readings poll only the selected sensors, reuse the temperature client and skip hidden/sleeping-card polling.
+- History backfill stops when log collection is disabled and resumes from completed files. Cancelled reads do not skip unprocessed usage. Save statistics on a normal quit.
+- Recover unscanned usage after widget downtime. The CLI honors saved collection choices; standalone Claude credential access is opt-in, and the app exposes it in Settings.
+- Website: complete installation commands, platform-specific actions, working project-path hosting and standalone previews, durable visitor rollups and a corrected page-top link.
+
 ## 0.6.6
 
 - First launch now asks before QuotaPilot reads Claude Code's saved login (Claude plan usage) or edits other agents' settings files (automatic connection). A new install starts with both off; an existing install keeps its choices and is asked to confirm them once. **Connections and privacy…** in the menu bar changes them later.

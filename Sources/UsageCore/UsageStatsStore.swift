@@ -20,6 +20,8 @@ public struct UsageStatsStore: Codable {
     public static let quotaSampleInterval: Double = 600
     /// Events older than this were either counted before or predate the history; it moves forward on save.
     public private(set) var acceptAfter: Double = 0
+    /// Last completed log scan; saving quota samples must not advance log coverage.
+    public private(set) var lastScanAt: Double?
     public private(set) var backfilledAt: Double?
     public private(set) var quotaBackfilledAt: Double?
     /// Log files already read by an unfinished backfill, so a restart continues instead of starting over.
@@ -41,22 +43,21 @@ public struct UsageStatsStore: Codable {
     /// Adds a token event once. Returns false for duplicates and for events at or before `acceptAfter`.
     @discardableResult
     public mutating func add(_ event: AgentTokenEvent) -> Bool {
-        var counted = recentUsage ?? [:]
+        if recentUsage == nil { recentUsage = [:] }
         let booked: Double, usage: TokenBreakdown
         if let first = recentKeys[event.dedupeKey] {
             // Same call seen again: count only growth (a streamed message rewritten with more output tokens).
-            guard let previous = counted[event.dedupeKey] else { return false }
+            guard let previous = recentUsage?[event.dedupeKey] else { return false }
             let growth = event.usage.growth(since: previous)
             guard !growth.isEmpty else { return false }
             booked = first; usage = growth
-            counted[event.dedupeKey] = previous.merged(with: event.usage)
+            recentUsage?[event.dedupeKey] = previous.merged(with: event.usage)
         } else {
             guard event.timestamp > acceptAfter else { return false }
             recentKeys[event.dedupeKey] = event.timestamp
-            counted[event.dedupeKey] = event.usage
+            recentUsage?[event.dedupeKey] = event.usage
             booked = event.timestamp; usage = event.usage
         }
-        recentUsage = counted
         tokenHours[event.provider, default: [:]][Self.hourKey(booked), default: TokenBreakdown()].add(usage)
         return true
     }
@@ -66,12 +67,12 @@ public struct UsageStatsStore: Codable {
         let key = "speed|" + sample.key
         guard sample.timestamp > acceptAfter, recentKeys[key] == nil else { return false }
         recentKeys[key] = sample.timestamp
-        var hours = speedHours ?? [:]
-        var pair = hours[sample.provider]?[Self.hourKey(sample.timestamp)] ?? [0, 0]
+        if speedHours == nil { speedHours = [:] }
+        let hour = Self.hourKey(sample.timestamp)
+        var pair = speedHours?[sample.provider]?[hour] ?? [0, 0]
         if pair.count != 2 { pair = [0, 0] }
         pair[0] += sample.outputTokens; pair[1] += sample.seconds
-        hours[sample.provider, default: [:]][Self.hourKey(sample.timestamp)] = pair
-        speedHours = hours
+        speedHours?[sample.provider, default: [:]][hour] = pair
         return true
     }
 
@@ -111,7 +112,19 @@ public struct UsageStatsStore: Codable {
     /// Marks a 30-day log backfill as done; regular scans then only add newer events.
     public mutating func finishBackfill(at time: Double) {
         backfilledAt = time
+        completeScan(at: time)
         backfilledFiles = nil
+    }
+
+    /// Resume with overlap for streamed calls and files written shortly before the previous scan.
+    public func scanStart(now: Double) -> Double {
+        guard let covered = lastScanAt ?? backfilledAt else { return now - 5 * 3600 }
+        return max(now - 30 * 86400, acceptAfter, covered - Self.recentKeySpan)
+    }
+
+    public mutating func completeScan(at time: Double) {
+        guard time.isFinite else { return }
+        lastScanAt = max(lastScanAt ?? time, time)
     }
 
     public mutating func markBackfilled(file: String) {
@@ -126,20 +139,20 @@ public struct UsageStatsStore: Codable {
     public mutating func recordQuota(windowID: String, title: String, used: Double?, resetsAt: Double?, now: Double) {
         guard let used, used.isFinite, (0...100).contains(used), now.isFinite else { return }
         windowTitles[windowID] = title
-        var samples = quotaSamples[windowID] ?? []
-        if let last = samples.last {
+        if let last = quotaSamples[windowID]?.last {
             guard now > last.t else { return }
             if now - last.t < Self.quotaSampleInterval && last.used == used && sameReset(last.reset, resetsAt) { return }
         }
-        samples.append(QuotaSample(t: now, used: used, reset: resetsAt))
-        quotaSamples[windowID] = samples
+        quotaSamples[windowID, default: []].append(QuotaSample(t: now, used: used, reset: resetsAt))
     }
 
-    /// Before saving: forget dedupe keys older than six hours and stop accepting events from that far back.
+    /// Before saving: forget keys more than six hours behind completed log collection.
     /// While a backfill is still running, older events must stay acceptable, so the watermark does not move.
     public mutating func prune(now: Double) {
         let cutoff = now - Self.retention
-        if backfilledAt != nil { acceptAfter = max(acceptAfter, now - Self.recentKeySpan) }
+        if backfilledAt != nil, let covered = lastScanAt ?? backfilledAt {
+            acceptAfter = max(acceptAfter, covered - Self.recentKeySpan)
+        }
         recentKeys = recentKeys.filter { $0.value > acceptAfter }
         recentUsage = recentUsage?.filter { recentKeys[$0.key] != nil }
         for provider in Array(tokenHours.keys) {

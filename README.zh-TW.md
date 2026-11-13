@@ -91,3 +91,5 @@ Codex 額度來自 `account/rateLimits/read`，tokens 來自 `account/usage/read
 產出與建置快取預設在 `~/Library/Caches/QuotaPilot/`。發布步驟見 [releasing.md](docs/releasing.md)，測試範圍見 [validation.md](docs/validation.md)。
 
 本機採樣在 `~/Library/Application Support/QuotaPilot/`，偏好設定屬於 `io.github.dwagwd.quotapilot`。請勿將這些個人資料推送至 GitHub。移除時先退出 App；如有安裝其他 agent 橋接，依連接指南還原 statusLine 設定，再移除 App、資料及插件。
+
+命令列工具會遵守 macOS App 已儲存的資料讀取選擇。獨立安裝 CLI 時，請用 `quotapilot config claude-plan on` 同意讀取 Claude Code 登入；用 `quotapilot config agent-logs off` 可停用本機記錄掃描。

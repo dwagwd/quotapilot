@@ -41,7 +41,7 @@ test("internal links resolve to real pages", () => {
     }
     assert.deepEqual(broken, []);
     assert.ok(existsSync(join(out, "resets/index.html")) && existsSync(join(out, "zh/resets/index.html")), "/resets/ has an index in both languages");
-    assert.match(readFileSync(join(out, "zh/index.html"), "utf8"), /href="\/zh\/resets\/codex"/, "the Chinese home page links the Chinese reset history");
+    assert.match(readFileSync(join(out, "zh/index.html"), "utf8"), /href="resets\/codex"/, "the Chinese home page links the Chinese reset history");
   } finally { rmSync(out, { recursive: true, force: true }); }
 });
 

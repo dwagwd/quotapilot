@@ -12,6 +12,11 @@
   };
   const S = window.AQW_STATE; // pure helpers from community-state.js
   const CFG = window.SITE_CONFIG || {};
+  const SITE_BASE = new URL("../", document.currentScript.src || new URL("assets/app.js", document.baseURI));
+  const homePath = () => location.pathname.slice(SITE_BASE.pathname.length);
+  const getData = (file, refresh = false) => S.readDataset(file, {
+    base: SITE_BASE, embedded: window.__AQW_DATA, fetcher: fetch, refresh
+  });
 
   const $ = (sel) => document.querySelector(sel);
   const t = (key) => (I18N[state.lang] && I18N[state.lang][key]) || I18N.en[key] || key;
@@ -31,7 +36,7 @@
     let lang = "en";
     const q = new URLSearchParams(location.search).get("lang");
     if (q === "zh" || q === "en") lang = q;
-    else if (/^\/zh(\/|$)/.test(location.pathname)) lang = "zh"; // /zh/ is the Chinese home page
+    else if (/^zh(\/|$)/.test(homePath())) lang = "zh"; // /zh/ is the Chinese home page
     else {
       try { const saved = localStorage.getItem("aqw-lang"); if (saved) lang = saved; } catch (e) { /* storage blocked */ }
     }
@@ -41,8 +46,8 @@
       state.lang = state.lang === "en" ? "zh" : "en";
       try { localStorage.setItem("aqw-lang", state.lang); } catch (e) { /* ignore */ }
       // On the two home pages the language is part of the address, so a shared link keeps its language.
-      if (/^\/(zh\/?)?(index\.html)?$/.test(location.pathname) && !location.search) {
-        const to = state.lang === "zh" ? "/zh/" : "/";
+      if (/^(zh\/?)?(index\.html)?$/.test(homePath()) && !location.search) {
+        const to = SITE_BASE.pathname + (state.lang === "zh" ? "zh/" : "");
         if (location.pathname !== to) { history.replaceState(null, "", to + location.hash); }
       }
       renderAll();
@@ -108,6 +113,8 @@
     const p = installPlatform;
     const plat = CFG.install && CFG.install.platforms && CFG.install.platforms[p];
     const mac = p === "mac" || !Array.isArray(plat) || !plat.length;
+    const hero = $("#heroInstall");
+    if (hero) hero.textContent = mac ? t("hero.ctaQp") : t("hero.ctaCli").replace("{os}", p === "windows" ? "Windows" : "Linux");
     document.querySelectorAll("[data-platform]").forEach((b) => {
       const on = b.dataset.platform === (mac ? "mac" : p);
       b.classList.toggle("on", on);
@@ -864,16 +871,14 @@
 
   // Each dataset loads on its own and each section renders on its own: one failed file (or one bug) leaves
   // the other sections working, and the broken one shows a short message with a retry button.
-  const DATA_FILES = { plans: "/data/plans.json", models: "/data/models.json", changes: "/data/changes.json", resets: "/data/resets.json" };
-  const dataFile = (k) => (k === "community" ? (state.demo ? "/data/community.sample.json" : "/data/community.json") : DATA_FILES[k]);
+  const DATA_FILES = { plans: "data/plans.json", models: "data/models.json", changes: "data/changes.json", resets: "data/resets.json" };
+  const dataFile = (k) => (k === "community" ? (state.demo ? "data/community.sample.json" : "data/community.json") : DATA_FILES[k]);
   state.failed = new Set();
   async function loadData(only, bypassCache) {
     const keys = only || [...Object.keys(DATA_FILES), "community"];
     await Promise.all(keys.map(async (k) => {
       try {
-        const r = await fetch(dataFile(k), bypassCache ? { cache: "no-cache" } : undefined);
-        if (!r.ok) throw new Error(k + " " + r.status);
-        state[k] = await r.json();
+        state[k] = await getData(dataFile(k), bypassCache);
         state.failed.delete(k);
       } catch (e) { state.failed.add(k); }
     }));
@@ -920,11 +925,11 @@
   function startAutoRefresh(demo) {
     if (window.__AQW_DATA) return;
     // Refreshes bypass the HTTP cache so a new community.json shows up within a minute.
-    const get = (f) => fetch(f, { cache: "no-cache" }).then((r) => { if (!r.ok) throw new Error(f + " " + r.status); return r.json(); });
+    const get = (f) => getData(f, true);
     setInterval(async () => {
       if (document.hidden) return;
       try {
-        const [community, resets, changes] = await Promise.all([get(demo ? "/data/community.sample.json" : "/data/community.json"), get("/data/resets.json"), get("/data/changes.json")]);
+        const [community, resets, changes] = await Promise.all([get(demo ? "data/community.sample.json" : "data/community.json"), get("data/resets.json"), get("data/changes.json")]);
         Object.assign(state, { community, resets, changes, loadedAt: new Date() });
         renderChanges(); renderResets(); renderCommunity(); renderLive();
       } catch (e) { /* keep showing the last good data */ }

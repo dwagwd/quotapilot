@@ -30,6 +30,25 @@ final class UsageStatsStoreTests: XCTestCase {
         XCTAssertEqual(restored.tokenTotals(since: 0, now: 10_000)["claude"]?.input, 5)
     }
 
+    func testMutatingCopiedStorePreservesEarlierSnapshot() {
+        var first = UsageStatsStore()
+        let call = event("shared", 3600, tokens: 10)
+        first.add(call)
+        first.recordQuota(windowID: "w", title: "Codex", used: 10, resetsAt: 10000, now: 3600)
+        let speed = OutputSpeedSample(provider: "codex", timestamp: 3600, outputTokens: 100, reasoningTokens: 0, seconds: 10, key: "one")
+        first.addSpeed(speed)
+        var copy = first
+        XCTAssertTrue(copy.add(event("shared", 3610, tokens: 30)))
+        copy.recordQuota(windowID: "w", title: "Codex", used: 20, resetsAt: 10000, now: 3660)
+        copy.addSpeed(OutputSpeedSample(provider: "codex", timestamp: 3660, outputTokens: 300, reasoningTokens: 0, seconds: 10, key: "two"))
+        XCTAssertEqual(first.tokenTotals(since: 0, now: 4000)["codex"]?.total, 10)
+        XCTAssertEqual(copy.tokenTotals(since: 0, now: 4000)["codex"]?.total, 30)
+        XCTAssertEqual(first.quotaSeries(windowID: "w", since: 0).count, 1)
+        XCTAssertEqual(copy.quotaSeries(windowID: "w", since: 0).count, 2)
+        XCTAssertEqual(first.outputSpeed(since: 0, now: 4000)["codex"]?.tokensPerSecond, 10)
+        XCTAssertEqual(copy.outputSpeed(since: 0, now: 4000)["codex"]?.tokensPerSecond, 20)
+    }
+
     func testPruneStopsAcceptingOldEventsAfterRestart() throws {
         var store = UsageStatsStore()
         store.add(event("x", 100_000))
@@ -39,10 +58,29 @@ final class UsageStatsStoreTests: XCTestCase {
         store.prune(now: 100_100)
         var restored = try JSONDecoder().decode(UsageStatsStore.self, from: JSONEncoder().encode(store))
         XCTAssertFalse(restored.add(event("x", 100_000)), "key survives the restart")
+        restored.completeScan(at: 100_000 + 7 * 3600)
         restored.prune(now: 100_000 + 7 * 3600)
         XCTAssertFalse(restored.add(event("old", 100_050)), "older than six hours is treated as already counted")
         XCTAssertTrue(restored.add(event("new", 100_000 + 7 * 3600 + 1)))
         XCTAssertEqual(restored.tokenTotals(since: 0, now: 200_000)["codex"]?.total, 300)
+    }
+
+    func testSavingAfterDowntimeKeepsUnscannedHistoryAcceptable() throws {
+        let before = 1_000_000.0, now = before + 24 * 3600
+        var store = UsageStatsStore()
+        store.finishBackfill(at: before)
+        store.add(event("already", before - 60))
+        store.prune(now: before)
+        var restored = try JSONDecoder().decode(UsageStatsStore.self, from: JSONEncoder().encode(store))
+        restored.prune(now: now) // quota/UI saves must not move log coverage
+        XCTAssertLessThanOrEqual(restored.scanStart(now: now), before)
+        XCTAssertTrue(restored.add(event("offline", before + 3600)))
+        XCTAssertFalse(restored.add(event("already", before - 60)))
+        restored.completeScan(at: now)
+        restored.prune(now: now)
+        let saved = try JSONDecoder().decode(UsageStatsStore.self, from: JSONEncoder().encode(restored))
+        XCTAssertEqual(saved.lastScanAt, now)
+        XCTAssertEqual(saved.tokenTotals(since: before - 3600, now: now)["codex"]?.total, 200)
     }
 
     func testQuotaSamplingAndConsumptionAcrossReset() {

@@ -102,6 +102,46 @@ final class AgentTokenLedgerTests: XCTestCase {
         XCTAssertTrue(scanner.scan(windowStart: 0).isEmpty)
     }
 
+    func testCancelledScanDiscardsPartialFileAndCanRetryWithoutLosingEvents() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let line = claudeLine("2026-10-15T03:00:00Z", id: "cancel", input: 1, read: 0, write: 0, output: 2)
+        try String(repeating: line + "\n", count: 100).write(to: root.appendingPathComponent("session.jsonl"), atomically: true, encoding: .utf8)
+        var cancel = false, allowCompletion = false, parsed = 0
+        let source = AgentLogScanner.Source(provider: "claude", root: root, parse: { text in
+            parsed += 1
+            if !allowCompletion { cancel = true }
+            return AgentLogParser.claudeEvent(text)
+        })
+        let scanner = AgentLogScanner(sources: [source], isCancelled: { cancel })
+        XCTAssertTrue(scanner.scan(windowStart: 0).isEmpty)
+        XCTAssertEqual(parsed, 1, "cancellation is checked between log lines")
+        cancel = false; allowCompletion = true
+        XCTAssertEqual(scanner.scan(windowStart: 0).count, 100, "the cancelled read did not advance its offset")
+        XCTAssertTrue(scanner.scan(windowStart: 0).isEmpty)
+    }
+
+    func testCancelledBatchRewindsFilesAlreadyCompleted() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let line = claudeLine("2026-10-15T03:00:00Z", id: "batch", input: 1, read: 0, write: 0, output: 2)
+        for file in ["a.jsonl", "b.jsonl"] {
+            try (line + "\n").write(to: root.appendingPathComponent(file), atomically: true, encoding: .utf8)
+        }
+        var cancel = false, allowCompletion = false, parsed = 0
+        let source = AgentLogScanner.Source(provider: "claude", root: root, parse: { text in
+            parsed += 1
+            if parsed == 2 && !allowCompletion { cancel = true }
+            return AgentLogParser.claudeEvent(text)
+        })
+        let scanner = AgentLogScanner(sources: [source], isCancelled: { cancel })
+        XCTAssertTrue(scanner.scan(windowStart: 0).isEmpty)
+        cancel = false; allowCompletion = true
+        XCTAssertEqual(scanner.scan(windowStart: 0).count, 2)
+    }
+
     func testClaudeCodeUsageIsAttributedToTheAnsweringModelFamily() {
         XCTAssertEqual(AgentLogParser.providerForModel("claude-opus-5-5"), "claude")
         XCTAssertEqual(AgentLogParser.providerForModel("deepseek-chat"), "deepseek")

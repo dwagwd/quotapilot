@@ -253,8 +253,8 @@ export const HIT_KEEP_DAYS = 8;
 export const ROLLUP_KEEP_DAYS = 400;
 // A finished day is rolled up only this long after its UTC midnight end, so late hits are in the listing.
 export const ROLLUP_GRACE_MS = 5 * 60 * 1000;
-// Visitor hashes kept in a data center's today entry. A repeat visitor found there is counted in the entry only (no KV
-// write), so KV writes scale with distinct visitors, not requests.
+// Visitor hashes kept in a data center's today entry for approximate live unique counts.
+// Every accepted view has a durable hit key, including repeat visitors.
 export const VISIT_SEEN_MAX = 2000;
 
 // Seconds until the next UTC midnight (at least 60). Today's counter entry lives that long; its freshness for the
@@ -283,7 +283,7 @@ async function dayHits(kv, day) {
 // The stats path never lists when an entry exists: it serves the running counter, which is approximate until the day's
 // rollup (hits accepted by other data centers show up at the next relisting). The hit path relists after every
 // VISIT_RECHECK_EVERY accepted hits (unless already capped) to re-check the global cap. Both list when there is no entry.
-const countUrl = (day) => "https://visit-count.internal/v3/" + day;
+const countUrl = (day) => "https://visit-count.internal/v4/" + day;
 async function readEntry(day) {
   const cache = globalThis.caches?.default;
   if (!cache) return null;
@@ -293,7 +293,7 @@ async function readEntry(day) {
     const c = await cached.json();
     if (c && typeof c.views === "number") {
       const seen = Array.isArray(c.seen) ? c.seen : [];
-      return { views: c.views, visitors: Number(c.visitors) || seen.length, seen, capped: !!c.capped, extra: Number(c.extra) || 0, sinceList: Number(c.sinceList) || 0, at: Number(c.at) || 0 };
+      return { views: c.views, visitors: Number(c.visitors) || seen.length, seen, capped: !!c.capped, sinceList: Number(c.sinceList) || 0, at: Number(c.at) || 0 };
     }
   } catch { /* fall through to a fresh listing */ }
   return null;
@@ -306,9 +306,7 @@ async function todayCounts(kv, day, forHit = false) {
   const entry = await readEntry(day);
   if (entry && !(forHit && !entry.capped && entry.sinceList >= VISIT_RECHECK_EVERY)) return entry;
   const hits = await dayHits(kv, day);
-  // `extra` counts views of already-recorded visitors that wrote no key; they are not in the listing, so they are carried over.
-  const extra = entry?.extra || 0;
-  const fresh = { views: hits.views + extra, visitors: hits.visitors, seen: hits.seen.slice(0, VISIT_SEEN_MAX), capped: hits.capped, extra, sinceList: 0, at: Date.now() };
+  const fresh = { views: hits.views, visitors: hits.visitors, seen: hits.seen.slice(0, VISIT_SEEN_MAX), capped: hits.capped, sinceList: 0, at: Date.now() };
   await putEntry(day, fresh);
   return fresh;
 }
@@ -319,27 +317,16 @@ async function noteHit(day, entry, visitor) {
   const isNew = !entry.seen.includes(visitor);
   const seen = isNew && entry.seen.length < VISIT_SEEN_MAX ? [...entry.seen, visitor] : entry.seen;
   const views = entry.views + 1;
-  await putEntry(day, { views, visitors: entry.visitors + (isNew ? 1 : 0), seen, extra: entry.extra, capped: views - entry.extra >= VISIT_WRITE_CAP, sinceList: entry.sinceList + 1, at: entry.at });
-}
-
-// A repeat visit from a visitor already in the entry: counted as a view in the cached entry only, no KV write, and it
-// does not count toward the write cap or the relisting interval.
-async function noteRepeat(day, entry) {
-  await putEntry(day, { ...entry, views: entry.views + 1, extra: entry.extra + 1 });
+  await putEntry(day, { views, visitors: entry.visitors + (isNew ? 1 : 0), seen, capped: views >= VISIT_WRITE_CAP, sinceList: entry.sinceList + 1, at: entry.at });
 }
 
 async function hit(request, env) {
   const day = new Date().toISOString().slice(0, 10);
   const counts = await todayCounts(env.REPORTS, day, true);
-  if (counts.capped || counts.views - counts.extra >= VISIT_WRITE_CAP) return json(request, 200, { ok: true, capped: true });
+  if (counts.capped || counts.views >= VISIT_WRITE_CAP) return json(request, 200, { ok: true, capped: true });
   const ip = request.headers.get("CF-Connecting-IP") || "unknown";
   // The user agent is left out on purpose: it is chosen by the client, so varying it could inflate visitors.
   const visitor = (await hmac(env.SALT, "visit:" + ip + ":" + day)).slice(0, 12);
-  // Without the Cache API a view could not be recorded anywhere but KV, so this shortcut needs the cache.
-  if (globalThis.caches?.default && counts.seen.includes(visitor)) {
-    await noteRepeat(day, counts);
-    return json(request, 200, { ok: true });
-  }
   await env.REPORTS.put("hit:" + day + ":" + visitor + ":" + crypto.randomUUID(), "", { expirationTtl: HIT_KEEP_DAYS * 86400 });
   await noteHit(day, counts, visitor);
   return json(request, 200, { ok: true });

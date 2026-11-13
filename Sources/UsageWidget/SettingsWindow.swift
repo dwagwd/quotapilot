@@ -25,6 +25,7 @@ final class SettingsWindowController: NSWindowController {
     private let autoContinue = NSButton(checkboxWithTitle: "", target: nil, action: nil)
     private let agentLogs = NSButton(checkboxWithTitle: "", target: nil, action: nil)
     private let openAtLogin = NSButton(checkboxWithTitle: "", target: nil, action: nil)
+    private let claudePlan = NSButton(checkboxWithTitle: "", target: nil, action: nil)
     private let autoConnect = NSButton(checkboxWithTitle: "", target: nil, action: nil)
     private var quotaChecks: [(String, NSButton)] = []
     private var rgbFields: [NSTextField] = []
@@ -43,7 +44,7 @@ final class SettingsWindowController: NSWindowController {
         window.isReleasedWhenClosed = false
         window.level = .floating
         window.center()
-        let view = NSView(frame: NSRect(x: 0, y: 0, width: 440, height: 1056))
+        let view = NSView(frame: NSRect(x: 0, y: 0, width: 440, height: 1090))
         let formScroll = NSScrollView(frame: window.contentLayoutRect)
         formScroll.hasVerticalScroller = true; formScroll.hasHorizontalScroller = true; formScroll.autohidesScrollers = true
         formScroll.allowsMagnification = true; formScroll.minMagnification = 0.6; formScroll.maxMagnification = 2.0
@@ -204,6 +205,13 @@ final class SettingsWindowController: NSWindowController {
             button.frame = NSRect(x: 18 + CGFloat(index) * 136, y: 50, width: 132, height: 30)
             view.addSubview(button)
         }
+        // Keep saved-login access visible alongside the other collection choices.
+        for control in view.subviews where control.frame.minY >= 148 { control.frame.origin.y += 30 }
+        claudePlan.title = l.text("consentClaudePlan")
+        claudePlan.toolTip = l.text("consentClaudePlanNote")
+        claudePlan.state = settings.claudePlanEnabled ? .on : .off
+        claudePlan.frame = NSRect(x: 22, y: 150, width: 396, height: 24)
+        view.addSubview(claudePlan)
     }
     required init?(coder: NSCoder) { fatalError("Not used") }
     private var scrollView: NSScrollView?
@@ -254,6 +262,7 @@ final class SettingsWindowController: NSWindowController {
         next.autoContinueEnabled = autoContinue.state == .on
         next.agentLogsEnabled = agentLogs.state == .on
         next.autoConnectEnabled = autoConnect.state == .on
+        next.claudePlanEnabled = claudePlan.state == .on
         next.cardStyle = CardStyle.allCases[styleMenu.indexOfSelectedItem]
         next.quotaSort = QuotaSort.allCases[sortMenu.indexOfSelectedItem]
         next.systemFields = systemBoxes.filter { $0.state == .on }.compactMap { $0.identifier?.rawValue }

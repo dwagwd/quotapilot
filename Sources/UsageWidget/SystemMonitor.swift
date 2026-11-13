@@ -1,5 +1,6 @@
 import Foundation
 import IOKit
+import UsageCore
 
 /// CPU, GPU, temperature, memory and disk readings for the optional system line on the card.
 /// Everything is read without elevated privileges: Mach host statistics, IOKit accelerator statistics,
@@ -14,9 +15,16 @@ struct SystemSnapshot {
 
 final class SystemMonitor {
     private var previousTicks: [UInt32]?
+    private lazy var temperatureClient = HIDSensors.create()
 
-    func sample() -> SystemSnapshot {
-        SystemSnapshot(cpuPercent: cpu(), gpuPercent: gpu(), temperatureC: temperature(), memoryPercent: memory(), diskPercent: disk())
+    func sample(fields: Set<SystemField>) -> SystemSnapshot {
+        // Opening GPU and temperature services is unnecessary when only CPU or memory is shown.
+        if !fields.contains(.cpu) { previousTicks = nil }
+        return SystemSnapshot(cpuPercent: fields.contains(.cpu) ? cpu() : nil,
+                              gpuPercent: fields.contains(.gpu) ? gpu() : nil,
+                              temperatureC: fields.contains(.temperature) ? temperature() : nil,
+                              memoryPercent: fields.contains(.memory) ? memory() : nil,
+                              diskPercent: fields.contains(.disk) ? disk() : nil)
     }
 
     /// Busy share of all cores since the previous sample (user + system + nice).
@@ -63,7 +71,7 @@ final class SystemMonitor {
 
     /// Hottest die sensor reported through IOHID (Apple silicon); nil when no sensor is readable.
     private func temperature() -> Double? {
-        guard let client = HIDSensors.create() else { return nil }
+        guard let client = temperatureClient else { return nil }
         return HIDSensors.maxTemperature(client)
     }
 

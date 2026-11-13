@@ -103,7 +103,9 @@ func fetchClaudeWindows() -> (windows: [WindowItem], error: String?) {
     request.setValue("application/json", forHTTPHeaderField: "Accept")
     let done = DispatchSemaphore(value: 0)
     var body: Data?, status = 0
-    URLSession.shared.dataTask(with: request) { data, response, _ in
+    // Older versions cached this request, token included, in ~/Library/Caches/QuotaPilot/Cache.db.
+    SecretSession.purgeSharedCache()
+    SecretSession.shared.dataTask(with: request) { data, response, _ in
         body = data; status = (response as? HTTPURLResponse)?.statusCode ?? 0; done.signal()
     }.resume()
     _ = done.wait(timeout: .now() + 25)

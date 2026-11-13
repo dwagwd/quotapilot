@@ -383,6 +383,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
+        // Versions before 0.6.8 sent the Claude and DeepSeek requests through URLSession.shared, which stored them
+        // (Authorization header included) in Cache.db. Clear that once per launch; nothing else uses the shared cache.
+        SecretSession.purgeSharedCache()
         collapsed = defaults.bool(forKey: "collapsed")
         pinned = defaults.object(forKey: "pinned") as? Bool ?? true
         selectedID = defaults.string(forKey: "selectedWindow")
@@ -1123,7 +1126,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
         var request = URLRequest(url: DeepSeekBalance.endpoint, timeoutInterval: 20)
         request.setValue("Bearer " + key, forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Accept")
-        URLSession.shared.dataTask(with: request) { [weak self] data, response, _ in
+        SecretSession.shared.dataTask(with: request) { [weak self] data, response, _ in
             let ok = (response as? HTTPURLResponse).map { (200..<300).contains($0.statusCode) } ?? false
             let parsed = ok ? data.flatMap(DeepSeekBalance.parse) : nil
             DispatchQueue.main.async {
@@ -1275,7 +1278,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
         request.setValue("Bearer " + login.token, forHTTPHeaderField: "Authorization")
         request.setValue(ClaudePlanUsage.betaHeader, forHTTPHeaderField: "anthropic-beta")
         request.setValue("application/json", forHTTPHeaderField: "Accept")
-        URLSession.shared.dataTask(with: request) { [weak self] body, response, _ in
+        SecretSession.shared.dataTask(with: request) { [weak self] body, response, _ in
             let status = (response as? HTTPURLResponse)?.statusCode ?? 0
             let snapshot = (200..<300).contains(status) ? body.flatMap { ClaudePlanUsage.snapshot(from: $0, plan: login.plan, account: ClaudePlanUsage.localAccountID(home: FileManager.default.homeDirectoryForCurrentUser), now: Date().timeIntervalSince1970) } : nil
             DispatchQueue.main.async {

@@ -700,3 +700,13 @@ test("random install ids cost no storage scan and are limited per network before
   // another network is not affected
   assert.equal((await worker.fetch(forget(ids[0], "88.1.2.3"), e)).status, 200);
 });
+
+test("only public model families are stored; private or locally named models are dropped", async () => {
+  const { sanitize } = await import("../schema.js");
+  for (const model of ["claude-opus-5-5", "gpt-6-1-sol", "gemini-4-argon", "grok-4-7", "o4-mini", "deepseek-chat"]) {
+    assert.equal(sanitize({ type: "speed", model }).model, model);
+  }
+  for (const model of ["acme-internal-assistant", "my-project-finetune", "llama-local", "x", "claude", "GPT-6"]) {
+    assert.equal(sanitize({ type: "speed", model }).model, undefined, model);
+  }
+});

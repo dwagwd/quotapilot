@@ -11,7 +11,9 @@ const tokens = range(0, 1e12);
 
 export const RULES = {
   type: enumOf(...TYPES),
-  model: pattern(/^[a-z0-9][a-z0-9.-]{0,59}$/),
+  // Public model families only (the same list as ContributionReport.publicModelPrefixes in the app): a private
+  // deployment or locally named model, which could carry a company or project name, is never stored.
+  model: pattern(/^(?:(?:gpt|codex|claude|gemini|grok|deepseek|kimi|glm|qwen)-|o[0-9])[a-z0-9.-]{0,56}$/),
   provider: enumOf("chatgpt", "claude", "gemini", "grok"),
   plan: pattern(/^[A-Za-z0-9][A-Za-z0-9 ().+-]{0,29}$/),
   window: enumOf("5h", "weekly"),

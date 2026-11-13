@@ -8,6 +8,13 @@ final class ContributionReportTests: XCTestCase {
         XCTAssertEqual(ContributionReport.siteModelID("Claude-Sonnet-5-5"), "claude-sonnet-5-5")
         XCTAssertNil(ContributionReport.siteModelID("../home/secret"))
         XCTAssertNil(ContributionReport.siteModelID(nil))
+        // Private or locally named models are never shared, even when their name looks harmless.
+        XCTAssertNil(ContributionReport.siteModelID("acme-internal-assistant"))
+        XCTAssertNil(ContributionReport.siteModelID("my-project-finetune"))
+        XCTAssertNil(ContributionReport.siteModelID("ft:gpt-6:acme::abc123"))
+        XCTAssertEqual(ContributionReport.siteModelID("grok-4.7"), "grok-4-7")
+        XCTAssertEqual(ContributionReport.siteModelID("o4-mini"), "o4-mini")
+        XCTAssertEqual(ContributionReport.siteModelID("deepseek-chat"), "deepseek-chat")
     }
 
     func testSpeedNeedsThreeCallsAndCarriesNoKeys() {
@@ -65,7 +72,7 @@ final class ContributionReportTests: XCTestCase {
     func testClaudeCodeLogsStayClaudeCodeAndReportsAreCapped() {
         let viaClaude = (0..<3).map { OutputSpeedSample(provider: "gemini", timestamp: Double($0), outputTokens: 100, reasoningTokens: 0, seconds: 2, key: "claude|m\($0)", model: "gemini-4-argon") }
         XCTAssertEqual(ContributionReport.build(speed: viaClaude, windows: [], now: 0).first?["client"] as? String, "Claude Code")
-        let many = (0..<40).flatMap { m in (0..<3).map { OutputSpeedSample(provider: "codex", timestamp: Double($0), outputTokens: 100, reasoningTokens: 0, seconds: 2, key: "codex|\(m)-\($0)", model: "model-\(m)") } }
+        let many = (0..<40).flatMap { m in (0..<3).map { OutputSpeedSample(provider: "codex", timestamp: Double($0), outputTokens: 100, reasoningTokens: 0, seconds: 2, key: "codex|\(m)-\($0)", model: "gpt-test-\(m)") } }
         XCTAssertEqual(ContributionReport.build(speed: many, windows: [], now: 0).count, ContributionReport.maximumReports)
     }
 

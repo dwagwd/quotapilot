@@ -138,6 +138,17 @@ public enum ShareSubmitter {
         try? fm.setAttributes([.posixPermissions: 0o600], ofItemAtPath: file.path)
     }
 
+    /// A session for the collector that carries nothing about this computer beyond the request itself: no cookies,
+    /// no cache, no credentials, and fixed User-Agent and Accept-Language headers instead of the system's
+    /// (which would reveal the OS build and the interface language).
+    static let privateSession: URLSession = {
+        let config = URLSessionConfiguration.ephemeral
+        config.httpCookieStorage = nil; config.httpShouldSetCookies = false
+        config.urlCredentialStorage = nil; config.urlCache = nil
+        config.httpAdditionalHeaders = ["User-Agent": "QuotaPilot", "Accept-Language": "en", "Accept": "application/json"]
+        return URLSession(configuration: config)
+    }()
+
     public static func anonymousBody(reports: [[String: Any]], install: String) -> Data? {
         try? JSONSerialization.data(withJSONObject: ["install": install, "reports": reports])
     }
@@ -152,7 +163,7 @@ public enum ShareSubmitter {
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         let done = DispatchSemaphore(value: 0)
         var result: Result<Int, Error> = .failure(NSError(domain: "ShareSubmitter", code: -2, userInfo: [NSLocalizedDescriptionKey: "No response from the collector."]))
-        URLSession.shared.dataTask(with: request) { data, response, error in
+        privateSession.dataTask(with: request) { data, response, error in
             let status = (response as? HTTPURLResponse)?.statusCode ?? 0
             if status == 200, let data, let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
                 result = .success((object["accepted"] as? Int) ?? 0)
@@ -176,7 +187,7 @@ public enum ShareSubmitter {
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         let done = DispatchSemaphore(value: 0)
         var result: Result<Int, Error> = .failure(NSError(domain: "ShareSubmitter", code: -2, userInfo: [NSLocalizedDescriptionKey: "No response from the collector."]))
-        URLSession.shared.dataTask(with: request) { data, response, error in
+        privateSession.dataTask(with: request) { data, response, error in
             let status = (response as? HTTPURLResponse)?.statusCode ?? 0
             let object = data.flatMap { try? JSONSerialization.jsonObject(with: $0) as? [String: Any] }
             if status == 200 { result = .success((object?["deleted"] as? Int) ?? 0) }

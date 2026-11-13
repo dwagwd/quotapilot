@@ -7,14 +7,9 @@
 class Quotapilot < Formula
   desc "Desktop card and CLI for Codex and Claude Code plan quota, tokens and resets"
   homepage "https://aiquotawatch.pages.dev/"
-  url "https://github.com/dwagwd/quotapilot.git", tag: "v0.6.6", revision: "d14ce68583a1662a6daf3fe7b9f9d8e1eac0e8c9"
+  url "https://github.com/dwagwd/quotapilot.git", tag: "v0.6.7", revision: "0000000000000000000000000000000000000000"
   license "MIT"
   head "https://github.com/dwagwd/quotapilot.git", branch: "main"
-
-  bottle do
-    root_url "https://github.com/dwagwd/quotapilot/releases/download/v0.6.6"
-    sha256 cellar: :any_skip_relocation, arm64_sequoia: "03bb071f2e274a8a6a76c476846532c8424d669eead0452a4539e055aca92f39"
-  end
 
   depends_on macos: :ventura
 
@@ -30,10 +25,10 @@ class Quotapilot < Formula
 
   def caveats
     <<~EOS
-      Start the desktop card:
-        open #{opt_prefix}/QuotaPilot.app
-      To find it in Spotlight and Launchpad, link it into Applications:
-        ln -sf #{opt_prefix}/QuotaPilot.app ~/Applications/QuotaPilot.app
+      Start the menu bar app:
+        quotapilot open
+      To also find it in Spotlight and Launchpad:
+        quotapilot open --link
       Update later with:
         brew upgrade quotapilot
     EOS

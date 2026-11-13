@@ -26,7 +26,7 @@ public enum ContributionReport {
         }
     }
 
-    /// Model ids in the site's form: lower case, dots to dashes, no `[1m]` or date suffix.
+    /// Model ids in the site's form: lower case, dots to dashes, no `[1m]` or date suffix; nil for anything that is not a public model family.
     /// `gpt-6.1-sol` → `gpt-6-1-sol`, `claude-opus-5-5-20261001[1m]` → `claude-opus-5-5`.
     public static func siteModelID(_ raw: String?) -> String? {
         guard var id = raw?.lowercased().trimmingCharacters(in: .whitespaces), !id.isEmpty else { return nil }
@@ -35,7 +35,16 @@ public enum ContributionReport {
         if let range = id.range(of: #"-20\d{6}$"#, options: .regularExpression) { id.removeSubrange(range) }
         let allowed = Set("abcdefghijklmnopqrstuvwxyz0123456789-")
         guard id.allSatisfy({ allowed.contains($0) }), id.count <= 60 else { return nil }
+        // Only public model families are shared. A private deployment or a locally named model (which could carry a
+        // company or project name) never leaves the computer; the collector applies the same rule.
+        guard isPublicModelFamily(id) else { return nil }
         return id
+    }
+
+    /// Public model families the statistics cover. Kept in step with `collector/schema.js`.
+    public static let publicModelPrefixes = ["gpt-", "codex-", "claude-", "gemini-", "grok-", "deepseek-", "kimi-", "glm-", "qwen-"]
+    static func isPublicModelFamily(_ id: String) -> Bool {
+        publicModelPrefixes.contains { id.hasPrefix($0) } || id.range(of: #"^o[0-9]"#, options: .regularExpression) != nil
     }
 
     public static func siteProvider(_ provider: String) -> String? {

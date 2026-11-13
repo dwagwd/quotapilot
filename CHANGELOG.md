@@ -1,7 +1,8 @@
 # Changelog
 
-## Unreleased
+## 0.6.7
 
+- Sharing privacy: a report names a model only when it belongs to a public family; private deployments and locally named models are left out on your computer and refused by the collector. The request no longer carries the system's user agent or interface language.
 - `quotapilot open` starts the menu bar app from the terminal after a Homebrew install; `quotapilot open --link` also adds it to `~/Applications` so Spotlight finds it.
 - Menu bar: items are grouped (card, everyday windows, tasks and records, anonymous sharing, updates), and a new **About QuotaPilot** submenu links the website, the GitHub page and the issue form.
 - After sharing, the app and `quotapilot share` point to the community numbers on AI Quota Watch.

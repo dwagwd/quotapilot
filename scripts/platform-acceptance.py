@@ -71,7 +71,7 @@ def plant_logs(home):
         lines.append({"type": "user", "timestamp": iso(t), "message": {"role": "user", "content": SECRET_PROMPT}})
         lines.append({"type": "assistant", "timestamp": iso(t + timedelta(seconds=10)), "effort": "high",
                       "message": {"id": f"m{i}", "model": model, "usage": {"input_tokens": 1200, "output_tokens": 800, "cache_read_input_tokens": 5000}}})
-    (claude / "acceptance.jsonl").write_text("\n".join(json.dumps(x) for x in lines) + "\n", encoding="utf-8")
+    (claude / "acceptance.jsonl").write_text("\n".join(json.dumps(x, separators=(",", ":")) for x in lines) + "\n", encoding="utf-8")
     codex = home / ".codex" / "sessions" / now.strftime("%Y") / now.strftime("%m") / now.strftime("%d")
     codex.mkdir(parents=True, exist_ok=True)
     lines = [{"timestamp": iso(now), "type": "session_meta", "payload": {"id": "acceptance", "cwd": "/work/" + SECRET_PROJECT}},
@@ -81,7 +81,7 @@ def plant_logs(home):
         lines.append({"timestamp": iso(t), "type": "response_item", "payload": {"type": "custom_tool_call_output", "output": SECRET_PROMPT}})
         lines.append({"timestamp": iso(t + timedelta(seconds=8)), "type": "token_usage_record",
                       "payload": {"response_id": f"resp_{i}", "usage": {"input_tokens": 900, "output_tokens": 400, "reasoning_output_tokens": 100}}})
-    (codex / "rollout-acceptance.jsonl").write_text("\n".join(json.dumps(x) for x in lines) + "\n", encoding="utf-8")
+    (codex / "rollout-acceptance.jsonl").write_text("\n".join(json.dumps(x, separators=(",", ":")) for x in lines) + "\n", encoding="utf-8")
 
 
 class Capture(http.server.BaseHTTPRequestHandler):
@@ -168,7 +168,14 @@ def main():
     home = pathlib.Path.home()
     in_ci = os.environ.get("CI") == "true"
     if in_ci:
-        plant_logs(home)
+        # Logs are written compactly, as the agents write them. Swift on Linux takes the home folder from the user
+        # database, which in a CI container can differ from $HOME, so both get the logs.
+        homes = {home}
+        if os.name != "nt":
+            import pwd
+            homes.add(pathlib.Path(pwd.getpwuid(os.getuid()).pw_dir))
+        for folder in homes:
+            plant_logs(folder)
     server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), Capture)
     threading.Thread(target=server.serve_forever, daemon=True).start()
     env = dict(os.environ, QUOTAPILOT_COLLECTOR_URL=f"http://127.0.0.1:{server.server_address[1]}")

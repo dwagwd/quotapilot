@@ -141,7 +141,7 @@ public enum ShareSubmitter {
     /// A session for the collector that carries nothing about this computer beyond the request itself: no cookies,
     /// no cache, no credentials, and fixed User-Agent and Accept-Language headers instead of the system's
     /// (which would reveal the OS build and the interface language).
-    static let privateSession: URLSession = {
+    public static let privateSession: URLSession = {
         let config = URLSessionConfiguration.ephemeral
         config.httpCookieStorage = nil; config.httpShouldSetCookies = false
         config.urlCredentialStorage = nil; config.urlCache = nil

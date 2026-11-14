@@ -8,6 +8,12 @@ final class StatsModel: ObservableObject {
     @Published var store = UsageStatsStore()
     @Published var language: WidgetLanguage = .system
     @Published var backfilling = false
+    enum ComparisonState { case idle, loading, loaded, failed }
+    @Published var comparisonState: ComparisonState = .idle
+    @Published var comparison: [CommunityComparison.Line] = []
+    @Published var communityPeople = 0
+    @Published var communityMinPeople = 3
+    @Published var sharing = false
 }
 
 enum StatsRange: String, CaseIterable, Identifiable {
@@ -36,6 +42,7 @@ struct StatsView: View {
                 tokenSection(since: since, now: now)
                 speedSection(since: since, now: now)
                 quotaSection(since: since)
+                communitySection
             }.padding(14)
         }
         .frame(minWidth: 560, minHeight: 620)
@@ -140,6 +147,37 @@ struct StatsView: View {
                 quotaChart(since: since).frame(height: 180)
                 Text(l.text("statsQuotaHelp")).font(.caption2).foregroundStyle(.secondary)
             }.padding(4)
+        }
+    }
+
+    /// This Mac next to the published community medians (rows with 3 or more people), and why sharing matters.
+    private var communitySection: some View {
+        GroupBox(l.text("communityCompare")) {
+            VStack(alignment: .leading, spacing: 6) {
+                switch model.comparisonState {
+                case .idle, .loading:
+                    Text(l.text("communityLoading")).font(.caption).foregroundStyle(.secondary)
+                case .failed:
+                    Text(l.text("communityFailed")).font(.caption).foregroundStyle(.secondary)
+                case .loaded where model.comparison.isEmpty:
+                    Text(String(format: l.text("communityNone"), model.communityMinPeople, model.communityPeople)).font(.caption)
+                case .loaded:
+                    ForEach(Array(model.comparison.enumerated()), id: \.offset) { _, line in comparisonLine(line) }
+                }
+                Text(l.text(model.sharing ? "communityThanks" : "communityInvite")).font(.caption2).foregroundStyle(.secondary)
+            }.padding(4).frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+
+    private func comparisonLine(_ line: CommunityComparison.Line) -> some View {
+        let percent = Int((abs(line.ratio - 1) * 100).rounded())
+        let speed = line.kind == .speed
+        let value = { (v: Double) in speed ? self.l.number(v, decimals: 0) + " tok/s" : self.l.compact(v) }
+        let key = percent < 5 ? "communitySame" : speed ? (line.ratio > 1 ? "communityFaster" : "communitySlower") : (line.ratio > 1 ? "communityMore" : "communityFewer")
+        let verdict = String(format: l.text(key), percent)
+        return VStack(alignment: .leading, spacing: 1) {
+            Text(line.subject + "  ·  " + verdict).font(.caption.weight(.semibold))
+            Text(String(format: l.text("communityDetail"), value(line.mine), value(line.median), line.people)).font(.caption2).foregroundStyle(.secondary)
         }
     }
 

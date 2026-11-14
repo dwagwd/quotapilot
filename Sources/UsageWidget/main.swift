@@ -1113,6 +1113,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
     @objc private func showStats() {
         statsModel.store = statsStore
         statsModel.language = settings.language
+        statsModel.sharing = settings.autoShareEnabled
+        refreshCommunityComparison()
         if statsWindow == nil { statsWindow = StatsWindowController(model: statsModel, title: "QuotaPilot · " + l.text("usageStats").replacingOccurrences(of: "…", with: "")) }
         statsWindow?.present()
     }
@@ -2521,16 +2523,43 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
 
     /// Once a day, when the user turned it on: the same anonymous numbers `quotapilot share` previews,
     /// sent to the anonymous collector (no GitHub account involved).
-    private func autoShareIfDue() {
-        let now = Date().timeIntervalSince1970
-        guard settings.autoShareEnabled, AutoShareSchedule.isDue(lastAttempt: defaults.double(forKey: "lastAutoShare"), now: now) else { return }
+    /// The numbers a share would send right now (also what the statistics window compares with the community).
+    private func currentShareReports(now: Double, include: Set<ShareCategory>) -> [[String: Any]] {
         let ledger = agentLedger, tracker = modelTracker, seen = limitSightings
         let uses = ContributionReport.windowUses(items: items, tokensSince: { provider, start in
             ledger.summary(since: start, now: now)[provider] ?? TokenBreakdown()
         }, model: { tracker.current[$0]?.model }, limitSince: { id, reset in
             reset.flatMap { LimitSightings.lookup(seen, windowID: id, resetsAt: $0) }
         })
-        let reports = ContributionReport.build(speed: recentSpeed, windows: uses, now: now, include: settings.sharedCategories)
+        return ContributionReport.build(speed: recentSpeed, windows: uses, now: now, include: include)
+    }
+
+    /// Fetches the public community statistics at most every 6 hours while the statistics window is used, and lines
+    /// them up with this Mac's numbers. A download of a public file; nothing is sent.
+    private var lastCommunityFetch: Double = 0
+    private func refreshCommunityComparison() {
+        let now = Date().timeIntervalSince1970
+        guard now - lastCommunityFetch > 6 * 3600 else { return }
+        lastCommunityFetch = now
+        statsModel.comparisonState = .loading
+        let mine = currentShareReports(now: now, include: [.speed, .quota])
+        DispatchQueue.global(qos: .utility).async { [weak self] in
+            let published = CommunityComparison.fetch()
+            DispatchQueue.main.async {
+                guard let self else { return }
+                guard let published else { self.statsModel.comparisonState = .failed; self.lastCommunityFetch = 0; return }
+                self.statsModel.comparison = CommunityComparison.compare(mine: mine, with: published)
+                self.statsModel.communityPeople = published.people
+                self.statsModel.communityMinPeople = published.minPeople
+                self.statsModel.comparisonState = .loaded
+            }
+        }
+    }
+
+    private func autoShareIfDue() {
+        let now = Date().timeIntervalSince1970
+        guard settings.autoShareEnabled, AutoShareSchedule.isDue(lastAttempt: defaults.double(forKey: "lastAutoShare"), now: now) else { return }
+        let reports = currentShareReports(now: now, include: settings.sharedCategories)
         guard !reports.isEmpty else { return }
         defaults.set(now, forKey: "lastAutoShare")  // one attempt a day, even if it fails
         DispatchQueue.global(qos: .utility).async { [weak self] in

@@ -41,4 +41,28 @@ final class CommunityComparisonTests: XCTestCase {
         let empty = try XCTUnwrap(CommunityComparison.parse(Data(#"{"speed":[],"quota":[],"totals":{"reporters":1}}"#.utf8)))
         XCTAssertTrue(CommunityComparison.compare(mine: [["type": "speed", "model": "claude-opus-5-5", "outputTokens": 1.0, "seconds": 1.0]], with: empty).isEmpty)
     }
+
+    func testHostileNumbersNeitherTrapNorProduceAbsurdPercentages() throws {
+        let hostile = Data(#"""
+        {"minSamples":1e300,"totals":{"reporters":1e300},
+         "speed":[{"model":"claude-opus-5-5","n":1e300,"median":1e-300},{"model":"gpt-6-1-sol","n":-5,"median":1e-5}],
+         "quota":[{"provider":"claude","plan":"Max 5x","window":"weekly","n":1e300,"medianTokens":1e300}]}
+        """#.utf8)
+        let p = try XCTUnwrap(CommunityComparison.parse(hostile))
+        XCTAssertEqual(p.people, 1_000_000)
+        XCTAssertEqual(p.minPeople, 1_000_000)
+        XCTAssertEqual(p.speed.map(\.model), ["gpt-6-1-sol"], "a median below 1e-6 is ignored")
+        XCTAssertEqual(p.speed.first?.people, 0, "a negative count becomes 0")
+        XCTAssertEqual(p.quota.first?.people, 1_000_000)
+        let mine: [[String: Any]] = [
+            ["type": "speed", "model": "gpt-6-1-sol", "outputTokens": 1e12, "seconds": 1.0],
+            ["type": "quota", "provider": "claude", "plan": "Max 5x", "window": "weekly", "percentUsed": 50.0, "tokensUsed": 1.0]
+        ]
+        let lines = CommunityComparison.compare(mine: mine, with: p)
+        XCTAssertEqual(lines.count, 2)
+        XCTAssertEqual(lines[0].ratio, 1000, "the ratio is capped")
+        XCTAssertEqual(lines[0].percentDifference, 99_900)
+        XCTAssertEqual(lines[1].ratio, 0, accuracy: 1e-9)
+        for line in lines { XCTAssertFalse(CommunityComparison.describe(line).isEmpty) }
+    }
 }

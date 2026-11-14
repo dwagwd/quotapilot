@@ -8,6 +8,11 @@ import FoundationNetworking
 /// this computer's own numbers, computed the same way a share would compute them. Nothing is sent: it is a plain
 /// download of a public file, through the same cookie-free session the share uses.
 public enum CommunityComparison {
+    /// Limits for values read from the downloaded file.
+    static let maxPeople = 1_000_000.0
+    static let minimumMedian = 1e-6
+    static let maxRatio = 1000.0
+
     public static var statsURL: URL {
         URL(string: ProcessInfo.processInfo.environment["QUOTAPILOT_COMMUNITY_URL"] ?? "https://aiquotawatch.pages.dev/data/community.json")!
     }
@@ -42,18 +47,21 @@ public enum CommunityComparison {
     public static func parse(_ data: Data) -> Published? {
         guard let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return nil }
         func number(_ value: Any?) -> Double? { (value as? NSNumber).map(\.doubleValue).flatMap { $0.isFinite ? $0 : nil } }
+        // The file comes from the network: clamp counts before turning them into Int (a huge value would trap) and
+        // ignore medians too small to divide by.
+        func count(_ value: Any?) -> Int? { number(value).map { Int(min(max($0, 0), maxPeople).rounded(.down)) } }
         let speed = (object["speed"] as? [[String: Any]] ?? []).compactMap { row -> SpeedRow? in
-            guard let model = row["model"] as? String, let n = number(row["n"]), let median = number(row["median"]), median > 0 else { return nil }
-            return SpeedRow(model: model, people: Int(n), median: median, p25: number(row["p25"]), p75: number(row["p75"]))
+            guard let model = row["model"] as? String, let n = count(row["n"]), let median = number(row["median"]), median >= minimumMedian else { return nil }
+            return SpeedRow(model: model, people: n, median: median, p25: number(row["p25"]), p75: number(row["p75"]))
         }
         let quota = (object["quota"] as? [[String: Any]] ?? []).compactMap { row -> QuotaRow? in
             guard let provider = row["provider"] as? String, let plan = row["plan"] as? String, let window = row["window"] as? String,
-                  let n = number(row["n"]), let tokens = number(row["medianTokens"]), tokens > 0 else { return nil }
-            return QuotaRow(provider: provider, plan: plan, window: window, people: Int(n), medianTokens: tokens)
+                  let n = count(row["n"]), let tokens = number(row["medianTokens"]), tokens >= minimumMedian else { return nil }
+            return QuotaRow(provider: provider, plan: plan, window: window, people: n, medianTokens: tokens)
         }
         let totals = object["totals"] as? [String: Any]
-        return Published(generated: object["generated"] as? String, people: Int(number(totals?["reporters"]) ?? 0),
-                         minPeople: Int(number(object["minSamples"]) ?? 3), speed: speed, quota: quota)
+        return Published(generated: object["generated"] as? String, people: count(totals?["reporters"]) ?? 0,
+                         minPeople: max(1, count(object["minSamples"]) ?? 3), speed: speed, quota: quota)
     }
 
     /// One line of the comparison, ready to show.
@@ -66,7 +74,9 @@ public enum CommunityComparison {
         public let median: Double
         public let people: Int
         /// mine / median: 1.2 means 20% more than the typical person.
-        public var ratio: Double { median > 0 ? mine / median : 0 }
+        public var ratio: Double { median > 0 ? min(max(mine / median, 0), CommunityComparison.maxRatio) : 0 }
+        /// The difference from the median in whole percent, 0 to 100,000 (ratio is clamped, so this never traps).
+        public var percentDifference: Int { Int((abs(ratio - 1) * 100).rounded()) }
     }
 
     /// Lines up this computer's numbers (the same report dictionaries a share would send) with the published rows.
@@ -112,7 +122,7 @@ public enum CommunityComparison {
 
     /// "12% faster than the median of 5 people", in plain words, English only for the CLI.
     public static func describe(_ line: Line) -> String {
-        let percent = Int((abs(line.ratio - 1) * 100).rounded())
+        let percent = line.percentDifference
         let thing = line.kind == .speed ? "output speed" : "tokens per full window"
         let mine = line.kind == .speed ? String(format: "%.0f tok/s", line.mine) : compact(line.mine) + " tokens"
         let median = line.kind == .speed ? String(format: "%.0f tok/s", line.median) : compact(line.median) + " tokens"

@@ -170,7 +170,7 @@ struct StatsView: View {
     }
 
     private func comparisonLine(_ line: CommunityComparison.Line) -> some View {
-        let percent = Int((abs(line.ratio - 1) * 100).rounded())
+        let percent = line.percentDifference
         let speed = line.kind == .speed
         let value = { (v: Double) in speed ? self.l.number(v, decimals: 0) + " tok/s" : self.l.compact(v) }
         let key = percent < 5 ? "communitySame" : speed ? (line.ratio > 1 ? "communityFaster" : "communitySlower") : (line.ratio > 1 ? "communityMore" : "communityFewer")

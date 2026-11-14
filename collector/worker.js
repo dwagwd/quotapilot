@@ -1,4 +1,5 @@
-// AI Quota Watch anonymous collector (Cloudflare Worker).
+// AI Quota Watch anonymous collector (Cloudflare Worker). Storage: D1 through collector/d1store.js when the DB binding
+// exists, otherwise Workers KV (REPORTS). The comments below say "KV" for either.
 // POST /v1/report  {install, reports[]}  -> stores sanitized reports under an anonymous reporter id.
 // GET  /v1/export  (Bearer EXPORT_TOKEN) -> every stored report, for the GitHub Action that builds the stats.
 // POST /v1/forget  {install}            -> deletes every report this install sent (right to erasure).
@@ -12,6 +13,7 @@
 // The aggregation step uses them to discount brand-new reporters and reporters sharing a network on the same day.
 
 import { sanitize, hourOf } from "./schema.js";
+import { storeFor } from "./d1store.js";
 export { sanitize };
 // KV write budget (Cloudflare free plan: 1,000 writes a day per account; deletes count as writes), by worst case per class:
 //   known reporter batch (rl:day:known, rl:in, r:)                      3 writes x 40 batches = 120
@@ -26,6 +28,8 @@ export const LIMITS = { bodyBytes: 20000, reports: 30, perInstallPerDay: 3, perI
   newBatchesPerDay: 15, knownBatchesPerDay: 40, forgetsPerDay: 5, slackWrites: 160 };
 // Old-format report keys (r:<day>:...) are no longer written and expire within 31 days of this change, so /v1/forget
 // walks them only until this day.
+// The store can raise the daily caps that exist only because of the KV write budget (collector/d1store.js does, for D1).
+const budget = (kv, name) => (kv && kv.budget && kv.budget[name]) || (name === "visitWriteCap" ? VISIT_WRITE_CAP : LIMITS[name]);
 export const LEGACY_KEYS_UNTIL = "2026-12-08";
 const ALLOWED_ORIGINS = ["https://aiquotawatch.pages.dev", "https://dwagwd.github.io", "http://127.0.0.1:8765", "http://localhost:8765"];
 // The allowed origins that are websites (not a local dev server): only requests that ask to be "site" from these (or that
@@ -139,7 +143,7 @@ async function report(request, env) {
   // checked before anything is written. The counter is incremented below, only once the batch has passed every other limit.
   const dayKey = "rl:day:" + (firstSeen ? "known" : "new") + ":" + day;
   const acceptedToday = Number(await env.REPORTS.get(dayKey)) || 0;
-  if (acceptedToday >= (firstSeen ? LIMITS.knownBatchesPerDay : LIMITS.newBatchesPerDay)) return full(request);
+  if (acceptedToday >= budget(env.REPORTS, firstSeen ? "knownBatchesPerDay" : "newBatchesPerDay")) return full(request);
   const newKey = "rl:new:" + (await hmac(env.SALT, "ip-new:" + net + ":" + day)).slice(0, 32);
   let introduced = 0;
   if (!firstSeen) {
@@ -227,7 +231,7 @@ async function forget(request, env) {
   // first so a refused request deletes and writes nothing; the per-network counter uses the /24 or /48 like the other limits.
   const forgetKey = "rl:forget-day:" + day;
   const forgetsToday = Number(await env.REPORTS.get(forgetKey)) || 0;
-  if (forgetsToday >= LIMITS.forgetsPerDay) return full(request);
+  if (forgetsToday >= budget(env.REPORTS, "forgetsPerDay")) return full(request);
   if (!(await bump(env.REPORTS, "rl:forget:" + (await hmac(env.SALT, "forget:" + ipPrefix(ip) + ":" + day)).slice(0, 32), 5))) {
     return json(request, 429, { error: "daily limit reached" });
   }
@@ -274,7 +278,7 @@ async function dayHits(kv, day) {
     cursor = page.list_complete ? undefined : page.cursor;
   } while (cursor);
   const seen = [...new Set(names.map((n) => n.split(":")[2]))];
-  return { views: names.length, visitors: seen.length, seen, capped: names.length >= VISIT_WRITE_CAP };
+  return { views: names.length, visitors: seen.length, seen, capped: names.length >= budget(kv, "visitWriteCap") };
 }
 
 // Today's counter entry {views, visitors, seen, capped, sinceList, at}, kept per data center (Cache API) until UTC
@@ -312,23 +316,23 @@ async function todayCounts(kv, day, forHit = false) {
 }
 
 // After a visit is written, bump the running counter (views, visitors, hits since the last listing).
-async function noteHit(day, entry, visitor) {
+async function noteHit(day, entry, visitor, cap) {
   if (!globalThis.caches?.default) return;
   const isNew = !entry.seen.includes(visitor);
   const seen = isNew && entry.seen.length < VISIT_SEEN_MAX ? [...entry.seen, visitor] : entry.seen;
   const views = entry.views + 1;
-  await putEntry(day, { views, visitors: entry.visitors + (isNew ? 1 : 0), seen, capped: views >= VISIT_WRITE_CAP, sinceList: entry.sinceList + 1, at: entry.at });
+  await putEntry(day, { views, visitors: entry.visitors + (isNew ? 1 : 0), seen, capped: views >= cap, sinceList: entry.sinceList + 1, at: entry.at });
 }
 
 async function hit(request, env) {
   const day = new Date().toISOString().slice(0, 10);
   const counts = await todayCounts(env.REPORTS, day, true);
-  if (counts.capped || counts.views >= VISIT_WRITE_CAP) return json(request, 200, { ok: true, capped: true });
+  if (counts.capped || counts.views >= budget(env.REPORTS, "visitWriteCap")) return json(request, 200, { ok: true, capped: true });
   const ip = request.headers.get("CF-Connecting-IP") || "unknown";
   // The user agent is left out on purpose: it is chosen by the client, so varying it could inflate visitors.
   const visitor = (await hmac(env.SALT, "visit:" + ip + ":" + day)).slice(0, 12);
   await env.REPORTS.put("hit:" + day + ":" + visitor + ":" + crypto.randomUUID(), "", { expirationTtl: HIT_KEEP_DAYS * 86400 });
-  await noteHit(day, counts, visitor);
+  await noteHit(day, counts, visitor, budget(env.REPORTS, "visitWriteCap"));
   return json(request, 200, { ok: true });
 }
 
@@ -405,7 +409,9 @@ async function exportAll(request, env) {
 }
 
 export default {
-  async fetch(request, env) {
+  async fetch(request, bindings) {
+    // Reports, counters and visit records live in D1 when the DB binding exists; KV stays readable behind it.
+    const env = bindings.DB ? { ...bindings, REPORTS: storeFor(bindings) } : bindings;
     const url = new URL(request.url);
     // Served both as a Worker (/v1/...) and as a Pages Function under the site (/api/v1/...).
     url.pathname = url.pathname.replace(/^\/api(?=\/)/, "");

@@ -22,7 +22,7 @@ jobs:
         working-directory: site
         run: npm test
       - name: Collector
-        run: node --test collector/test/worker.test.mjs
+        run: node --test collector/test/worker.test.mjs collector/test/d1store.test.mjs
       - name: Build static pages
         working-directory: site
         run: node scripts/build-pages.mjs

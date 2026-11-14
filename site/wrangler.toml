@@ -8,4 +8,11 @@ pages_build_output_dir = "_site"
 binding = "REPORTS"
 id = "0d993ea0b3804b338b857bffcaa935a4"
 
+# Reports, rate-limit counters and visit records live in D1 (collector/d1store.js creates its one table on first use).
+# The KV namespace above stays bound so data written before 2026-11-14 remains readable until it expires.
+[[d1_databases]]
+binding = "DB"
+database_name = "aiquotawatch"
+database_id = "4da4c249-508b-410c-a710-4c9d232e8b30"
+
 # Secrets (set with `wrangler pages secret put`): SALT, EXPORT_TOKEN.

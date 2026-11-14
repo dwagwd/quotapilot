@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Collector: reports, counters and visit records are stored in Cloudflare D1 instead of Workers KV, which lifts the daily caps that came from KV's 1,000 writes a day. Older data stays readable and deletable.
+
 ## 0.6.7
 
 - Sharing privacy: a report names a model only when it belongs to a public family; private deployments and locally named models are left out on your computer and refused by the collector. The request no longer carries the system's user agent or interface language.

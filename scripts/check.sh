@@ -8,7 +8,7 @@ python3 "$PLUGIN_ROOT/scripts/check-release.py"
 # Website aggregation/i18n and collector tests (Node.js 20+). Skipped with a notice when Node.js is missing.
 if command -v node >/dev/null 2>&1; then
   (cd "$PLUGIN_ROOT/site" && npm test --silent)
-  node --test "$PLUGIN_ROOT/collector/test/worker.test.mjs"
+  node --test "$PLUGIN_ROOT/collector/test/worker.test.mjs" "$PLUGIN_ROOT/collector/test/d1store.test.mjs"
 else
   echo "Node.js not found: skipped site/ and collector/ tests." >&2
 fi

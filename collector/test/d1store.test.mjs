@@ -144,3 +144,16 @@ test("visit counting works on D1", { skip }, async () => {
   assert.equal(today.views, 3);
   assert.equal(today.visitors, 2);
 });
+
+test("export reads whole pages in one query per page, not one query per report", { skip }, async () => {
+  const d1 = fakeD1();
+  const counting = { ...d1, queries: 0, prepare(sql) { this.queries++; return d1.prepare(sql); }, batch: (l) => d1.batch(l) };
+  const store = d1Store(counting);
+  for (let i = 0; i < 1200; i++) await store.put("r:anon-x:" + String(i).padStart(5, "0"), JSON.stringify([{ n: i }]));
+  const env = { DB: counting, REPORTS: kv(), SALT: "s", EXPORT_TOKEN: "t" };
+  counting.queries = 0;
+  const res = await worker.fetch(new Request("https://c.example/v1/export", { headers: { Authorization: "Bearer t" } }), env);
+  const body = await res.json();
+  assert.equal(body.length, 1200);
+  assert.ok(counting.queries <= 6, "queries used: " + counting.queries);
+});

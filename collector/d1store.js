@@ -53,9 +53,24 @@ export function d1Store(db, { random = Math.random, now = () => Date.now() } = {
       const complete = names.length <= size;
       const keys = names.slice(0, size).map((name) => ({ name }));
       return { keys, list_complete: complete, cursor: complete ? undefined : keys[keys.length - 1].name };
+    },
+    // Keys and values together, one query per page. Export reads thousands of rows; a query per key would pass the
+    // 50 subrequests a Worker invocation may make on the free plan.
+    async scan({ prefix = "", cursor, limit = SCAN_PAGE } = {}) {
+      await init();
+      const size = Math.max(1, Math.min(SCAN_PAGE, Math.floor(limit) || SCAN_PAGE));
+      const rows = await db.prepare("SELECT key, value FROM kv WHERE key >= ?1 AND key < ?2 AND key > ?3 AND (expires IS NULL OR expires > ?4) ORDER BY key LIMIT ?5")
+        .bind(prefix, prefix + "￿", cursor || "", seconds(), size + 1).all();
+      const found = rows.results || [];
+      const complete = found.length <= size;
+      const page = found.slice(0, size).map((r) => ({ name: r.key, value: r.value }));
+      return { rows: page, list_complete: complete, cursor: complete ? undefined : page[page.length - 1].name };
     }
   };
 }
+
+const SCAN_PAGE = 500;
+export const LEGACY_SCAN_PAGE = 20;
 
 // Reads fall back to the store used before the move (Workers KV), so reports sent before it still count and can still
 // be deleted, and old visit totals stay readable. Writes go only to the new store; deletes go to both. The old store's
@@ -67,6 +82,24 @@ export function layered(primary, legacy) {
     async get(key) { return (await primary.get(key)) ?? (await legacy.get(key)); },
     put: (key, value, options) => primary.put(key, value, options),
     async delete(key) { await primary.delete(key); await legacy.delete(key); },
+    // Keys with values: the new store a whole page per query, then the old store key by key in small pages
+    // (`legacy: true` marks them so a caller can cap how much of the old store one request reads).
+    async scan({ prefix = "", cursor } = {}) {
+      const from = typeof cursor === "string" && cursor.startsWith("old:") ? "old" : "new";
+      if (from === "new") {
+        const page = await primary.scan({ prefix, cursor: cursor ? cursor.slice(4) : undefined });
+        if (!page.list_complete) return { rows: page.rows, list_complete: false, cursor: "new:" + page.cursor };
+        const rest = await legacy.list({ prefix, limit: 1 });
+        return rest.keys.length ? { rows: page.rows, list_complete: false, cursor: "old:" } : { rows: page.rows, list_complete: true, cursor: undefined };
+      }
+      const page = await legacy.list({ prefix, cursor: cursor.slice(4) || undefined, limit: LEGACY_SCAN_PAGE });
+      const rows = [];
+      for (const k of page.keys) {
+        const value = await legacy.get(k.name);
+        if (value) rows.push({ name: k.name, value, legacy: true });
+      }
+      return { rows, legacy: true, list_complete: page.list_complete, cursor: page.list_complete ? undefined : "old:" + page.cursor };
+    },
     // The new store's pages first, then the old store's. The cursor says which store it belongs to.
     async list({ prefix = "", cursor, limit = 1000 } = {}) {
       const from = typeof cursor === "string" && cursor.startsWith("old:") ? "old" : "new";

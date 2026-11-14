@@ -2537,17 +2537,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
     /// Fetches the public community statistics at most every 6 hours while the statistics window is used, and lines
     /// them up with this Mac's numbers. A download of a public file; nothing is sent.
     private var lastCommunityFetch: Double = 0
+    private var lastCommunityPublished: CommunityComparison.Published?
     private func refreshCommunityComparison() {
         let now = Date().timeIntervalSince1970
-        guard now - lastCommunityFetch > 6 * 3600 else { return }
+        let mine = currentShareReports(now: now, include: [.speed, .quota])
+        // Inside the 6 hours only the download is skipped; this Mac's side is recomputed from the numbers
+        // already fetched, so reopening the window shows current usage rather than a stale result.
+        guard now - lastCommunityFetch > 6 * 3600 else {
+            if let published = lastCommunityPublished {
+                statsModel.comparison = CommunityComparison.compare(mine: mine, with: published)
+            }
+            return
+        }
         lastCommunityFetch = now
         statsModel.comparisonState = .loading
-        let mine = currentShareReports(now: now, include: [.speed, .quota])
         DispatchQueue.global(qos: .utility).async { [weak self] in
             let published = CommunityComparison.fetch()
             DispatchQueue.main.async {
                 guard let self else { return }
                 guard let published else { self.statsModel.comparisonState = .failed; self.lastCommunityFetch = 0; return }
+                self.lastCommunityPublished = published
                 self.statsModel.comparison = CommunityComparison.compare(mine: mine, with: published)
                 self.statsModel.communityPeople = published.people
                 self.statsModel.communityMinPeople = published.minPeople

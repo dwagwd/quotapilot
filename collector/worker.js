@@ -213,6 +213,8 @@ async function forget(request, env) {
   // written and have all expired by LEGACY_KEYS_UNTIL, so they are walked (every page, with the cursor) only until then.
   let oldCursor;
   // Only for an id this collector has seen (a first-seen record or keys under its prefix): a random id never starts a scan.
+  // (Known trade-off, kept on purpose and covered by a test: an id whose only reports are in the old formats has no
+  // such record, so its old keys are not walked and simply expire by LEGACY_KEYS_UNTIL.)
   if (day < LEGACY_KEYS_UNTIL && (known || names.length)) do {
     const old = await env.REPORTS.list({ prefix: "r:20", cursor: oldCursor, limit: 1000 });
     for (const k of old.keys) {
@@ -396,7 +398,23 @@ async function exportAll(request, env) {
   const auth = request.headers.get("Authorization") || "";
   if (!env.EXPORT_TOKEN || !(await sameSecret(auth, "Bearer " + env.EXPORT_TOKEN, env.SALT))) return json(request, 401, { error: "unauthorized" });
   const out = [];
+  const headers = { "Content-Type": "application/json", "Cache-Control": "no-store" };
   let cursor;
+  if (typeof env.REPORTS.scan === "function") {
+    // D1: a whole page of keys and values per query. A Worker may make only 50 subrequests, so the old KV store
+    // (read key by key) is read for at most one small page; the rest is reported in a header and picked up on a later
+    // run once those entries have expired.
+    let legacyPages = 0;
+    do {
+      const page = await env.REPORTS.scan({ prefix: "r:", cursor });
+      if (page.legacy && ++legacyPages > 1) { headers["X-Export-Partial"] = "legacy-kv"; break; }
+      for (const row of page.rows) {
+        try { out.push(...JSON.parse(row.value)); } catch { /* a damaged entry is skipped, not fatal */ }
+      }
+      cursor = page.list_complete ? undefined : page.cursor;
+    } while (cursor && out.length < 50000);
+    return new Response(JSON.stringify(out), { headers });
+  }
   do {
     const page = await env.REPORTS.list({ prefix: "r:", cursor, limit: 1000 });
     for (const k of page.keys) {
@@ -405,7 +423,7 @@ async function exportAll(request, env) {
     }
     cursor = page.list_complete ? undefined : page.cursor;
   } while (cursor && out.length < 50000);
-  return new Response(JSON.stringify(out), { headers: { "Content-Type": "application/json", "Cache-Control": "no-store" } });
+  return new Response(JSON.stringify(out), { headers });
 }
 
 export default {

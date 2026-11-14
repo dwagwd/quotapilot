@@ -43,6 +43,8 @@ jobs:
           swift test
           swift build -c release --product quotapilot
           .build/release/quotapilot version
+      - name: Acceptance (works, uploads, privacy, CPU and memory)
+        run: python3 scripts/platform-acceptance.py .build/release/quotapilot
   windows:
     runs-on: windows-latest
     steps:
@@ -59,3 +61,5 @@ jobs:
         run: |
           swift build -c release --product quotapilot
           .build\release\quotapilot.exe version
+      - name: Acceptance (works, uploads, privacy, CPU and memory)
+        run: python scripts/platform-acceptance.py .build\release\quotapilot.exe

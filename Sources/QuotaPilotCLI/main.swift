@@ -125,18 +125,27 @@ func speedText() -> [String] {
     }
 }
 
-func tokenSummary(hours: Double) -> [String: TokenBreakdown] {
-    guard loadSettings().agentLogsEnabled else {
-        modelTracker = AgentModelTracker(); speedSamples = []
-        return [:]
-    }
-    let now = Date().timeIntervalSince1970
+/// Log reading state kept across refreshes. A one-shot command reads once; `watch` keeps the scanner and ledger, so
+/// every refresh after the first reads only the bytes appended since the last one.
+final class TokenState {
     let scanner = AgentLogScanner(sources: AgentLogScanner.defaultSources(home: FileManager.default.homeDirectoryForCurrentUser))
     var ledger = AgentTokenLedger()
-    for event in scanner.scan(windowStart: now - hours * 3600, now: now) { ledger.add(event) }
-    for model in scanner.lastModelEvents { modelTracker.observe(model) }
-    speedSamples = scanner.lastSpeedSamples.filter { $0.timestamp >= now - hours * 3600 }
-    return ledger.summary(since: now - hours * 3600, now: now)
+    var samples: [OutputSpeedSample] = []
+}
+var tokenState = TokenState()
+
+func tokenSummary(hours: Double) -> [String: TokenBreakdown] {
+    guard loadSettings().agentLogsEnabled else {
+        modelTracker = AgentModelTracker(); speedSamples = []; tokenState = TokenState()
+        return [:]
+    }
+    let now = Date().timeIntervalSince1970, since = now - hours * 3600
+    for event in tokenState.scanner.scan(windowStart: since, now: now) { tokenState.ledger.add(event) }
+    tokenState.ledger.prune(now: now)
+    for model in tokenState.scanner.lastModelEvents { modelTracker.observe(model) }
+    tokenState.samples = (tokenState.samples + tokenState.scanner.lastSpeedSamples).filter { $0.timestamp >= since }
+    speedSamples = tokenState.samples
+    return tokenState.ledger.summary(since: since, now: now)
 }
 
 // MARK: Formatting

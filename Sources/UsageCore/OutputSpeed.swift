@@ -50,8 +50,8 @@ public struct CallTimer {
     /// Codex: a request starts at a tool output, a user message or a new turn; `token_usage_record`
     /// is written when that response completes and carries its usage and response id.
     private mutating func feedCodex(_ line: String) -> [OutputSpeedSample] {
-        let isRecord = line.contains("\"token_usage_record\"")
-        guard isRecord || line.contains("_call_output\"") || line.contains("\"user_message\"") || line.contains("\"turn_context\""),
+        let isRecord = line.hasBytes("\"token_usage_record\"")
+        guard isRecord || line.hasBytes("_call_output\"") || line.hasBytes("\"user_message\"") || line.hasBytes("\"turn_context\""),
               let object = Self.json(line), let time = AgentLogParser.timestamp(object["timestamp"]) else { return [] }
         if object["type"] as? String == "turn_context", let payload = object["payload"] as? [String: Any], let model = payload["model"] as? String {
             codexModel = model
@@ -80,7 +80,7 @@ public struct CallTimer {
     /// `tokens` ends it. Re-written messages keep their id and are counted once.
     private var geminiSeen = Set<String>()
     private mutating func feedGemini(_ line: String) -> [OutputSpeedSample] {
-        let isUser = line.contains("\"type\":\"user\""), isModel = line.contains("\"type\":\"gemini\"")
+        let isUser = line.hasBytes("\"type\":\"user\""), isModel = line.hasBytes("\"type\":\"gemini\"")
         guard isUser || isModel, let object = Self.json(line), let time = AgentLogParser.timestamp(object["timestamp"]) else { return [] }
         if object["type"] as? String == "user" { start = time; return [] }
         guard object["type"] as? String == "gemini", let tokens = object["tokens"] as? [String: Any], let begin = start else { return [] }
@@ -101,7 +101,7 @@ public struct CallTimer {
     /// Claude Code: a `user` line (prompt or tool result) starts a request; the assistant message is written
     /// block by block with the same id, and its last block marks the end of the response.
     private mutating func feedClaude(_ line: String) -> [OutputSpeedSample] {
-        let isUser = line.contains("\"type\":\"user\""), isAssistant = line.contains("\"type\":\"assistant\"")
+        let isUser = line.hasBytes("\"type\":\"user\""), isAssistant = line.hasBytes("\"type\":\"assistant\"")
         guard isUser || isAssistant, let object = Self.json(line), let time = AgentLogParser.timestamp(object["timestamp"]) else { return [] }
         if object["type"] as? String == "user" {
             let done = flush()

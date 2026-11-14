@@ -83,7 +83,7 @@ public enum AgentLogParser {
 
     /// Codex rollout JSONL: `event_msg` lines whose payload is a `token_count` with `info.last_token_usage`.
     public static func codexEvent(_ line: String) -> AgentTokenEvent? {
-        guard line.contains("\"token_count\""),
+        guard line.hasBytes("\"token_count\""),
               let object = try? JSONSerialization.jsonObject(with: Data(line.utf8)) as? [String: Any],
               let payload = object["payload"] as? [String: Any], payload["type"] as? String == "token_count",
               let info = payload["info"] as? [String: Any],
@@ -102,7 +102,7 @@ public enum AgentLogParser {
     /// Claude Code project JSONL: `assistant` lines with `message.usage`. Streaming writes the same
     /// message more than once, so the message and request ids identify one call.
     public static func claudeEvent(_ line: String) -> AgentTokenEvent? {
-        guard line.contains("\"usage\""),
+        guard line.hasBytes("\"usage\""),
               let object = try? JSONSerialization.jsonObject(with: Data(line.utf8)) as? [String: Any],
               object["type"] as? String == "assistant",
               let message = object["message"] as? [String: Any],
@@ -122,7 +122,7 @@ extension AgentLogParser {
     /// `tokens` {input (includes cached), cached, output, thoughts, tool}. Messages can be written more
     /// than once with the same id, so the id identifies one call.
     public static func geminiEvent(_ line: String) -> AgentTokenEvent? {
-        guard line.contains("\"tokens\""),
+        guard line.hasBytes("\"tokens\""),
               let object = try? JSONSerialization.jsonObject(with: Data(line.utf8)) as? [String: Any],
               object["type"] as? String == "gemini", let tokens = object["tokens"] as? [String: Any],
               let time = timestamp(object["timestamp"]) else { return nil }
@@ -137,7 +137,7 @@ extension AgentLogParser {
     /// Grok CLI unified log (`~/.grok/logs/unified.jsonl`): `shell.turn.inference_done` lines with
     /// `ctx` {prompt_tokens (includes cached), cached_prompt_tokens, completion_tokens, reasoning_tokens}.
     public static func grokEvent(_ line: String) -> AgentTokenEvent? {
-        guard line.contains("inference_done"),
+        guard line.hasBytes("inference_done"),
               let object = try? JSONSerialization.jsonObject(with: Data(line.utf8)) as? [String: Any],
               object["msg"] as? String == "shell.turn.inference_done", let ctx = object["ctx"] as? [String: Any],
               let time = timestamp(object["ts"]) else { return nil }
@@ -424,16 +424,19 @@ public final class AgentLogScanner {
     private var timers: [String: CallTimer] = [:]
 
     private func parseLines(_ data: Data, source: Source, path: String? = nil) -> [AgentTokenEvent] {
-        guard let text = String(data: data, encoding: .utf8) else { return [] }
         var events: [AgentTokenEvent] = []
         var timer = path.flatMap { timers[$0] } ?? CallTimer(provider: source.provider)
         defer { if let path { timers[path] = timer } }
-        for line in text.split(separator: "\n", omittingEmptySubsequences: true) {
+        for line in data.split(separator: 0x0A, omittingEmptySubsequences: true) {
             if isCancelled() { break }
-            let string = String(line)
-            if let event = source.parse(string) { events.append(event) }
-            if let parseModel = source.parseModel, let model = parseModel(string) { lastModelEvents.append(model) }
-            lastSpeedSamples += timer.feed(string)
+            // JSON parsing leaves temporary objects in the current autorelease pool, which a command-line run never
+            // drains: free them per line, or a large log keeps hundreds of MB alive until the process exits.
+            Portable.drainingTemporaries {
+                let string = String(decoding: line, as: UTF8.self)
+                if let event = source.parse(string) { events.append(event) }
+                if let parseModel = source.parseModel, let model = parseModel(string) { lastModelEvents.append(model) }
+                lastSpeedSamples += timer.feed(string)
+            }
         }
         // Claude responses finish with their last block; keep them open while the file is still being written.
         if path == nil { lastSpeedSamples += timer.flush() }

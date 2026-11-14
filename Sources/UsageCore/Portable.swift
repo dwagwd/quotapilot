@@ -9,6 +9,15 @@ import Musl
 
 /// Platform-neutral helpers so the core builds on macOS, Linux and Windows.
 public enum Portable {
+    /// Runs `body` in its own autorelease pool where Objective-C objects exist (Apple platforms); elsewhere just runs it.
+    @inline(__always) public static func drainingTemporaries<T>(_ body: () throws -> T) rethrows -> T {
+        #if canImport(ObjectiveC)
+        return try autoreleasepool(invoking: body)
+        #else
+        return try body()
+        #endif
+    }
+
     public struct FileStatus { public let isRegular: Bool; public let size: UInt64; public let modified: Double }
 
     /// File type, size and modification time. Uses POSIX `stat` where available, because
@@ -85,5 +94,30 @@ public enum Portable {
             ?? home.appendingPathComponent(".local/state", isDirectory: true)
         return base.appendingPathComponent("quotapilot", isDirectory: true)
         #endif
+    }
+}
+
+extension String {
+    /// Byte-level substring test for ASCII needles. Log lines can be megabytes long, and the Foundation `contains`
+    /// walks them as characters, which was most of the time spent reading logs.
+    @inline(__always) func hasBytes(_ needle: StaticString) -> Bool {
+        var text = self
+        return text.withUTF8 { hay in
+            needle.withUTF8Buffer { pin in
+                let n = pin.count, h = hay.count
+                guard n > 0, n <= h, let base = hay.baseAddress, let p = pin.baseAddress else { return n == 0 }
+                let first = p[0], last = h - n
+                var i = 0
+                while i <= last {
+                    if base[i] == first {
+                        var j = 1
+                        while j < n && base[i + j] == p[j] { j += 1 }
+                        if j == n { return true }
+                    }
+                    i += 1
+                }
+                return false
+            }
+        }
     }
 }

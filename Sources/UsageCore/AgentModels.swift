@@ -33,7 +33,7 @@ extension AgentLogParser {
     /// Codex rollout lines: `turn_context` (requested model and reasoning effort) and the
     /// `model_reroute` event Codex emits when the server answers with a different model than requested.
     public static func codexModelEvent(_ line: String) -> AgentModelEvent? {
-        guard line.contains("\"turn_context\"") || line.contains("\"model_reroute\""),
+        guard line.hasBytes("\"turn_context\"") || line.hasBytes("\"model_reroute\""),
               let object = object(line), let time = timestamp(object["timestamp"]),
               let payload = object["payload"] as? [String: Any] else { return nil }
         if object["type"] as? String == "turn_context", let model = payload["model"] as? String, !model.isEmpty {
@@ -50,7 +50,7 @@ extension AgentLogParser {
 
     /// Gemini CLI chat recordings: the model named on each `gemini` message.
     public static func geminiModelEvent(_ line: String) -> AgentModelEvent? {
-        guard line.contains("\"gemini\""), line.contains("\"model\""),
+        guard line.hasBytes("\"gemini\""), line.hasBytes("\"model\""),
               let object = object(line), object["type"] as? String == "gemini",
               let model = object["model"] as? String, !model.isEmpty,
               let time = timestamp(object["timestamp"]) else { return nil }
@@ -60,7 +60,7 @@ extension AgentLogParser {
 
     /// Claude Code lines: the model that actually produced each assistant message.
     public static func claudeModelEvent(_ line: String) -> AgentModelEvent? {
-        guard line.contains("\"assistant\""), line.contains("\"model\""),
+        guard line.hasBytes("\"assistant\""), line.hasBytes("\"model\""),
               let object = object(line), object["type"] as? String == "assistant",
               let message = object["message"] as? [String: Any],
               let model = message["model"] as? String, !model.isEmpty, !model.hasPrefix("<"),

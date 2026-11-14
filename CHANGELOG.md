@@ -1,8 +1,14 @@
 # Changelog
 
-## Unreleased
+## 0.6.8
 
-- Collector: reports, counters and visit records are stored in Cloudflare D1 instead of Workers KV, which lifts the daily caps that came from KV's 1,000 writes a day. Older data stays readable and deletable.
+- Security: the Claude Code login and the DeepSeek key are sent through a session that stores nothing. Earlier versions let macOS keep those requests, with their Authorization header, in the app's URL cache under ~/Library/Caches; 0.6.8 clears that cache on launch.
+- Compare with the community: the statistics window and the new `quotapilot compare` show your output speed per model and how many tokens your plan window holds, next to the community median. Rows appear only once 3 people share the same model or plan; nothing is sent to compare.
+- First launch also offers anonymous daily sharing (unticked); the install note mentions Claude Code.
+- Reading agent logs is about 5 times faster and uses far less memory (a heavy day of Claude Code and Codex logs: 2 s instead of 10 s of CPU); `quotapilot watch` reads only what was appended since its last refresh.
+- Linux and Windows: every push runs an acceptance check on Linux x64, Linux ARM64 and Windows x64 (works, uploads, privacy, CPU and memory). Plan and status: docs/linux-windows.md.
+- Collector (already live): reports, counters and visit records are stored in Cloudflare D1 instead of Workers KV, which lifts the daily caps that came from KV's 1,000 writes a day. Older data stays readable and deletable.
+- Website: the home page shows the app; the published site counts visits with Cloudflare Web Analytics (no cookies); the GitHub page links the website.
 
 ## 0.6.7
 

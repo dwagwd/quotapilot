@@ -64,9 +64,13 @@ quotapilot stats --hours 168 # tokens by agent and purpose for 7 days
 quotapilot config rule web codex
 quotapilot status --json     # for scripts and skills
 quotapilot share             # opt-in: preview anonymous speed/quota numbers, then share them with AI Quota Watch
+quotapilot compare           # your speed and plan quota next to the community medians (sends nothing)
 ```
 
 On macOS the Homebrew formula puts `quotapilot` on `PATH` (the tool ships inside the app at `QuotaPilot.app/Contents/Helpers/quotapilot`). On Linux and Windows download the single-file build (Linux x64 or ARM64, Windows x64) from the [latest release](https://github.com/dwagwd/quotapilot/releases/latest) and check it against the `.sha256` file next to it, or build it yourself with Swift 6.2 or later: `swift build -c release --product quotapilot` (binary in `.build/release/`). It needs the Codex CLI on `PATH` for Codex quota. Claude plan usage requires an existing Claude Code login and permission to read it: standalone CLI installs opt in with `quotapilot config claude-plan on`. The CLI honors the app’s saved collection choices on macOS; `quotapilot config agent-logs off` disables local log scanning. Settings are stored in `~/.local/state/quotapilot/cli-config.json` (Linux) or `%LOCALAPPDATA%\QuotaPilot\cli-config.json` (Windows); on macOS the app's settings are used.
+
+Every push runs an acceptance check on Linux x64, Linux ARM64 and Windows x64 (works, uploads, privacy, CPU and memory). Status and plans: [docs/linux-windows.md](docs/linux-windows.md).
+
 
 ## Build and install
 

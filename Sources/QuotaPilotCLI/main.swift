@@ -9,7 +9,7 @@ import UsageTransport
 // Reads Codex quota (Codex app server), Claude plan usage (Claude Code login), local agent token logs,
 // and answers "which agent should take this task" for skills and scripts.
 
-let version = "0.6.7"
+let version = "0.6.8"
 let arguments = Array(CommandLine.arguments.dropFirst())
 let wantsJSON = arguments.contains("--json")
 func option(_ name: String) -> String? {
@@ -331,6 +331,19 @@ func shareReports(hours: Double) -> (reports: [[String: Any]], errors: [String: 
     return (ContributionReport.build(speed: speed, windows: uses, now: now, include: shareKinds()), errors)
 }
 
+/// After a share, or for `quotapilot compare`: this computer's numbers next to the published community medians.
+func printComparison(_ reports: [[String: Any]]) {
+    guard let published = CommunityComparison.fetch() else { print("Could not load the community numbers right now."); return }
+    let lines = CommunityComparison.compare(mine: reports, with: published)
+    if lines.isEmpty {
+        print("No community row for your models or plan yet: a row appears once \(published.minPeople) people share the same model or plan" +
+              " (\(published.people) sharing in the last \(7) days).")
+    } else {
+        print("\nCompared with the community:")
+        for line in lines { print("  " + CommunityComparison.describe(line)) }
+    }
+}
+
 func describeReport(_ r: [String: Any]) -> String {
     func n(_ key: String) -> Double { (r[key] as? Double) ?? Double(r[key] as? Int ?? 0) }
     switch r["type"] as? String {
@@ -384,6 +397,7 @@ USAGE
                                              you confirm, send them anonymously to AI Quota Watch.
                                              `share --yes` in cron shares daily.
                                              `share --forget` deletes everything this computer sent.
+  quotapilot compare [--hours N]             Your speed and plan quota next to the community medians (sends nothing)
   quotapilot open [--link]                   macOS: start the menu bar app (--link also adds it to ~/Applications)
   quotapilot version
 
@@ -524,8 +538,17 @@ case "share":
     switch ShareSubmitter.postAnonymous(reports: reports) {
     case .success(let n): print("Shared \(n) data points anonymously. Thank you.")
         print("See the community numbers: " + ProjectLinks.community.absoluteString)
+        printComparison(reports)
     case .failure(let error): fail("Could not share: " + error.localizedDescription)
     }
+case "compare":
+    // Downloads the public community statistics and compares; sends nothing.
+    let (reports, errors) = shareReports(hours: hours)
+    for (agent, error) in errors.sorted(by: { $0.key < $1.key }) { print(providerName(agent) + ": " + error) }
+    if reports.isEmpty { print("Nothing to compare yet: speed needs 3 calls per model in the last \(hoursLabel(hours)).") }
+    else { printComparison(reports) }
+    print("\nThe community numbers come only from people who share. `quotapilot share` previews what you would send.")
+
 case "config":
     var settings = loadSettings()
     let rest = Array(arguments.drop { $0 != "config" }.dropFirst())

@@ -1,6 +1,6 @@
 # Validation scope
 
-Version 0.6.7 is tested locally on Apple Silicon macOS and by CI on macOS 15, Linux x64 and ARM64, and Windows x64. Earlier notes: 0.4.0 was tested with Swift 6.2.4 and Codex CLI 0.153.4. The package declares macOS 13+ / Swift 5.9+; minimum-supported OS/compiler combinations have not all been exercised. The 0.4.0 universal app ZIP was notarized by Apple (status Accepted), stapled, and passed Gatekeeper (`spctl`: Notarized Developer ID) after extraction with a download quarantine flag; it has not yet been opened on an Intel Mac.
+Version 0.6.8 is tested locally on Apple Silicon macOS and by CI on macOS 15, Linux x64 and ARM64, and Windows x64. Earlier notes: 0.4.0 was tested with Swift 6.2.4 and Codex CLI 0.153.4. The package declares macOS 13+ / Swift 5.9+; minimum-supported OS/compiler combinations have not all been exercised. The 0.4.0 universal app ZIP was notarized by Apple (status Accepted), stapled, and passed Gatekeeper (`spctl`: Notarized Developer ID) after extraction with a download quarantine flag; it has not yet been opened on an Intel Mac.
 
 ## Automated
 

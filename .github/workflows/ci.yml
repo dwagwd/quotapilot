@@ -9,6 +9,9 @@ on:
     paths-ignore: ["site/**", ".github/workflows/community-data.yml", ".github/workflows/site-pages.yml"]
 permissions:
   contents: read
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
 jobs:
   macos:
     strategy:

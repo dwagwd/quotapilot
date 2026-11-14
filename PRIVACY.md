@@ -1,6 +1,6 @@
 # Privacy and data handling
 
-Last updated: 2026-11-14.
+Last updated: 2026-11-14 (website analytics added).
 
 QuotaPilot runs on your Mac and has no account or server of its own for the app. This page lists what it reads, what leaves the computer and when, and what it stores. The defaults below are for version 0.6.6 and later; earlier 0.6 versions had the two connection choices below turned on without asking.
 
@@ -67,6 +67,8 @@ Choose what to share in the menu bar (**What to share**: speed, prompt and cache
 ## AI Quota Watch website
 
 The website counts visits without cookies: each visit is stored as a hash of the IP address and the day only (no user agent) that is kept for 8 days, and only daily totals (views, visitors) are kept after that, for up to 400 days. The site shows the visitor figure only at 500 or more a week. It is a sum of daily visitors: because no identifier is kept across days, the same person visiting on two days counts twice. Visit counting stops at a daily write cap, so busy days undercount. Reports sent from the website's form follow the collector rules above.
+
+The published website also uses **Cloudflare Web Analytics**, which counts page views and the page or site a visitor came from, without cookies, local storage or fingerprinting, and shows us only totals. Its script loads from `static.cloudflareinsights.com` under [Cloudflare's privacy policy](https://www.cloudflare.com/privacypolicy/). The app and the `quotapilot` tool do not use it.
 
 The report form can use Cloudflare Turnstile. It is switched on only when the site has a Turnstile key configured; check `turnstileSiteKey` in `site/assets/config.js`: an empty key means no Cloudflare code loads and the collector relies on its per-network rate limits and daily budgets instead. When it is on, it runs only after you press "Preview report" (nothing from Cloudflare loads when the page opens), to check that a human is sending. Turnstile runs in your browser under Cloudflare's privacy policy and sets no tracking cookies for us. We keep nothing from it: the one-time token is checked once with Cloudflare and discarded.
 

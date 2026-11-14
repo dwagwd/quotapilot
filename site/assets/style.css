@@ -561,3 +561,8 @@ a.lang-toggle { text-decoration: none; display: inline-flex; align-items: center
 .page-install p { margin: 0; max-width: 72ch; }
 .page-install pre { margin: 0; padding: var(--s-3); background: var(--surface-2); border-radius: var(--r-m, 8px); font-size: var(--t-s); width: max-content; min-width: 100%; box-sizing: border-box; }
 .invite-progress strong { color: var(--text); }
+
+/* App screenshot in the hero. The image is a dark card, so it gets a thin frame that works on both themes. */
+.app-shot { margin: var(--s-4) 0 0; display: grid; gap: 6px; max-width: 360px; }
+.app-shot img { width: 100%; height: auto; border-radius: var(--r-m); border: 1px solid var(--line); box-shadow: var(--shadow); background: #11161f; }
+.app-shot figcaption { font-size: var(--t-s); color: var(--muted); }

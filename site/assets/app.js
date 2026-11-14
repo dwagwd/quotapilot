@@ -58,6 +58,7 @@
     document.documentElement.lang = state.lang === "zh" ? "zh-Hant" : "en";
     document.querySelectorAll("[data-i18n]").forEach((el) => { el.textContent = t(el.dataset.i18n); });
     document.querySelectorAll("[data-i18n-title]").forEach((el) => { el.title = t(el.dataset.i18nTitle); });
+    document.querySelectorAll("[data-i18n-alt]").forEach((el) => { el.alt = t(el.dataset.i18nAlt); });
     document.querySelectorAll("[data-lang-toggle]").forEach((b) => { b.textContent = state.lang === "en" ? "中文" : "English"; });
     // Theme labels follow the page language (theme-toggle.js reads I18N and <html lang>).
     if (window.AQW_THEME) window.AQW_THEME.refresh();

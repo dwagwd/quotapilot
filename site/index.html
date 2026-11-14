@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <!-- Same policy as _headers (kept in sync; frame-ancestors only works as a header). Ad networks need their hosts added in both places. -->
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://challenges.cloudflare.com; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' https://aiquotawatch.pages.dev https://challenges.cloudflare.com; frame-src https://challenges.cloudflare.com; font-src 'self'; object-src 'none'; base-uri 'self'; form-action 'none'">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://challenges.cloudflare.com https://static.cloudflareinsights.com; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' https://aiquotawatch.pages.dev https://cloudflareinsights.com https://challenges.cloudflare.com; frame-src https://challenges.cloudflare.com; font-src 'self'; object-src 'none'; base-uri 'self'; form-action 'none'">
   <meta name="referrer" content="strict-origin-when-cross-origin">
   <meta name="color-scheme" content="light dark">
   <title>AI Quota Watch: ChatGPT, Claude, Gemini and Grok usage limits, resets and real speeds · free QuotaPilot app for macOS</title>
@@ -80,6 +80,10 @@
             <a class="btn btn-primary btn-lg" id="heroInstall" href="#install" data-i18n="hero.ctaQp">Get QuotaPilot for macOS — free, open source</a>
             <a class="btn ghost" href="#plans" data-i18n="hero.ctaPlans">Compare plan limits</a>
           </div>
+          <figure class="app-shot">
+            <img src="assets/app-card.png" width="260" height="105" alt="The QuotaPilot card on a Mac desktop: Claude and Codex quota bars with usage rates and reset countdowns" data-i18n-alt="hero.shotAlt">
+            <figcaption data-i18n="hero.shotCaption">QuotaPilot on the desktop: quota used per window, burn rate and time to reset.</figcaption>
+          </figure>
           <a class="sponsor-link" id="heroSponsor" href="#" target="_blank" rel="noopener" data-sponsor hidden>
             <svg class="ico" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" focusable="false"><path fill="currentColor" d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>
             <span data-i18n="sponsor.hero">Support this project</span>

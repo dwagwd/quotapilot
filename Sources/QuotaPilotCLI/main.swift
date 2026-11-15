@@ -240,7 +240,7 @@ func statusObject(_ snapshot: Snapshot) -> [String: Any] {
     return [
         "version": version, "generatedAt": snapshot.now, "errors": snapshot.errors,
         "windows": snapshot.windows.map { item -> [String: Any] in
-            ["id": item.id, "name": item.name, "planType": item.planType ?? NSNull(), "usedPercent": item.window.validUsedPercent ?? NSNull(),
+            ["id": item.id, "name": item.name, "planType": item.planType ?? NSNull(), "planName": PlanCatalog.displayName(provider: item.id.split(separator: ":").first.map(String.init), raw: item.planType) ?? NSNull(), "usedPercent": item.window.validUsedPercent ?? NSNull(),
              "windowDurationMins": item.window.windowDurationMins ?? NSNull(), "resetsAt": item.window.resetsAt ?? NSNull(), "limitReached": item.limitReached]
         },
         "tokens": ["hours": snapshot.tokenHours, "total": breakdownJSON(total), "providers": snapshot.tokens.mapValues(breakdownJSON)] as [String: Any],

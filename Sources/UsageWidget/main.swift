@@ -796,7 +796,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
         ratesDirty = true; resize(); render(); writeStatus()
     }
     private func title(for item: WindowItem) -> String {
-        [item.name, item.planType?.capitalized, l.duration(item.window.windowDurationMins)].compactMap { $0 }.joined(separator: " · ")
+        [item.name, PlanCatalog.displayName(provider: item.id.split(separator: ":").first.map(String.init), raw: item.planType), l.duration(item.window.windowDurationMins)].compactMap { $0 }.joined(separator: " · ")
     }
     private func rateText(_ rate: Rate?, metric: String, unavailable: Bool) -> String {
         let prefix = l.text(metric == "tokens" ? "accountTokens" : "quota")

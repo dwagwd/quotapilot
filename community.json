@@ -1,10 +1,10 @@
 {
-  "generated": "2026-11-17T08:00:01.883Z",
+  "generated": "2026-11-17T20:59:39.282Z",
   "windowDays": 7,
   "eventWindowDays": 30,
   "minSamples": 3,
   "totals": {
-    "reports": 36,
+    "reports": 30,
     "reporters": 1,
     "established": 1,
     "rejected": 0

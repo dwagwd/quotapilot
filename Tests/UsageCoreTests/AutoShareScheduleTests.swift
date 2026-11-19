@@ -38,4 +38,15 @@ final class AutoShareScheduleTests: XCTestCase {
         XCTAssertEqual(text.message, "offline")
         XCTAssertFalse(AutoShareSchedule.isCollectorFull(text))
     }
+
+    func testNetworkAndServerFailuresRetrySoonButClientErrorsAndFullDoNot() {
+        XCTAssertTrue(AutoShareSchedule.shouldRetrySoon(ShareFailure(status: 0, body: nil, transportError: "offline")))
+        XCTAssertTrue(AutoShareSchedule.shouldRetrySoon(ShareFailure(status: 500, body: nil)))
+        XCTAssertTrue(AutoShareSchedule.shouldRetrySoon(ShareFailure(status: 503, body: Data(#"{"error":"busy"}"#.utf8))))
+        XCTAssertFalse(AutoShareSchedule.shouldRetrySoon(ShareFailure(status: 400, body: nil)))
+        XCTAssertFalse(AutoShareSchedule.shouldRetrySoon(ShareFailure(status: 403, body: nil)))
+        XCTAssertFalse(AutoShareSchedule.shouldRetrySoon(ShareFailure(status: 429, body: Data(#"{"error":"too many requests"}"#.utf8))))
+        XCTAssertFalse(AutoShareSchedule.shouldRetrySoon(ShareFailure(status: 429, body: Data(#"{"error":"collector is full for today","full":true}"#.utf8))))
+        XCTAssertFalse(AutoShareSchedule.shouldRetrySoon(ShareFailure(status: 503, body: Data(#"{"error":"full","full":true}"#.utf8))))
+    }
 }

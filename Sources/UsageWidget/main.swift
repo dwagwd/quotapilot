@@ -342,7 +342,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
             field.textColor = group.contains { ($0.window.validUsedPercent ?? 0) >= 90 } ? .systemOrange : foregroundColor
             let provider = providerKey(group)
             if rerouteNote(provider, now: now) != nil && !field.stringValue.hasSuffix("⚠︎") { field.stringValue += "  ⚠︎" }
-            field.toolTip = (group.map { title(for: $0) + " · " + resetText($0, now: now) }
+            field.toolTip = (group.map { title(for: $0) + " · " + resetText($0, now: now) + (claudeFailure($0, now: now).map { "\n" + $0 } ?? "") }
                 + [modelLine(provider).map { l.text("currentModel") + ": " + $0 }, rerouteNote(provider, now: now)].compactMap { $0 })
                 .joined(separator: "\n")
         }
@@ -353,7 +353,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
             let text = (used.map { l.number($0, decimals: 0) + "%" } ?? "—") + " " + (isStale(item, now: now) ? "⚠︎" : shortCountdown(item.window.resetsAt, now: now))
             if row.text.stringValue != text { row.text.stringValue = text }
             row.text.textColor = (used ?? 0) >= 90 ? .systemOrange : foregroundColor
-            row.text.toolTip = title(for: item) + " · " + resetText(item, now: now)
+            row.text.toolTip = title(for: item) + " · " + resetText(item, now: now) + (claudeFailure(item, now: now).map { "\n" + $0 } ?? "")
         }
     }
     private var extraItems: [WindowItem] {
@@ -498,7 +498,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
         guard !collapsed else { return }
         if cardStyle != .detailed { renderStyled(now: now); return }
         if let item = current {
-            let value = isStale(item, now: now) ? l.text("stale") + " · " + l.countdown(item.window.resetsAt, now: now) : resetText(item, now: now)
+            let value = isStale(item, now: now) ? (claudeFailure(item, now: now) ?? l.text("stale") + " · " + l.countdown(item.window.resetsAt, now: now)) : resetText(item, now: now)
             if resetLabel.stringValue != value { resetLabel.stringValue = value }
         }
         for (index, group) in extraGroups.enumerated() where index < extraLabels.count {
@@ -536,6 +536,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
         guard let provider = providerFor(item) else { return stale }
         guard let snapshot = bridgeSnapshots[provider] else { return true }
         return now < snapshot.updatedAt || now - snapshot.updatedAt > 300
+    }
+    /// Why a stale Claude window is stale, when the last plan-usage request failed.
+    private func claudeFailure(_ item: WindowItem?, now: Double) -> String? {
+        guard let item, item.id.hasPrefix("claude:"), isStale(item, now: now), let code = claudePlanError else { return nil }
+        return l.text(code)
     }
     private func rebuildItems() {
         items = codexItems
@@ -811,7 +816,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
         guard panel != nil else { return }
         let now = Date().timeIntervalSince1970
         let item = current
-        titleButton.title = collapsed ? (item?.name ?? "Codex") : ((item.map { title(for: $0) } ?? "QuotaPilot") + " ▾")
+        // Someone who only uses Claude Code has no Codex to read: say what to switch on instead of a Codex error.
+        let claudeOnly = errorMessage == "clientMissing" && items.isEmpty && AgentDetection.claudeInstalled && !settings.claudePlanEnabled
+        // Claude plan usage is on but could not be read, and there is no Codex: show that reason, not "Codex not found".
+        let claudePlanFailed = errorMessage == "clientMissing" && items.isEmpty && AgentDetection.claudeInstalled && settings.claudePlanEnabled && claudePlanError != nil
+        titleButton.title = collapsed ? (item?.name ?? (claudeOnly || claudePlanFailed ? "QuotaPilot" : "Codex")) : ((item.map { title(for: $0) } ?? "QuotaPilot") + " ▾")
         if let used = item?.window.usedPercent, used.isFinite, (0...100).contains(used) {
             valueLabel.stringValue = l.number(used, decimals: 0) + "%"
             progress.doubleValue = used
@@ -832,15 +841,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
         let tokenRate = cachedTokenRate
         let tokenStale = !tokenAvailable || client.diagnostics.lastTokenSuccessAt.map { now - $0 > self.client.pollInterval + 30 } ?? true
         let sourceUpdated = item.flatMap { sourceUpdate(for: $0) }
-        let sourceError = item.flatMap { providerFor($0) } == nil ? errorMessage : nil
+        let sourceError = item.flatMap { providerFor($0) } == nil ? (claudeOnly ? "claudeOnlyHint" : claudePlanFailed ? (claudePlanError ?? "connecting") : errorMessage) : nil
         let planUnavailable = itemStale || item?.window.validUsedPercent == nil || (item?.window.resetsAt.map { $0 <= now } ?? false)
-        resetLabel.stringValue = itemStale ? (sourceUpdated == nil ? l.text(sourceError ?? "connecting") : l.text("stale") + " · " + l.countdown(item?.window.resetsAt, now: now)) :
+        resetLabel.stringValue = itemStale ? (claudeFailure(item, now: now) ?? (sourceUpdated == nil ? l.text(sourceError ?? "connecting") : l.text("stale") + " · " + l.countdown(item?.window.resetsAt, now: now))) :
             (item.map { resetText($0, now: now) } ?? l.countdown(nil, now: now))
         rateLabel.stringValue = rateText(planRate, metric: "quota", unavailable: planUnavailable)
-        tokenLabel.stringValue = "Codex · " + rateText(tokenRate, metric: "tokens", unavailable: tokenStale)
+        // The account token counter is Codex's; for another agent show its own total from the local logs, or nothing.
+        let tokenProvider = item.flatMap { providerFor($0) } ?? (item == nil && (claudeOnly || claudePlanFailed) ? "claude" : nil)
+        let codexTokens = item.map { providerFor($0) == nil } ?? !(claudeOnly || claudePlanFailed)
+        if codexTokens { tokenLabel.stringValue = "Codex · " + rateText(tokenRate, metric: "tokens", unavailable: tokenStale) }
+        else {
+            let total = tokenProvider.flatMap { displaySnapshot(now: now).tokens[$0]?.total } ?? 0
+            tokenLabel.stringValue = total > 0 ? (item?.name ?? "Claude") + " · " + l.text("tokenTotal") + " " + l.compact(total) : ""
+        }
         let forecast = planUnavailable ? nil : forecastQuota(used: item?.window.validUsedPercent, perHour: planRate?.perHour, resetsAt: item?.window.resetsAt, now: now)
         rateLabel.textColor = planUnavailable ? .secondaryLabelColor : (forecast?.outlook == .exhausts ? .systemOrange : .labelColor)
-        tokenLabel.textColor = tokenStale ? .secondaryLabelColor : .labelColor
+        tokenLabel.textColor = codexTokens && tokenStale ? .secondaryLabelColor : .labelColor
         let partial = [planRate, tokenRate].compactMap { $0 }.contains { $0.observedSeconds < settings.lookback }
         observationLabel.stringValue = l.text("last") + " \(settings.intervalValue) " + l.unit(settings.intervalUnit, short: true) + (partial ? " · " + l.text("estimate") : "")
             + (systemFieldsSelected.isEmpty ? "" : " · " + systemText)
@@ -855,7 +871,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
         let detail = "\(valueLabel.stringValue) · \(item.map { title(for: $0) } ?? "Codex")\n\(l.text("reset")): \(resetDate)\n\(rateLabel.stringValue)\n\(tokenLabel.stringValue)\n\(observationLabel.stringValue)\n\(l.text("updated")): \(updated) · \(sourceState) · \(diagnosticAge(selectedSource?.ageSeconds))\n\(l.text("sourceCodexTokens")): \(tokenFreshness) · \(diagnosticAge(tokenSource?.ageSeconds))" + (sourceError.map { "\n"+l.text($0) } ?? "")
         panel.contentView?.toolTip = detail; valueLabel.toolTip = detail; resetLabel.toolTip = detail
         rateLabel.toolTip = detail + forecastDetail(forecast, now: now) + "\n" + l.text("quotaHelp") + observedDetail(planRate)
-        tokenLabel.toolTip = detail + "\n" + l.text("tokensHelp") + observedDetail(tokenRate)
+        tokenLabel.toolTip = codexTokens ? detail + "\n" + l.text("tokensHelp") + observedDetail(tokenRate) : detail
         status?.button?.toolTip = detail
         for (index, group) in extraGroups.enumerated() where index < extraLabels.count {
             extraLabels[index].stringValue = compactLine(group, now: now)
@@ -864,7 +880,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
                 let old = isStale(extra, now: now)
                 let percent = extra.window.validUsedPercent.map { l.number($0, decimals: 0) + "%" } ?? "—"
                 let rate = rateText(cachedRates[extra.id], metric: "quota", unavailable: old || extra.window.validUsedPercent == nil || (extra.window.resetsAt.map { $0 <= now } ?? false))
-                return title(for: extra) + " · " + percent + "\n" + rate + "\n" + (old ? l.text("stale") + " · " : "") + resetText(extra, now: now)
+                return title(for: extra) + " · " + percent + "\n" + rate + "\n" + (old ? (claudeFailure(extra, now: now) ?? l.text("stale")) + " · " : "") + resetText(extra, now: now)
             }.joined(separator: "\n\n") + "\n" + l.text("quotaHelp")
         }
         if cardStyle != .detailed && !collapsed {
@@ -1205,6 +1221,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
         alert.runModal()
         var next = settings
         next.claudePlanEnabled = plan.state == .on
+        if !next.claudePlanEnabled { claudeLogin = nil; claudePlanError = nil }
         next.autoConnectEnabled = connect.state == .on
         let startedSharing = share.state == .on && !settings.autoShareEnabled
         next.autoShareEnabled = share.state == .on
@@ -1271,10 +1288,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
     }
 
     private func fetchClaudePlan(login: (token: String, plan: String?, expiresAt: Double?)?) {
-        guard settings.claudePlanEnabled else { claudePlanFetching = false; claudeLogin = nil; return }
-        guard let login else { claudePlanFetching = false; claudePlanError = "claudeLoginMissing"; return }
+        guard settings.claudePlanEnabled else { claudePlanFetching = false; claudeLogin = nil; claudePlanError = nil; return }
+        guard let login else { claudePlanFetching = false; claudePlanError = "claudeLoginMissing"; render(); writeStatus(); return }
         if let expires = login.expiresAt, expires <= Date().timeIntervalSince1970 {
-            claudePlanFetching = false; claudePlanError = "claudeLoginExpired"; return
+            claudePlanFetching = false; claudePlanError = "claudeLoginExpired"; render(); writeStatus(); return
         }
         var request = URLRequest(url: ClaudePlanUsage.endpoint, timeoutInterval: 20)
         request.setValue("Bearer " + login.token, forHTTPHeaderField: "Authorization")
@@ -1286,10 +1303,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
             DispatchQueue.main.async {
                 guard let self else { return }
                 self.claudePlanFetching = false
-                guard self.settings.claudePlanEnabled else { self.claudeLogin = nil; return }
+                guard self.settings.claudePlanEnabled else { self.claudeLogin = nil; self.claudePlanError = nil; return }
                 guard let snapshot, let encoded = try? JSONEncoder().encode(snapshot) else {
                     if status == 401 { self.claudeLogin = nil }  // re-read the refreshed token next time
-                    self.claudePlanError = status == 401 ? "claudeLoginExpired" : "claudePlanUnavailable"; self.writeStatus(); return
+                    self.claudePlanError = status == 401 ? "claudeLoginExpired" : "claudePlanUnavailable"; self.render(); self.writeStatus(); return
                 }
                 self.claudePlanError = nil
                 let directory = support.appendingPathComponent("providers", isDirectory: true)
@@ -1537,7 +1554,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
             self.settings = next
             self.ratesDirty = true
             self.requestAlertAuthorizationIfNeeded()
-            if !next.claudePlanEnabled { self.claudeLogin = nil }
+            if !next.claudePlanEnabled { self.claudeLogin = nil; self.claudePlanError = nil }
             self.scanAgentLogs(); self.backfillStats(); self.autoConnectAgents(); self.refreshClaudePlan(); self.restartSystemTimer()
             self.client.pollInterval = next.options.energySaver ? 120 : 60
             self.startUITimer(); self.reloadBridges(); self.rebuildItems()
@@ -2578,8 +2595,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
                 case .success(let count): self?.defaults.set(count, forKey: "lastAutoShareCount"); self?.defaults.removeObject(forKey: "lastAutoShareError")
                 case .failure(let error):
                     self?.defaults.set(error.localizedDescription, forKey: "lastAutoShareError")
-                    // A full collector says nothing about this Mac's numbers: retry in about 3 hours, not tomorrow.
-                    if let failure = error as? ShareFailure, AutoShareSchedule.isCollectorFull(failure) {
+                    // A full collector or a network/server failure says nothing about this Mac's numbers: retry in about 3 hours, not tomorrow.
+                    if let failure = error as? ShareFailure, AutoShareSchedule.isCollectorFull(failure) || AutoShareSchedule.shouldRetrySoon(failure) {
                         self?.defaults.set(AutoShareSchedule.retryStamp(after: now), forKey: "lastAutoShare")
                     }
                 }

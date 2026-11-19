@@ -58,24 +58,59 @@ func saveCLISettings(_ settings: WidgetSettings) {
 // MARK: Data sources
 
 /// Codex plan quota through the Codex app server (same path as the menu bar app).
-func fetchCodexWindows(timeout: Double = 30) -> (windows: [WindowItem], error: String?) {
-    let client = UsageClient(requestTimeout: 20)
-    var result: [WindowItem]?
+/// A Codex app-server client with its latest result or failure. One-shot commands make one per fetch;
+/// `watch` keeps one for the whole run, so the app server starts once instead of on every refresh.
+final class CodexSession {
+    let client: UsageClient
+    var windows: [WindowItem]?
     var failure: String?
-    client.onResult = { response, _ in result = response.windows() }
-    client.onFailure = { code in failure = code }
-    if ProcessInfo.processInfo.environment["QUOTAPILOT_DEBUG"] != nil {
-        client.onDiagnostics = { d in FileHandle.standardError.write(Data("diag connected=\(d.connected) inflight=\(d.requestInFlight) fail=\(d.lastFailureCode ?? "-") exe=\(client.executable ?? "-")\n".utf8)) }
+    init(keepAlive: Bool) {
+        client = UsageClient(requestTimeout: 20)
+        // The session is refreshed explicitly each cycle; the client's own polling would only add requests.
+        if keepAlive { client.pollInterval = 86400 }
+        client.onResult = { [weak self] response, _ in self?.windows = response.windows() }
+        client.onFailure = { [weak self] code in self?.failure = code }
+        if ProcessInfo.processInfo.environment["QUOTAPILOT_DEBUG"] != nil {
+            client.onDiagnostics = { [weak self] d in FileHandle.standardError.write(Data("diag connected=\(d.connected) inflight=\(d.requestInFlight) fail=\(d.lastFailureCode ?? "-") exe=\(self?.client.executable ?? "-")\n".utf8)) }
+        }
     }
-    client.refresh()
+}
+var watchSession: CodexSession?
+#if !os(Windows)
+var watchSignalSources: [DispatchSourceSignal] = []
+#endif
+
+/// Error text for a one-shot command. The app's strings for these codes end with "retrying" or "reconnecting",
+/// which is true for the menu bar app but not for a command that exits right after printing.
+func cliText(_ code: String) -> String {
+    let short: [String: [String: String]] = [
+        "timeout": ["en": "Codex did not answer in time.", "zh-Hant": "Codex 未在時限內回應。", "zh-Hans": "Codex 未在时限内响应。"],
+        "disconnected": ["en": "Codex disconnected.", "zh-Hant": "Codex 連線中斷。", "zh-Hans": "Codex 连接中断。"],
+        "serviceStopped": ["en": "Codex service stopped.", "zh-Hant": "Codex 服務已停止。", "zh-Hans": "Codex 服务已停止。"]
+    ]
+    if let table = short[code] { return table[l.code] ?? table["en"] ?? code }
+    return l.text(code)
+}
+
+func fetchCodexWindows(timeout: Double = 30) -> (windows: [WindowItem], error: String?) {
+    let session = watchSession ?? CodexSession(keepAlive: false)
+    session.windows = nil; session.failure = nil
+    session.client.refresh()
     let deadline = Date().addingTimeInterval(timeout)
-    while result == nil && Date() < deadline {
-        if failure == "clientMissing" { break }
+    var lastKick = Date()
+    while session.windows == nil && Date() < deadline {
+        if session.failure == "clientMissing" { break }
+        // A long-lived session may have returned the previous cycle while its token read was still in flight; if
+        // that read never completed, the client is idle and ignores nothing now, so ask again every few seconds.
+        if watchSession != nil, Date().timeIntervalSince(lastKick) >= 2 {
+            let d = session.client.diagnostics
+            if !d.requestInFlight && !d.connected { session.client.refresh(); lastKick = Date() }
+        }
         _ = RunLoop.main.run(mode: .default, before: Date().addingTimeInterval(0.1))
     }
-    client.stop()
-    if let result { return (result, nil) }
-    return ([], failure ?? "timeout")
+    if watchSession == nil { session.client.stop() }
+    if let windows = session.windows { return (windows, nil) }
+    return ([], session.failure ?? "timeout")
 }
 
 func readClaudeCredentials() -> Data? {
@@ -261,7 +296,7 @@ func renderText(_ snapshot: Snapshot) -> String {
                 + " " + shortCountdown(item.window.resetsAt, now: snapshot.now)
         }.joined(separator: "  "))
     }
-    for (agent, error) in snapshot.errors.sorted(by: { $0.key < $1.key }) { lines.append(providerName(agent) + ": " + error) }
+    for (agent, error) in snapshot.errors.sorted(by: { $0.key < $1.key }) { lines.append(providerName(agent) + ": " + cliText(error)) }
     if !snapshot.tokens.isEmpty {
         let total = snapshot.tokens.values.reduce(into: TokenBreakdown()) { $0.add($1) }
         lines.append("Tokens (\(hoursLabel(snapshot.tokenHours))): " + l.compact(total.total) + " · ≈" + l.compact(total.total / snapshot.tokenHours) + "/h · "
@@ -405,13 +440,12 @@ On macOS the router mode and rules come from the QuotaPilot app when it is insta
 elsewhere they are stored in \(configURL.path).
 """
 
+// Option values such as `--hours 6` or `--only speed` are not words.
+let words = CLIArguments.positional(arguments)
 let command: String = {
     if arguments.contains("--help") { return "help" }
     if arguments.contains("--version") { return "version" }
-    // Skip option values such as `--hours 6` or `--interval 30`.
-    let valueIndices = Set(["--hours", "--interval"].compactMap { arguments.firstIndex(of: $0).map { $0 + 1 } })
-    return arguments.indices.first { !valueIndices.contains($0) && (!arguments[$0].hasPrefix("-") || arguments[$0] == "-h") }
-        .map { arguments[$0] } ?? "status"
+    return words.first ?? "status"
 }()
 let hours: Double = {
     guard let text = option("--hours") else { return 24 }
@@ -425,8 +459,8 @@ case "help", "-h":
 case "version":
     print("quotapilot " + version)
 case "open":
-    // Starts the menu bar app this tool ships inside (Homebrew keeps it in the Cellar, where Spotlight does not look).
-    // `open --link` also puts a link in ~/Applications so Spotlight and Launchpad find it.
+    // Starts the menu bar app this tool ships inside (Homebrew keeps it in the Cellar).
+    // `open --link` also puts a link in ~/Applications so QuotaPilot is listed there (Finder, Dock).
     #if os(macOS)
     let tool = URL(fileURLWithPath: Bundle.main.executablePath ?? CommandLine.arguments[0]).resolvingSymlinksInPath()
     guard let app = ProjectLinks.appBundle(containing: tool) else {
@@ -436,14 +470,16 @@ case "open":
         let folder = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Applications", isDirectory: true)
         let link = folder.appendingPathComponent("QuotaPilot.app")
         try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        // `brew upgrade` removes the versioned Cellar folder, so link the stable opt path when there is one.
+        let target = ProjectLinks.stableHomebrewApp(for: app) ?? app
         // Replace only an earlier link; never a real app someone installed there.
         if let existing = try? FileManager.default.destinationOfSymbolicLink(atPath: link.path) {
-            if existing != app.path { try? FileManager.default.removeItem(at: link) }
+            if existing != target.path { try? FileManager.default.removeItem(at: link) }
         } else if FileManager.default.fileExists(atPath: link.path) {
             fail(link.path + " is already an app, not a link; it was left alone.")
         }
         if (try? FileManager.default.destinationOfSymbolicLink(atPath: link.path)) == nil {
-            do { try FileManager.default.createSymbolicLink(at: link, withDestinationURL: app) }
+            do { try FileManager.default.createSymbolicLink(at: link, withDestinationURL: target) }
             catch { fail("Could not create " + link.path + ": " + error.localizedDescription) }
         }
         print("Linked " + link.path)
@@ -462,13 +498,31 @@ case "status":
     if wantsJSON { printJSON(statusObject(snapshot)) } else { print(renderText(snapshot)) }
 case "watch":
     let interval = max(15, Double(option("--interval") ?? "") ?? 60)
+    let session = CodexSession(keepAlive: true)
+    watchSession = session
+    #if !os(Windows)
+    // Ctrl-C, kill and a closed terminal would otherwise leave the Codex app server this session started running.
+    // The handlers run on their own queue: the main thread may be blocked inside a refresh.
+    let signalQueue = DispatchQueue(label: "quotapilot.signals")
+    for (number, code) in [(SIGINT, Int32(130)), (SIGTERM, Int32(143)), (SIGHUP, Int32(129))] {
+        signal(number, SIG_IGN)
+        let source = DispatchSource.makeSignalSource(signal: number, queue: signalQueue)
+        source.setEventHandler {
+            if let pid = session.client.childProcessID { kill(pid, SIGTERM) }
+            exit(code)
+        }
+        source.resume()
+        watchSignalSources.append(source)
+    }
+    #endif
     while true {
         let snapshot = collect(tokenHours: hours)
         print("\u{1B}[2J\u{1B}[H" + renderText(snapshot) + "\n\nRefreshing every \(Int(interval)) s · Ctrl-C to stop")
-        Thread.sleep(forTimeInterval: interval)
+        // Keep the run loop going (not Thread.sleep): the client's pipes and timers live on it.
+        RunLoop.main.run(until: Date().addingTimeInterval(interval))
     }
 case "route":
-    guard let raw = arguments.dropFirst(arguments.firstIndex(of: "route").map { $0 + 1 } ?? 1).first(where: { !$0.hasPrefix("--") }),
+    guard let raw = words.dropFirst().first,
           let kind = TaskKind(rawValue: raw) else { fail("usage: quotapilot route <web|review|plan|implement>", code: 2) }
     let snapshot = collect(tokenHours: hours, includeTokens: false)
     let mode = snapshot.settings.routerMode ?? .auto
@@ -516,7 +570,7 @@ case "share":
     let data = (try? JSONSerialization.data(withJSONObject: reports, options: [.prettyPrinted, .sortedKeys])) ?? Data()
     let json = String(decoding: data, as: UTF8.self)
     if wantsJSON { print(json); exit(0) }  // preview only, never sends
-    for (agent, error) in errors.sorted(by: { $0.key < $1.key }) { print(providerName(agent) + ": " + error) }
+    for (agent, error) in errors.sorted(by: { $0.key < $1.key }) { print(providerName(agent) + ": " + cliText(error)) }
     guard !reports.isEmpty else {
         print("Nothing to share yet. Speed needs 3 calls per model and effort in the last \(hoursLabel(hours)); quota needs at least 1% of a 5-hour or weekly window used.")
         exit(0)
@@ -544,7 +598,7 @@ case "share":
 case "compare":
     // Downloads the public community statistics and compares; sends nothing.
     let (reports, errors) = shareReports(hours: hours)
-    for (agent, error) in errors.sorted(by: { $0.key < $1.key }) { print(providerName(agent) + ": " + error) }
+    for (agent, error) in errors.sorted(by: { $0.key < $1.key }) { print(providerName(agent) + ": " + cliText(error)) }
     if reports.isEmpty { print("Nothing to compare yet: speed needs 3 calls per model in the last \(hoursLabel(hours)).") }
     else { printComparison(reports) }
     print("\nThe community numbers come only from people who share. `quotapilot share` previews what you would send.")

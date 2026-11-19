@@ -255,6 +255,8 @@ ${rs.map((r) => `<tr><td class="num">${esc(r.timeKnown === false ? r.at.slice(0,
     const a1n = set(a1), a2n = a1n === null ? set(a2) : null;
     return a1n !== null ? `<${tag}${a1n} data-i18n-${attr}="${key}"${a2}>` : a2n !== null ? `<${tag}${a1} data-i18n-${attr}="${key}"${a2n}>` : m;
   });
+  // The phone-only "copy link" button copies the English home page's install anchor; on /zh/ it should copy this page's.
+  h = swap(h, /(data-copy-text=")[^"]*#install(")/, `$1${BASE}zh/#install$2`);
   h = h.replace(/(href|src)="assets\//g, '$1="../assets/').replace(/href="plans\/"/g, 'href="plans/"').replace(/href="resets\//g, 'href="resets/');
   mkdirSync(join(OUT, "zh"), { recursive: true });
   writeFileSync(join(OUT, "zh", "index.html"), h);

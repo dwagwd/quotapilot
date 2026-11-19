@@ -12,7 +12,7 @@ brew install dwagwd/quotapilot/quotapilot
 quotapilot open --link
 ```
 
-Apple Silicon 且 macOS 15 以上的 Mac，Homebrew 會直接安裝預先編譯的套件，幾秒完成。其他 Mac 會從原始碼編譯（約兩分鐘，需要 Xcode Command Line Tools）。`quotapilot open --link` 會啟動選單列 App，並在 `~/Applications` 建立連結，讓 Spotlight 與 Launchpad 找得到。之後用 `brew upgrade quotapilot` 更新。
+Apple Silicon 且 macOS 15 以上的 Mac，Homebrew 會直接安裝預先編譯的套件，幾秒完成。其他 Mac 會從原始碼編譯（約兩分鐘，需要 Xcode Command Line Tools）。`quotapilot open --link` 會啟動選單列 App，並在 `~/Applications` 建立連結，讓 QuotaPilot 出現在該資料夾（Finder、Dock）。之後用 `brew upgrade quotapilot` 更新。
 
 <!-- sponsor:start --><!-- sponsor:end -->
 

@@ -52,6 +52,7 @@ test("generated /zh/ home page has its own language, canonical and relative asse
   assert.match(zh, /hreflang="zh-Hant"/);
   assert.doesNotMatch(zh, /(?:href|src)="assets\//);
   assert.match(zh, /src="\.\.\/assets\/app\.js"/);
+  assert.match(zh, /data-copy-text="https:\/\/example\.test\/zh\/#install"/, "the phone copy button points at the Chinese page");
   assert.match(zh, /<title>[^<]*[\u4e00-\u9fff]/);
   assert.ok(zh.match(/<title>([^<]*)<\/title>/)[1].length <= 60, "zh title is short");
 });

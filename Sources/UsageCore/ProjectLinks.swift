@@ -23,4 +23,16 @@ public enum ProjectLinks {
         guard parts.count >= 4, parts[parts.count - 2] == "Helpers", parts[parts.count - 3] == "Contents", parts[parts.count - 4].hasSuffix(".app") else { return nil }
         return tool.standardizedFileURL.deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
     }
+
+    /// The version-independent Homebrew path for an app inside `…/Cellar/quotapilot/<version>/`, which `brew upgrade`
+    /// removes: the same prefix with `/opt/quotapilot/` instead. Nil when the path is not in that Cellar folder,
+    /// or when `exists` says the stable path is not there.
+    public static func stableHomebrewApp(for app: URL, exists: (String) -> Bool = { FileManager.default.fileExists(atPath: $0) }) -> URL? {
+        let path = app.standardizedFileURL.path
+        guard let range = path.range(of: "/Cellar/quotapilot/") else { return nil }
+        let rest = path[range.upperBound...]
+        guard let slash = rest.firstIndex(of: "/"), slash != rest.startIndex else { return nil }
+        let stable = String(path[..<range.lowerBound]) + "/opt/quotapilot/" + rest[rest.index(after: slash)...]
+        return exists(stable) ? URL(fileURLWithPath: stable) : nil
+    }
 }

@@ -139,6 +139,35 @@ final class TransportTests: XCTestCase {
         XCTAssertLessThan(candidates.firstIndex(of: bundled)!, candidates.firstIndex(of: "/bin/codex")!)
         XCTAssertEqual(UsageClient.executableCandidates(environment: ["CODEX_USAGE_CODEX_PATH": "/x/codex"], home: "/h").first, "/x/codex")
     }
+    func testNewestFirstComparesVersionsNumerically() {
+        XCTAssertEqual(UsageClient.newestFirst(["v9.0.0", "v20.11.1", "v20.9.0", "v18.20.4", "v20.11.10"]),
+                       ["v20.11.10", "v20.11.1", "v20.9.0", "v18.20.4", "v9.0.0"])
+        XCTAssertEqual(UsageClient.newestFirst(["20.1", "v20.1.0.1", "v20"]), ["v20.1.0.1", "20.1", "v20"])
+        XCTAssertEqual(UsageClient.newestFirst([]), [])
+    }
+    func testNodeVersionManagerCandidatesComeAfterTheUsualOnesNewestFirst() {
+        let home = "/Users/u"
+        let candidates = UsageClient.executableCandidates(environment: ["PATH": "/bin"], home: home) { directory in
+            directory.hasSuffix("/.nvm/versions/node") ? ["v18.20.4", "v22.1.0", "v9.0.0"]
+                : directory == home + "/.fnm/node-versions" ? ["v20.0.0", "v20.10.0"]
+                : directory == home + "/Library/Application Support/fnm/node-versions" ? ["v22.2.0"] : []
+        }
+        func index(_ path: String) -> Int { candidates.firstIndex(of: path)! }
+        let nvm = { (v: String) in home + "/.nvm/versions/node/" + v + "/bin/codex" }
+        XCTAssertLessThan(index(home + "/.npm-global/bin/codex"), index(home + "/.volta/bin/codex"))
+        XCTAssertLessThan(index(nvm("v22.1.0")), index(nvm("v18.20.4")))
+        XCTAssertLessThan(index(nvm("v18.20.4")), index(nvm("v9.0.0")))
+        XCTAssertLessThan(index(home + "/.fnm/node-versions/v20.10.0/installation/bin/codex"), index(home + "/.fnm/node-versions/v20.0.0/installation/bin/codex"))
+        XCTAssertTrue(candidates.contains(home + "/Library/Application Support/fnm/node-versions/v22.2.0/installation/bin/codex"))
+        for path in ["/Library/Application Support/fnm/aliases/default/bin", "/.bun/bin", "/Library/pnpm", "/.local/share/pnpm", "/.local/share/mise/shims", "/.asdf/shims", "/.local/share/fnm/aliases/default/bin"] {
+            XCTAssertTrue(candidates.contains(home + path + "/codex"), path)
+        }
+    }
+    func testChildPathPutsTheExecutableFolderFirst() {
+        XCTAssertEqual(UsageClient.childPath(executable: "/h/.nvm/versions/node/v22/bin/codex", inheritedPath: "/usr/bin:/bin"), "/h/.nvm/versions/node/v22/bin:/usr/bin:/bin")
+        XCTAssertEqual(UsageClient.childPath(executable: "/h/bin/codex", inheritedPath: nil), "/h/bin")
+        XCTAssertEqual(UsageClient.childPath(executable: "/h/bin/codex", inheritedPath: ""), "/h/bin")
+    }
     func testPortableSHA256MatchesKnownVectors() {
         XCTAssertEqual(Portable.sha256Hex(""), "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855")
         XCTAssertEqual(Portable.sha256Hex("abc"), "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad")

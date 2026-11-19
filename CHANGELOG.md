@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased
+
+- QuotaPilot finds the Codex CLI when it was installed through Volta, Bun, pnpm, mise, asdf, nvm or fnm, even though a menu bar app started by the system has a minimal PATH. The Codex process is started with its own folder on PATH, so npm-installed launchers that need `node` also work.
+- When Claude plan usage cannot be read, the card now says why (login not found, login expired, or usage unavailable) instead of only showing the data as stale. Turning Claude plan usage off clears the message.
+- If you only use Claude Code, the card no longer shows an empty "Codex" card with a Codex error: it points to **Show Claude plan usage** under Connections and privacy…, and another agent's row shows that agent's own token total instead of the Codex account counter.
+- `quotapilot` prints readable messages instead of internal error codes. `--json` output keeps the codes.
+- `quotapilot watch` keeps one Codex connection open instead of starting a new one on every refresh.
+- `quotapilot route --hours 6 review` and `quotapilot --only speed share` read their arguments correctly.
+- Daily anonymous sharing tries again after about 3 hours when the network or the collector's server fails, instead of waiting a full day.
+- Japanese, Korean, Spanish, French, German, Portuguese (Brazil) and Italian now have proper texts for "Codex not found" and "Sign in to Codex", and for the Claude plan messages.
+
 ## 0.6.8
 
 - Security: the Claude Code login and the DeepSeek key are sent through a session that stores nothing. Earlier versions let macOS keep those requests, with their Authorization header, in the app's URL cache under ~/Library/Caches; 0.6.8 clears that cache on launch.

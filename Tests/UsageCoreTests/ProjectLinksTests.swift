@@ -15,4 +15,14 @@ final class ProjectLinksTests: XCTestCase {
         XCTAssertNil(ProjectLinks.appBundle(containing: URL(fileURLWithPath: "/usr/local/bin/quotapilot")))
         XCTAssertNil(ProjectLinks.appBundle(containing: URL(fileURLWithPath: "/tmp/Helpers/quotapilot")))
     }
+
+    func testCellarAppMapsToTheStableOptPathOnlyWhenItExists() {
+        let cellar = URL(fileURLWithPath: "/opt/homebrew/Cellar/quotapilot/1.2.3/QuotaPilot.app")
+        XCTAssertEqual(ProjectLinks.stableHomebrewApp(for: cellar, exists: { $0 == "/opt/homebrew/opt/quotapilot/QuotaPilot.app" })?.path, "/opt/homebrew/opt/quotapilot/QuotaPilot.app")
+        XCTAssertNil(ProjectLinks.stableHomebrewApp(for: cellar, exists: { _ in false }))
+        let intel = URL(fileURLWithPath: "/usr/local/Cellar/quotapilot/0.7.0/QuotaPilot.app")
+        XCTAssertEqual(ProjectLinks.stableHomebrewApp(for: intel, exists: { _ in true })?.path, "/usr/local/opt/quotapilot/QuotaPilot.app")
+        XCTAssertNil(ProjectLinks.stableHomebrewApp(for: URL(fileURLWithPath: "/Applications/QuotaPilot.app"), exists: { _ in true }))
+        XCTAssertNil(ProjectLinks.stableHomebrewApp(for: URL(fileURLWithPath: "/opt/homebrew/Cellar/quotapilot//QuotaPilot.app"), exists: { _ in true }))
+    }
 }

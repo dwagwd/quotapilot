@@ -577,7 +577,7 @@
       return;
     }
     $("#comInvite").innerHTML = "";
-    // Preliminary rows for models and plans that have not reached the threshold yet, under the published cards.
+    // Preliminary rows for models and plans that have not reached the threshold yet, shown in the invite card above the published cards.
     const prelim = preliminaryHtml(c);
     if (prelim) { $("#comInvite").innerHTML = prelim; $("#comInvite").hidden = false; }
     const reporters = c.totals.reporters;

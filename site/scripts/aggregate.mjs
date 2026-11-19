@@ -18,6 +18,31 @@ export const EFFORTS = ["minimal", "low", "medium", "high", "xhigh", "max", "ult
 // numbers are never published. Ratings, token mix, effort usage and limit events (which would show one person's
 // working hours) stay behind MIN_SAMPLES.
 export const PRELIM_SPEED_STEP = 5;
+
+// Preliminary quota rows publish the plan string, and the collector accepts any short text for `plan`, so a
+// row from 1 or 2 people is shown only when the plan is on this list (compared case-insensitively, trimmed).
+// Built from what the app sends: ContributionReport.planName (underscores to spaces, each word capitalised)
+// applied to the raw plan ids in Sources/UsageCore/PlanCatalog.swift, plus the plan names in data/plans.json.
+// Plans with 3 or more people are published regardless: that is the normal row rule, not this list.
+const planName = (raw) => raw.replace(/_/g, " ").split(" ").filter(Boolean).map((w) => w[0].toUpperCase() + w.slice(1)).join(" ");
+const PLAN_IDS = {
+  chatgpt: ["free", "go", "plus", "pro", "prolite", "pro_lite", "pro_5x", "pro_20x", "team", "business", "self_serve_business_usage_based", "enterprise", "edu", "education", "k12"],
+  claude: ["free", "pro", "max", "max_5x", "max_20x", "team", "enterprise"],
+  gemini: ["oauth_personal", "gemini_api_key", "vertex_ai", "compute_adc", "google_ai_pro", "google_ai_ultra", "free_tier", "standard_tier", "enterprise_tier", "legacy_tier"],
+  grok: []
+};
+export const KNOWN_PLANS = (() => {
+  const out = Object.fromEntries(PROVIDERS.map((p) => [p, new Set((PLAN_IDS[p] || []).map((id) => planName(id).toLowerCase()))]));
+  try {
+    const catalog = JSON.parse(readFileSync(new URL("../data/plans.json", import.meta.url), "utf8"));
+    for (const prov of catalog.providers || []) {
+      if (!out[prov.id]) continue;
+      for (const plan of [...(prov.plans || []), ...(prov.subproducts || []).flatMap((s) => s.plans || [])]) if (plan.name) out[prov.id].add(String(plan.name).trim().toLowerCase());
+    }
+  } catch { /* without plans.json only the ids above count */ }
+  return out;
+})();
+export const isKnownPlan = (provider, plan) => typeof plan === "string" && !!KNOWN_PLANS[provider]?.has(plan.trim().toLowerCase());
 export const roundSig = (v, digits = 2) => {
   if (!Number.isFinite(v) || v <= 0) return null;
   const p = 10 ** (Math.floor(Math.log10(v)) - digits + 1);
@@ -285,7 +310,7 @@ export function aggregate(raw, models, now = new Date(), blocked = []) {
       const values = perPerson(rs, (r) => r.estTokens).sort((a, b) => a - b);
       return { provider, plan, window, n: values.length, medianTokens: roundSig(quantile(values, 0.5)), lowerBound: true };
     })
-    .filter((q) => q.medianTokens != null && q.n >= 1 && q.n < MIN_SAMPLES).sort((a, b) => a.provider.localeCompare(b.provider) || b.medianTokens - a.medianTokens);
+    .filter((q) => q.medianTokens != null && q.n >= 1 && q.n < MIN_SAMPLES && isKnownPlan(q.provider, q.plan)).sort((a, b) => a.provider.localeCompare(b.provider) || b.medianTokens - a.medianTokens);
 
   // Events use a 30-day window: they are rarer than other reports.
   const eventSince = new Date(now.getTime() - 30 * 864e5);

@@ -43,6 +43,11 @@ public final class UsageClient {
     /// Called for the app server's model-reroute notification (requested model, served model, reason).
     public var onReroute: ((String?, String?, String?) -> Void)?
     private var process: Process?
+    private let pidLock = NSLock()
+    private var childPid: Int32?
+    /// Process id of the running Codex child, safe to read from any thread (for a signal handler that must stop it).
+    public var childProcessID: Int32? { pidLock.lock(); defer { pidLock.unlock() }; return childPid }
+    private func setChildPid(_ pid: Int32?) { pidLock.lock(); childPid = pid; pidLock.unlock() }
     private var input: Pipe?
     private var output: Pipe?
     private var buffer = Data()
@@ -109,7 +114,8 @@ public final class UsageClient {
 
     /// Known Codex CLI locations, most specific first. Newer ChatGPT desktop builds ship the CLI under
     /// `Resources/codex-cli/` instead of `Resources/codex`.
-    public static func executableCandidates(environment env: [String: String], home: String) -> [String] {
+    public static func executableCandidates(environment env: [String: String], home: String,
+                                            listDirectory: (String) -> [String] = { (try? FileManager.default.contentsOfDirectory(atPath: $0)) ?? [] }) -> [String] {
         let bundles = ["/Applications", home + "/Applications"].flatMap { root in
             ["Codex.app", "ChatGPT.app"].flatMap { app in
                 ["\(root)/\(app)/Contents/Resources/codex-cli/CodexCLI.app/Contents/MacOS/codex",
@@ -122,10 +128,42 @@ public final class UsageClient {
         let extra = [env["APPDATA"].map { $0 + "\\npm\\codex.exe" }, env["LOCALAPPDATA"].map { $0 + "\\Programs\\codex\\codex.exe" }].compactMap { $0 }
         return [env["QUOTAPILOT_CODEX_PATH"], env["CODEX_USAGE_CODEX_PATH"]].compactMap { $0 } + pathEntries + extra
         #else
-        return [env["QUOTAPILOT_CODEX_PATH"], env["CODEX_USAGE_CODEX_PATH"]].compactMap { $0 } + bundles
-            + (env["PATH"] ?? "").split(separator: ":").map { String($0)+"/codex" }
-            + ["/opt/homebrew/bin/codex", "/usr/local/bin/codex", home + "/.local/bin/codex", home + "/.npm-global/bin/codex"]
+        let overrides = [env["QUOTAPILOT_CODEX_PATH"], env["CODEX_USAGE_CODEX_PATH"]].compactMap { $0 }
+        let pathEntries = (env["PATH"] ?? "").split(separator: ":").map { String($0) + "/codex" }
+        let common = ["/opt/homebrew/bin/codex", "/usr/local/bin/codex", home + "/.local/bin/codex", home + "/.npm-global/bin/codex"]
+        // A menu bar app started by the system has a minimal PATH, so Node version managers are looked up by location.
+        let managers = ["/.volta/bin", "/.bun/bin", "/Library/pnpm", "/.local/share/pnpm", "/.local/share/mise/shims", "/.asdf/shims",
+                        "/.local/share/fnm/aliases/default/bin",
+                        "/Library/Application Support/fnm/aliases/default/bin"].map { home + $0 + "/codex" }
+        let nvm = newestFirst(listDirectory(home + "/.nvm/versions/node")).map { home + "/.nvm/versions/node/" + $0 + "/bin/codex" }
+        let fnm = [home + "/.fnm/node-versions", home + "/Library/Application Support/fnm/node-versions"].flatMap { root in
+            newestFirst(listDirectory(root)).map { root + "/" + $0 + "/installation/bin/codex" }
+        }
+        return overrides + bundles + pathEntries + common + managers + nvm + fnm
         #endif
+    }
+
+    /// Version folder names such as `v20.11.1`, newest first. Numeric compare, so v10 sorts above v9.
+    public static func newestFirst(_ versions: [String]) -> [String] {
+        func parts(_ name: String) -> [Int] {
+            name.drop { $0 == "v" || $0 == "V" }.split(separator: ".").map { Int($0.prefix { $0.isNumber }) ?? 0 }
+        }
+        return versions.sorted { a, b in
+            let (x, y) = (parts(a), parts(b))
+            for i in 0..<max(x.count, y.count) {
+                let (p, q) = (i < x.count ? x[i] : 0, i < y.count ? y[i] : 0)
+                if p != q { return p > q }
+            }
+            return a < b
+        }
+    }
+
+    /// PATH for the Codex child: its own folder first, then the inherited PATH. An npm-installed Codex under
+    /// nvm, fnm, pnpm or bun is a `#!/usr/bin/env node` script, and a menu bar app's PATH does not contain `node`.
+    public static func childPath(executable: String, inheritedPath: String?) -> String {
+        let folder = (executable as NSString).deletingLastPathComponent
+        guard let inherited = inheritedPath, !inherited.isEmpty else { return folder }
+        return folder + ":" + inherited
     }
 
     private func start() {
@@ -139,6 +177,11 @@ public final class UsageClient {
         p.executableURL = URL(fileURLWithPath: path)
         p.arguments = ["app-server", "--stdio"]
         p.currentDirectoryURL = URL(fileURLWithPath: NSHomeDirectory())
+        #if !os(Windows)
+        var environment = ProcessInfo.processInfo.environment
+        environment["PATH"] = Self.childPath(executable: path, inheritedPath: environment["PATH"])
+        p.environment = environment
+        #endif
         p.standardInput = stdin; p.standardOutput = stdout
         p.standardError = FileHandle.nullDevice
         generation = UUID(); let token = generation
@@ -159,6 +202,7 @@ public final class UsageClient {
         process = p; input = stdin; output = stdout; inFlight = true; publishDiagnostics()
         do {
             try p.run()
+            setChildPid(p.processIdentifier)
             armTimeout()
             send(["id": 1, "method": "initialize", "params": [
                 "clientInfo": ["name": "codex_usage_widget", "version": Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "development"],
@@ -289,7 +333,7 @@ public final class UsageClient {
                 if old.isRunning { forceKill(old) }
             }
         }
-        pendingTokenAccount = nil; process = nil; input = nil; output = nil; ready = false; inFlight = false; buffer = Data()
+        setChildPid(nil); pendingTokenAccount = nil; process = nil; input = nil; output = nil; ready = false; inFlight = false; buffer = Data()
         publishDiagnostics()
     }
     private func publishDiagnostics() {

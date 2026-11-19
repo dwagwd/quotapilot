@@ -12,7 +12,7 @@ brew install dwagwd/quotapilot/quotapilot
 quotapilot open --link
 ```
 
-On Apple Silicon Macs with macOS 15 or later, Homebrew installs a prebuilt package in a few seconds. On other Macs it builds QuotaPilot from source (about two minutes, needs the Xcode Command Line Tools). `quotapilot open --link` starts the menu bar app and adds a link in `~/Applications`, so Spotlight and Launchpad find it. Update with `brew upgrade quotapilot`. Linux and Windows: [get the command-line tool](#windows-and-linux-the-quotapilot-cli).
+On Apple Silicon Macs with macOS 15 or later, Homebrew installs a prebuilt package in a few seconds. On other Macs it builds QuotaPilot from source (about two minutes, needs the Xcode Command Line Tools). `quotapilot open --link` starts the menu bar app and adds a link in `~/Applications`, so QuotaPilot is listed in that folder (Finder, Dock). Update with `brew upgrade quotapilot`. Linux and Windows: [get the command-line tool](#windows-and-linux-the-quotapilot-cli).
 
 <!-- sponsor:start --><!-- sponsor:end -->
 

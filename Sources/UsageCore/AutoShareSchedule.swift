@@ -17,4 +17,10 @@ public enum AutoShareSchedule {
         failure.collectorFull
             || (failure.status == 429 && failure.message.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() == "collector is full for today")
     }
+
+    /// A network failure (status 0) or a server error may be gone in a few hours, so the next attempt should not wait
+    /// a day. A full collector has its own retry, and a 4xx will not change by sending the same report again.
+    public static func shouldRetrySoon(_ failure: ShareFailure) -> Bool {
+        !isCollectorFull(failure) && (failure.status == 0 || (500...599).contains(failure.status))
+    }
 }

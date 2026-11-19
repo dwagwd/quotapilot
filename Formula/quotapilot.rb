@@ -32,7 +32,7 @@ class Quotapilot < Formula
     <<~EOS
       Start the menu bar app:
         quotapilot open
-      To also find it in Spotlight and Launchpad:
+      To also add a QuotaPilot entry to ~/Applications (Finder, Dock):
         quotapilot open --link
       Update later with:
         brew upgrade quotapilot

@@ -315,6 +315,14 @@ test("1 or 2 people give a coarse preliminary row, never quartiles, and 3 people
   assert.equal(three.preliminary.speed.length, 0);
 });
 
+test("a preliminary quota row needs a plan from the fixed list", () => {
+  const qu = (plan) => ({ type: "quota", provider: "claude", plan, window: "weekly", percentUsed: 40, tokensUsed: 12345678, date: day(1), reporter: "a", reporterFirstSeen: day(9).slice(0, 10), receivedDay: day(1).slice(0, 10) });
+  assert.equal(aggregate([qu("Call me at 555-1234")], models, now).preliminary.quota.length, 0);
+  assert.equal(aggregate([qu("Acme Corp")], models, now).preliminary.quota.length, 0);
+  assert.equal(aggregate([qu("Max 5x")], models, now).preliminary.quota.length, 1);
+  assert.equal(aggregate([qu("  max 20X ")], models, now).preliminary.quota.length, 1);
+});
+
 test("a one-shot website report alone never makes a preliminary row", () => {
   const r = { type: "speed", model: "claude-opus-5-5", outputTokens: 900, seconds: 10, calls: 4, date: day(1), reporter: "site1", via: "site", ipGroup: "abcdef12", reporterFirstSeen: day(1).slice(0, 10), receivedDay: day(1).slice(0, 10) };
   assert.equal(aggregate([r], models, now).preliminary.speed.length, 0);

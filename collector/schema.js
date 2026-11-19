@@ -1,7 +1,9 @@
 // The one list of what a shared report may contain, used by the collector.
 // Data minimisation: every field is something the public statistics use, text fields only accept known
-// values or short id-like strings (so nobody can store names, prompts or other free text), numbers must be
-// in range, and times are cut to the hour. Anything else is dropped before a report is saved.
+// values or short id-like strings, numbers must be in range, and times are cut to the hour. `plan` is the one
+// short free-form field (letters, digits, spaces and ().+-, at most 30 characters): the aggregation publishes
+// it only when 3 people sent the same name, and rows from 1-2 people only for plan names on a fixed list.
+// Anything else is dropped before a report is saved.
 
 export const TYPES = ["speed", "rating", "quota", "event"];
 const enumOf = (...values) => (v) => (values.includes(v) ? v : undefined);

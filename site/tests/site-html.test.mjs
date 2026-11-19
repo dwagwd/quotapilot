@@ -28,7 +28,7 @@ test("index.html has no inline script, style or event handler", () => assertCspS
 
 test("index.html carries the SEO basics", () => {
   const title = html.match(/<title>([^<]*)<\/title>/)[1];
-  assert.ok(title.length >= 50 && title.length <= 120, `title length ${title.length}`);
+  assert.ok(title.length >= 30 && title.length <= 60, `title length ${title.length}`);
   assert.equal(html.match(/rel="canonical"/g).length, 1);
   assert.match(html, /<meta name="description" content="[^"]{80,}">/);
   assert.match(html, /<meta name="color-scheme" content="light dark">/);
@@ -53,6 +53,59 @@ test("generated /zh/ home page has its own language, canonical and relative asse
   assert.doesNotMatch(zh, /(?:href|src)="assets\//);
   assert.match(zh, /src="\.\.\/assets\/app\.js"/);
   assert.match(zh, /<title>[^<]*[\u4e00-\u9fff]/);
+  assert.ok(zh.match(/<title>([^<]*)<\/title>/)[1].length <= 60, "zh title is short");
+});
+
+test("generated /zh/ home page is Chinese in the static markup, before JavaScript runs", () => {
+  const out = mkdtempSync(join(tmpdir(), "aqw-zhstatic-"));
+  let zh;
+  try {
+    execFileSync(process.execPath, [fileURLToPath(new URL("../scripts/build-pages.mjs", import.meta.url)), out], { stdio: "pipe" });
+    zh = readFileSync(join(out, "zh", "index.html"), "utf8");
+  } finally { rmSync(out, { recursive: true, force: true }); }
+  const I18N = (() => { const w = {}; new Function("window", read("../assets/i18n.js"))(w); return w.I18N; })();
+  assert.match(zh, new RegExp(`<h1[^>]*data-i18n="hero.title"[^>]*>${I18N.zh["hero.title"]}</h1>`));
+  assert.ok(!zh.includes(">" + I18N.en["hero.title"] + "<"), "English hero heading is gone from the static zh markup");
+  assert.ok(!zh.includes(">" + I18N.en["hero.ctaPlans"] + "<"), "English hero button is gone");
+  assert.match(zh, /alt="[^"]*[\u4e00-\u9fff][^"]*" data-i18n-alt="hero.shotAlt"/);
+});
+
+test("phone hero actions: copy link and star, hidden on wide screens by a CSS media query", () => {
+  assert.match(html, /id="heroCopyLink"[^>]*data-copy-text="https:\/\/aiquotawatch\.pages\.dev\/#install"/);
+  assert.match(html, /<a class="btn ghost hero-mobile" href="https:\/\/github\.com\/dwagwd\/quotapilot" target="_blank" rel="noopener"/);
+  const css = read("../assets/style.css");
+  assert.match(css, /\.hero-cta \.hero-mobile \{ display: none; \}/);
+  assert.match(css, /@media \(max-width: 640px\) \{[^}]*\.hero-cta \.hero-mobile \{ display: inline-flex; \}/);
+  const i18n = read("../assets/i18n.js");
+  assert.equal((i18n.match(/"hero\.copyLink":/g) || []).length, 2);
+  assert.equal((i18n.match(/"hero\.star":/g) || []).length, 2);
+});
+
+test("invite card steps keep their grid track shrinkable so the command box scrolls instead of widening the page", () => {
+  const css = read("../assets/style.css");
+  const rule = css.match(/\.invite-steps li \{[^}]*\}/)[0];
+  assert.match(rule, /grid-template-columns: minmax\(0, 1fr\)/);
+});
+
+test("generated plan pages: breadcrumb + FAQ JSON-LD, richer plans index, dated reset history title", () => {
+  const out = mkdtempSync(join(tmpdir(), "aqw-seo-"));
+  let claude, index, zhIndex, resets;
+  try {
+    execFileSync(process.execPath, [fileURLToPath(new URL("../scripts/build-pages.mjs", import.meta.url)), out, "--base", "https://example.test/"], { stdio: "pipe" });
+    claude = readFileSync(join(out, "plans", "claude.html"), "utf8");
+    index = readFileSync(join(out, "plans", "index.html"), "utf8");
+    zhIndex = readFileSync(join(out, "zh", "plans", "index.html"), "utf8");
+    resets = readFileSync(join(out, "resets", "codex.html"), "utf8");
+  } finally { rmSync(out, { recursive: true, force: true }); }
+  const ld = [...claude.matchAll(/<script type="application\/ld\+json">([^<]*)<\/script>/g)].map((m) => JSON.parse(m[1]));
+  assert.deepEqual(ld.map((j) => j["@type"]).sort(), ["BreadcrumbList", "FAQPage"]);
+  const crumbs = ld.find((j) => j["@type"] === "BreadcrumbList").itemListElement;
+  assert.deepEqual(crumbs.map((c) => c.position), [1, 2, 3]);
+  assert.equal(crumbs[2].item, "https://example.test/plans/claude");
+  assert.match(index, /<meta name="description" content="[^"]{80,}">/);
+  assert.match(index, /Free, Pro \$20, Max \$100, Ultra \$200 · limit window: /);
+  assert.match(zhIndex, /Free、Pro \$20、Max \$100、Ultra \$200 · 額度重置：/);
+  assert.match(resets, /<title>Codex usage limit reset history \(20\d\d\): every reset, with times<\/title>/);
 });
 
 test("theme.js loads in <head> before the stylesheet (no flash of the wrong theme)", () => {

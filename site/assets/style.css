@@ -118,6 +118,7 @@ a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible
 .lede { font-size: var(--t-m); color: var(--muted); margin: 0 0 12px; max-width: 62ch; }
 .hero-for { margin: 0 0 18px; font-size: var(--t-base); color: var(--text); max-width: 62ch; }
 .hero-cta { display: flex; flex-wrap: wrap; gap: 10px; margin: 0 0 6px; }
+.hero-cta .hero-mobile { display: none; }
 .trust { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; font-size: var(--t-s); color: var(--muted); }
 .trust li { position: relative; padding-left: 24px; }
 .trust li::before { content: "✓"; position: absolute; left: 0; top: 0; width: 18px; text-align: center; color: var(--good); font-weight: 700; }
@@ -300,6 +301,10 @@ table.models { width: 100%; border-collapse: collapse; font-size: 14px; min-widt
   .footer-links a { padding: 10px 0; }
   section[id], [id].report, [id].install, .anchor-alias { scroll-margin-top: 104px; }
 }
+@media (max-width: 640px) {
+  /* a phone cannot run the brew commands: offer to carry the link to a Mac instead */
+  .hero-cta .hero-mobile { display: inline-flex; }
+}
 @media (max-width: 480px) {
   /* the hero button is one scroll below, so the nav Install button is dropped on small phones */
   #navInstall { display: none; }
@@ -477,10 +482,11 @@ i.banked, .lg.banked { background: var(--banked); }
 .invite h3 { margin: 0; font-size: var(--t-l); }
 .invite > p { margin: 0; color: var(--muted); max-width: 72ch; }
 .invite-steps { margin: 4px 0; padding: 0; list-style: none; counter-reset: step; display: grid; gap: var(--s-3); }
-.invite-steps li { counter-increment: step; position: relative; padding-left: 40px; min-height: 28px; display: grid; gap: 8px; align-content: start; }
+.invite-steps li { counter-increment: step; position: relative; padding-left: 40px; min-height: 28px; display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; align-content: start; }
 .invite-steps li::before { content: counter(step); position: absolute; left: 0; top: -2px; width: 28px; height: 28px; border-radius: 50%; background: var(--surface-2); color: var(--text); font-weight: 700; font-size: var(--t-s); display: flex; align-items: center; justify-content: center; }
 .invite-steps li > span { padding-top: 2px; }
-.invite-steps .install-cmd { max-width: 720px; }
+.invite-steps .install-cmd { max-width: 720px; min-width: 0; }
+.invite-steps .install-cmd pre { max-width: 100%; overflow-x: auto; }
 .invite-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 20px; }
 .invite-actions a:not(.btn) { display: inline-flex; align-items: center; min-height: var(--tap); }
 .invite-sponsor { margin: 0; font-size: var(--t-s); }

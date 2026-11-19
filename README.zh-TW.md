@@ -9,10 +9,10 @@
 ```sh
 brew tap dwagwd/quotapilot https://github.com/dwagwd/quotapilot
 brew install dwagwd/quotapilot/quotapilot
-open "$(brew --prefix quotapilot)/QuotaPilot.app"
+quotapilot open --link
 ```
 
-Apple Silicon 且 macOS 15 以上的 Mac，Homebrew 會直接安裝預先編譯的套件，幾秒完成。其他 Mac 會從原始碼編譯（約兩分鐘，需要 Xcode Command Line Tools）。之後用 `brew upgrade quotapilot` 更新。
+Apple Silicon 且 macOS 15 以上的 Mac，Homebrew 會直接安裝預先編譯的套件，幾秒完成。其他 Mac 會從原始碼編譯（約兩分鐘，需要 Xcode Command Line Tools）。`quotapilot open --link` 會啟動選單列 App，並在 `~/Applications` 建立連結，讓 Spotlight 與 Launchpad 找得到。之後用 `brew upgrade quotapilot` 更新。
 
 <!-- sponsor:start --><!-- sponsor:end -->
 
@@ -58,7 +58,7 @@ Apple Silicon 且 macOS 15 以上的 Mac，Homebrew 會直接安裝預先編譯�
 
 **Windows／Linux：`quotapilot` 命令列工具。**選單列 App 只支援 macOS；在 macOS、Linux、Windows 都可以用 `quotapilot status`（各 agent 額度、24 小時 Token、依工作分派）、`quotapilot watch`（終端機即時更新）、`quotapilot route review`（輸出 codex 或 claude）、`quotapilot stats --hours 168`、`quotapilot config rule web codex`，加上 `--json` 可供腳本與 skill 使用。macOS 上 Homebrew 會把 `quotapilot` 放進 `PATH`（工具位於 `QuotaPilot.app/Contents/Helpers/quotapilot`）；其他平台以 Swift 6.2 以上執行 `swift build -c release --product quotapilot` 建置。
 
-**快速安裝：**使用上方的 Homebrew 指令。
+**快速安裝：**使用上方的 Homebrew 指令。Apple Silicon 且 macOS 15 以上會直接安裝預先編譯的套件；其他 Mac 會從原始碼編譯。
 
 **從原始碼建置：**先執行 `git clone https://github.com/dwagwd/quotapilot.git quotapilot`，再 `cd quotapilot`。
 

@@ -143,23 +143,26 @@
   // Copies the commands as one line joined with " && "; without clipboard access, selects the text instead.
   function initCopyButtons() {
     document.addEventListener("click", (e) => {
-      const btn = e.target.closest("[data-copy-target]");
+      const btn = e.target.closest("[data-copy-target], [data-copy-text]");
       if (!btn) return;
-      const pre = document.getElementById(btn.dataset.copyTarget);
-      if (!pre) return;
+      // [data-copy-text] copies a fixed string (the hero's "open on your Mac" link) instead of a command box.
+      const fixed = btn.dataset.copyText || "";
+      const pre = fixed ? null : document.getElementById(btn.dataset.copyTarget);
+      if (!fixed && !pre) return;
+      const label = btn.dataset.copyLabel || "install.copy";
       const status = btn.dataset.copyStatus ? document.getElementById(btn.dataset.copyStatus) : null;
-      let text = S.joinCommands(pre.textContent);
+      let text = fixed || S.joinCommands(pre.textContent);
       // Windows PowerShell 5.1 has no "&&"; its lines are joined with ";" instead.
-      if (pre.id === "installCmd" && installPlatform === "windows") text = text.split(" && ").join("; ");
+      if (pre && pre.id === "installCmd" && installPlatform === "windows") text = text.split(" && ").join("; ");
       const done = (key) => {
         btn.textContent = t(key);
         if (status) status.textContent = t(key);
         clearTimeout(btn._copyTimer);
-        btn._copyTimer = setTimeout(() => { btn.textContent = t("install.copy"); if (status) status.textContent = ""; }, key === "install.copied" ? 1500 : 4000);
+        btn._copyTimer = setTimeout(() => { btn.textContent = t(label); if (status) status.textContent = ""; }, key === "install.copied" ? 1500 : 4000);
       };
       const manual = () => {
-        try { window.getSelection().selectAllChildren(pre); } catch (err) { /* ignore */ }
-        done("install.copyManual");
+        if (pre) { try { window.getSelection().selectAllChildren(pre); } catch (err) { /* ignore */ } }
+        done(btn.dataset.copyFail || "install.copyManual");
       };
       if (navigator.clipboard && window.isSecureContext) navigator.clipboard.writeText(text).then(() => done("install.copied"), manual);
       else manual();

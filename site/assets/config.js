@@ -11,7 +11,7 @@ window.SITE_CONFIG = {
     commands: [
       "brew tap dwagwd/quotapilot https://github.com/dwagwd/quotapilot",
       "brew install dwagwd/quotapilot/quotapilot",
-      'open "$(brew --prefix quotapilot)/QuotaPilot.app"'
+      'quotapilot open --link'
     ],
     // Command-line tool for the other systems. The Linux command picks x64 or arm64 itself, so the page never guesses the CPU; Windows gets the x64 build, which also runs on ARM PCs.
     platforms: {

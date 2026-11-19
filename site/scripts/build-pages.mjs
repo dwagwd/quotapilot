@@ -46,6 +46,9 @@ const T = {
     when: "Posted (UTC)", kind: "Type", what: "What happened", full: "Full reset", banked: "Banked reset card",
     stats: (n, m, gap) => `${n} resets on record, ${m} in the last 30 days. Average gap over the last 90 days: ${gap} days.`,
     openTool: "Open the live dashboard", lang: "中文", plansIndex: "Plans by product",
+    plansIndexDesc: "Usage limits and plans for ChatGPT, Claude, Gemini and Grok: plan names, monthly prices, how each limit resets, and what changed recently. Every row links to its source.",
+    plansLine: (p, loc) => `${p.plans.map((pl) => (pl.priceUsd ? `${pl.name} ${money(pl.priceUsd)}` : pl.name)).join(", ")} · limit window: ${loc(p.window)}`,
+    resetsPageTitle: (y) => `Codex usage limit reset history (${y}): every reset, with times`,
     resetsNav: "Reset history", notAffiliated: "Independent tracker, not affiliated with OpenAI, Anthropic, Google or xAI.",
     privacy: "Privacy", method: "How the numbers are made", sourceCode: "Source on GitHub", sponsor: "Sponsor",
     resetsFoot: "Codex reset history", installLine: "Free macOS app: QuotaPilot",
@@ -70,6 +73,9 @@ const T = {
     when: "發布時間（UTC）", kind: "類型", what: "內容", full: "完整重置", banked: "可儲存重置卡",
     stats: (n, m, gap) => `共 ${n} 筆紀錄，近 30 天 ${m} 次。近 90 天平均間隔 ${gap} 天。`,
     openTool: "開啟即時儀表板", lang: "English", plansIndex: "各產品方案",
+    plansIndexDesc: "ChatGPT、Claude、Gemini、Grok 的用量額度與方案：方案名稱、月費、額度如何重置，以及最近的變動。每一列都附上來源。",
+    plansLine: (p, loc) => `${p.plans.map((pl) => (pl.priceUsd ? `${pl.name} ${money(pl.priceUsd)}` : pl.name)).join("、")} · 額度重置：${loc(p.window)}`,
+    resetsPageTitle: (y) => `Codex 額度重置紀錄（${y}）：每一次重置與時間`,
     resetsNav: "重置紀錄", notAffiliated: "獨立追蹤網站，與 OpenAI、Anthropic、Google、xAI 無關。",
     privacy: "隱私政策", method: "數據怎麼來的", sourceCode: "GitHub 原始碼", sponsor: "贊助",
     resetsFoot: "Codex 重置紀錄", installLine: "免費 macOS App：QuotaPilot",
@@ -120,7 +126,7 @@ function page({ lang, path, title, description, body, alt, jsonLd, lastmod }) {
 <meta property="og:image" content="${BASE}assets/og.png">
 <meta name="twitter:card" content="summary_large_image">
 <link rel="stylesheet" href="${up}assets/style.css">
-${jsonLd ? `<script type="application/ld+json">${JSON.stringify(jsonLd)}</script>` : ""}
+${[].concat(jsonLd || []).map((j) => `<script type="application/ld+json">${JSON.stringify(j)}</script>`).join("\n")}
 </head>
 <body>
 <header class="topbar"><div class="wrap topbar-inner">
@@ -167,7 +173,7 @@ for (const lang of ["en", "zh"]) {
   const planLinks = [];
   for (const p of plans.providers) {
     const path = `${prefix}plans/${p.id}.html`;
-    planLinks.push(`<li><a href="${p.id}">${esc(t.plansTitle(p.name, monthYear(plans.lastReviewed, lang)))}</a></li>`);
+    planLinks.push(`<li><a href="${p.id}">${esc(t.plansTitle(p.name, monthYear(plans.lastReviewed, lang)))}</a><br><small>${esc(t.plansLine(p, loc))}</small></li>`);
     const base = p.plans.find((x) => x.multiple === 1);
     const top = p.plans.filter((x) => x.multiple).sort((a, b) => b.multiple - a.multiple)[0];
     const withText = { ...p, windowText: loc(p.window) };
@@ -190,9 +196,15 @@ ${ch.length ? `<ul class="plain">${ch.map((c) => `<li><time>${esc(c.date)}</time
 ${faq.map(([q, a]) => `<h3>${esc(q)}</h3><p>${esc(a)}</p>`).join("")}
 <p class="fine">${t.dataAsOf} ${esc(plans.lastReviewed)}.</p>`;
     page({ lang, path, alt: `${other}plans/${p.id}.html`, title: t.plansTitle(p.name, monthYear(plans.lastReviewed, lang)), description: t.plansIntro(p), body,
-      jsonLd: { "@context": "https://schema.org", "@type": "FAQPage", mainEntity: faq.map(([q, a]) => ({ "@type": "Question", name: q, acceptedAnswer: { "@type": "Answer", text: a } })) } });
+      jsonLd: [
+        { "@context": "https://schema.org", "@type": "FAQPage", mainEntity: faq.map(([q, a]) => ({ "@type": "Question", name: q, acceptedAnswer: { "@type": "Answer", text: a } })) },
+        { "@context": "https://schema.org", "@type": "BreadcrumbList", itemListElement: [
+          { "@type": "ListItem", position: 1, name: t.home, item: BASE + (lang === "zh" ? "zh/" : "") },
+          { "@type": "ListItem", position: 2, name: t.plansIndex, item: `${BASE}${prefix}plans/` },
+          { "@type": "ListItem", position: 3, name: p.name, item: `${BASE}${prefix}plans/${p.id}` }] }
+      ] });
   }
-  page({ lang, path: `${prefix}plans/index.html`, alt: `${other}plans/index.html`, title: `${t.plansIndex} · AI Quota Watch`, description: t.plansIndex,
+  page({ lang, path: `${prefix}plans/index.html`, alt: `${other}plans/index.html`, title: `${t.plansIndex} · AI Quota Watch`, description: t.plansIndexDesc,
     body: `<h1>${t.plansIndex}</h1><ul class="plain">${planLinks.join("")}</ul>` });
 
   // reset history
@@ -201,7 +213,7 @@ ${faq.map(([q, a]) => `<h3>${esc(q)}</h3><p>${esc(a)}</p>`).join("")}
   const in30 = rs.filter((r) => now - new Date(r.at) <= 30 * 864e5).length;
   const recent = rs.filter((r) => now - new Date(r.at) <= 90 * 864e5).map((r) => +new Date(r.at)).sort((a, b) => a - b);
   const gap = recent.length > 1 ? ((recent.at(-1) - recent[0]) / 864e5 / (recent.length - 1)).toFixed(1) : "—";
-  page({ lang, path: `${prefix}resets/codex.html`, alt: `${other}resets/codex.html`, title: t.resetsTitle, description: t.resetsIntro, lastmod: resets.lastReviewed,
+  page({ lang, path: `${prefix}resets/codex.html`, alt: `${other}resets/codex.html`, title: t.resetsPageTitle(resets.lastReviewed.slice(0, 4)), description: t.resetsIntro, lastmod: resets.lastReviewed,
     body: `<h1>${t.resetsTitle}</h1><p class="lede">${esc(t.resetsIntro)}</p><p>${esc(t.stats(rs.length, in30, gap))}</p>
 <div class="table-scroll"><table class="models"><thead><tr><th>${t.when}</th><th>${t.kind}</th><th>${t.what}</th><th>${t.source}</th></tr></thead><tbody>
 ${rs.map((r) => `<tr><td class="num">${esc(r.timeKnown === false ? r.at.slice(0, 10) : r.at.slice(0, 16).replace("T", " "))}</td><td><span class="kind ${r.kind}">${r.kind === "full" ? t.full : t.banked}</span></td><td>${esc(loc(r.text))}</td><td>${badge(lang, r.confidence)} <a href="${esc(r.source)}" rel="noopener">${esc(host(r.source))}</a></td></tr>`).join("")}
@@ -215,7 +227,7 @@ ${rs.map((r) => `<tr><td class="num">${esc(r.timeKnown === false ? r.at.slice(0,
 // Traditional Chinese home page at /zh/: the English home page with its metadata, canonical and asset paths rewritten,
 // so each language has its own shareable address (app.js starts in Chinese when the path begins with /zh/).
 {
-  const ZH_TITLE = "AI Quota Watch：ChatGPT、Claude、Gemini、Grok 的用量上限、重置時間與實測速度 · 免費 QuotaPilot（macOS）";
+  const ZH_TITLE = "AI Quota Watch：ChatGPT、Claude、Gemini、Grok 用量上限";
   const ZH_DESC = "人工核對的 ChatGPT、Claude、Gemini、Grok 用量上限、方案變動、重置紀錄與社群實測速度。每個數字都附來源。免費、開源、無廣告。";
   const ZH_OG_TITLE = "你每個月到底能用多少 AI？方案上限、重置與實測速度";
   const src = readFileSync(join(root, "index.html"), "utf8");
@@ -232,6 +244,17 @@ ${rs.map((r) => `<tr><td class="num">${esc(r.timeKnown === false ? r.at.slice(0,
   h = swap(h, /<link rel="canonical" href="[^"]*">/, `<link rel="canonical" href="${BASE}zh/">`);
   h = swap(h, /<link rel="alternate" hreflang="en" href="[^"]*">\s*<link rel="alternate" hreflang="zh-Hant" href="[^"]*">\s*<link rel="alternate" hreflang="x-default" href="[^"]*">/,
     `<link rel="alternate" hreflang="en" href="${BASE}">\n  <link rel="alternate" hreflang="zh-Hant" href="${BASE}zh/">\n  <link rel="alternate" hreflang="x-default" href="${BASE}">`);
+  // Static zh text: apply the same strings app.js sets at runtime (textContent for data-i18n, alt/title attributes),
+  // so the page reads in Chinese before JavaScript runs. Elements holding child markup are left for the runtime.
+  const ZH = runBrowserScript("i18n.js").I18N.zh;
+  h = h.replace(/<([a-z0-9]+)((?:\s[^>]*?)?)\sdata-i18n="([^"]+)"([^>]*)>([^<]*)<\/\1>/g, (m, tag, a1, key, a2, inner) =>
+    ZH[key] == null ? m : `<${tag}${a1} data-i18n="${key}"${a2}>${esc(ZH[key])}</${tag}>`);
+  h = h.replace(/<([a-z0-9]+)((?:\s[^>]*?)?)\sdata-i18n-(alt|title)="([^"]+)"([^>]*)>/g, (m, tag, a1, attr, key, a2) => {
+    if (ZH[key] == null) return m;
+    const set = (a) => (new RegExp(`\\s${attr}="[^"]*"`).test(a) ? a.replace(new RegExp(`\\s${attr}="[^"]*"`), ` ${attr}="${esc(ZH[key])}"`) : null);
+    const a1n = set(a1), a2n = a1n === null ? set(a2) : null;
+    return a1n !== null ? `<${tag}${a1n} data-i18n-${attr}="${key}"${a2}>` : a2n !== null ? `<${tag}${a1} data-i18n-${attr}="${key}"${a2n}>` : m;
+  });
   h = h.replace(/(href|src)="assets\//g, '$1="../assets/').replace(/href="plans\/"/g, 'href="plans/"').replace(/href="resets\//g, 'href="resets/');
   mkdirSync(join(OUT, "zh"), { recursive: true });
   writeFileSync(join(OUT, "zh", "index.html"), h);

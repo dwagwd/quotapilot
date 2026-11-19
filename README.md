@@ -9,10 +9,10 @@
 ```sh
 brew tap dwagwd/quotapilot https://github.com/dwagwd/quotapilot
 brew install dwagwd/quotapilot/quotapilot
-open "$(brew --prefix quotapilot)/QuotaPilot.app"
+quotapilot open --link
 ```
 
-On Apple Silicon Macs with macOS 15 or later, Homebrew installs a prebuilt package in a few seconds. On other Macs it builds QuotaPilot from source (about two minutes, needs the Xcode Command Line Tools). Update with `brew upgrade quotapilot`. Linux and Windows: [get the command-line tool](#windows-and-linux-the-quotapilot-cli).
+On Apple Silicon Macs with macOS 15 or later, Homebrew installs a prebuilt package in a few seconds. On other Macs it builds QuotaPilot from source (about two minutes, needs the Xcode Command Line Tools). `quotapilot open --link` starts the menu bar app and adds a link in `~/Applications`, so Spotlight and Launchpad find it. Update with `brew upgrade quotapilot`. Linux and Windows: [get the command-line tool](#windows-and-linux-the-quotapilot-cli).
 
 <!-- sponsor:start --><!-- sponsor:end -->
 
@@ -76,7 +76,7 @@ Every push runs an acceptance check on Linux x64, Linux ARM64 and Windows x64 (w
 
 Requirements: macOS 13+, Swift 5.9+ / Xcode Command Line Tools, Python 3 for tests and packaging, and Codex desktop or CLI signed in with a ChatGPT account. The core Codex app is native and does not require Python; optional provider bridges use Python 3.
 
-**Quick install:** use the Homebrew commands at the top; they compile and install QuotaPilot on your Mac.
+**Quick install:** use the Homebrew commands at the top. On Apple Silicon with macOS 15 or later they install a prebuilt package; on other Macs they build QuotaPilot from source.
 
 **From source:** clone the repository:
 

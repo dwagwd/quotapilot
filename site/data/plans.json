@@ -1,5 +1,5 @@
 {
-  "lastReviewed": "2026-11-12",
+  "lastReviewed": "2026-11-19",
   "note": "Every plan row carries its own source URL, the date we checked it, and a confidence level. 'official' = read on the vendor's own page; 'reported' = third-party coverage we could not confirm on an official page. A row can override this per field with 'fields' (price, multiple) when, for example, the usage multiple is on the vendor's page but the price only appears in third-party coverage.",
   "providers": [
     {
@@ -109,7 +109,7 @@
           },
           "confidence": "official",
           "source": "https://claude.com/pricing",
-          "checked": "2026-11-12"
+          "checked": "2026-11-19"
         },
         {
           "name": "Pro",
@@ -121,7 +121,7 @@
           },
           "confidence": "official",
           "source": "https://claude.com/pricing",
-          "checked": "2026-11-12"
+          "checked": "2026-11-19"
         },
         {
           "name": "Max",
@@ -133,7 +133,7 @@
           },
           "confidence": "official",
           "source": "https://claude.com/pricing",
-          "checked": "2026-11-12"
+          "checked": "2026-11-19"
         },
         {
           "name": "Ultra",
@@ -145,7 +145,7 @@
           },
           "confidence": "official",
           "source": "https://claude.com/pricing",
-          "checked": "2026-11-12"
+          "checked": "2026-11-19"
         }
       ],
       "support": "full"
@@ -171,7 +171,7 @@
           },
           "confidence": "official",
           "source": "https://support.google.com/gemini/answer/16275805?hl=en",
-          "checked": "2026-11-12"
+          "checked": "2026-11-19"
         },
         {
           "name": "AI Plus",
@@ -183,7 +183,7 @@
           },
           "confidence": "official",
           "source": "https://support.google.com/gemini/answer/16275805?hl=en",
-          "checked": "2026-11-12"
+          "checked": "2026-11-19"
         },
         {
           "name": "AI Pro",
@@ -198,7 +198,7 @@
             "price": "reported"
           },
           "source": "https://support.google.com/gemini/answer/16275805?hl=en",
-          "checked": "2026-11-12"
+          "checked": "2026-11-19"
         },
         {
           "name": "AI Ultra",
@@ -213,7 +213,7 @@
             "price": "reported"
           },
           "source": "https://support.google.com/gemini/answer/16275805?hl=en",
-          "checked": "2026-11-12"
+          "checked": "2026-11-19"
         },
         {
           "name": "AI Ultra (top)",
@@ -228,7 +228,7 @@
             "price": "reported"
           },
           "source": "https://support.google.com/gemini/answer/16275805?hl=en",
-          "checked": "2026-11-12"
+          "checked": "2026-11-19"
         }
       ],
       "support": "tokens",
@@ -256,7 +256,7 @@
               },
               "confidence": "official",
               "source": "https://antigravity.google/docs/plans",
-              "checked": "2026-11-02"
+              "checked": "2026-11-19"
             },
             {
               "name": "with AI Pro",
@@ -271,7 +271,7 @@
                 "price": "reported"
               },
               "source": "https://antigravity.google/docs/plans",
-              "checked": "2026-11-02"
+              "checked": "2026-11-19"
             },
             {
               "name": "with AI Ultra",
@@ -398,7 +398,7 @@
               },
               "confidence": "official",
               "source": "https://cursor.com/pricing",
-              "checked": "2026-11-12"
+              "checked": "2026-11-19"
             },
             {
               "name": "Plus",
@@ -410,7 +410,7 @@
               },
               "confidence": "official",
               "source": "https://cursor.com/pricing",
-              "checked": "2026-11-12"
+              "checked": "2026-11-19"
             },
             {
               "name": "Premium",
@@ -422,7 +422,7 @@
               },
               "confidence": "official",
               "source": "https://cursor.com/pricing",
-              "checked": "2026-11-12"
+              "checked": "2026-11-19"
             },
             {
               "name": "Super",
@@ -434,7 +434,7 @@
               },
               "confidence": "official",
               "source": "https://cursor.com/pricing",
-              "checked": "2026-11-12"
+              "checked": "2026-11-19"
             },
             {
               "name": "Ultra",
@@ -446,7 +446,7 @@
               },
               "confidence": "official",
               "source": "https://cursor.com/pricing",
-              "checked": "2026-11-12"
+              "checked": "2026-11-19"
             }
           ],
           "noteSource": "https://www.techzine.eu/news/devops/142197/spacex-acquires-cursor-for-60-billion/"

@@ -1,5 +1,5 @@
 {
-  "lastReviewed": "2026-11-19",
+  "lastReviewed": "2026-11-20",
   "note": "Usage-limit resets announced by vendors. 'at' is the UTC time of the announcing or confirming post, decoded from the X post ID; the moment each account was reset can differ. official = the vendor's own post, cross-checked; tracker = only third-party trackers report it.",
   "trackers": [
     {
@@ -21,12 +21,12 @@
       "provider": "chatgpt",
       "product": "Codex",
       "kind": "banked",
-      "confidence": "tracker",
+      "confidence": "official",
       "text": {
-        "en": "New banked reset card announced, rolling out to eligible accounts gradually; delivery not yet confirmed by trackers.",
-        "zh": "宣布新的可儲存重置卡，逐步發送給符合資格的帳號；追蹤站尚未確認已全面發放。"
+        "en": "New banked reset card activated, reaching accounts gradually; codexradar reports it issued, arrival time per account varies.",
+        "zh": "新的可儲存重置卡已啟用，逐步發送到各帳號；codexradar 回報已發放，各帳號到達時間不一。"
       },
-      "source": "https://codexlimitreset.com/",
+      "source": "https://x.com/thsottiaux/status/2120999993079451919",
       "timeKnown": true
     },
     {

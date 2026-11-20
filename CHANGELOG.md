@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.6.9
 
 - QuotaPilot finds the Codex CLI when it was installed through Volta, Bun, pnpm, mise, asdf, nvm or fnm, even though a menu bar app started by the system has a minimal PATH. The Codex process is started with its own folder on PATH, so npm-installed launchers that need `node` also work.
 - When Claude plan usage cannot be read, the card now says why (login not found, login expired, or usage unavailable) instead of only showing the data as stale. Turning Claude plan usage off clears the message.

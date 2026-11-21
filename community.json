@@ -1,12 +1,12 @@
 {
-  "generated": "2026-11-21T07:17:26.531Z",
+  "generated": "2026-11-21T19:22:38.383Z",
   "windowDays": 7,
   "eventWindowDays": 30,
   "minSamples": 3,
   "totals": {
-    "reports": 7,
-    "reporters": 1,
-    "established": 1,
+    "reports": 0,
+    "reporters": 0,
+    "established": 0,
     "rejected": 0
   },
   "speed": [],
@@ -15,54 +15,8 @@
   "ratings": [],
   "quota": [],
   "preliminary": {
-    "speed": [
-      {
-        "model": "claude-fable-5-2",
-        "n": 1,
-        "median": 140
-      },
-      {
-        "model": "claude-sonnet-5-5",
-        "n": 1,
-        "median": 125
-      },
-      {
-        "model": "claude-opus-5-5",
-        "n": 1,
-        "median": 115
-      },
-      {
-        "model": "gpt-6-1-sol",
-        "n": 1,
-        "median": 25
-      }
-    ],
-    "quota": [
-      {
-        "provider": "chatgpt",
-        "plan": "Plus",
-        "window": "weekly",
-        "n": 1,
-        "medianTokens": 5900000,
-        "lowerBound": true
-      },
-      {
-        "provider": "chatgpt",
-        "plan": "Plus",
-        "window": "5h",
-        "n": 1,
-        "medianTokens": 1600000,
-        "lowerBound": true
-      },
-      {
-        "provider": "claude",
-        "plan": "Max 5x",
-        "window": "weekly",
-        "n": 1,
-        "medianTokens": 74000000,
-        "lowerBound": true
-      }
-    ]
+    "speed": [],
+    "quota": []
   },
   "events": {
     "byHourUtc": {

@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Quota alerts now include the router's suggestion. When Codex or Claude reaches 90% or would run out before reset, the same notification says whether to switch to the other agent (with how much it has left) or that both are low and which resets first. Still one notification per reset cycle, off by default, and it uses no quota. Texts in all 10 interface languages.
+
 ## 0.6.9
 
 - QuotaPilot finds the Codex CLI when it was installed through Volta, Bun, pnpm, mise, asdf, nvm or fnm, even though a menu bar app started by the system has a minimal PATH. The Codex process is started with its own folder on PATH, so npm-installed launchers that need `node` also work.

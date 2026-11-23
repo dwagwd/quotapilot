@@ -93,3 +93,57 @@ final class QuotaForecastTests: XCTestCase {
         XCTAssertTrue(try JSONDecoder().decode(WidgetSettings.self, from: JSONEncoder().encode(enabled)).quotaAlertsEnabled)
     }
 }
+
+final class QuotaAlertAdviceTests: XCTestCase {
+    private let now = 1_000_000.0
+    private func item(_ id: String, used: Double, reset: Double, limited: Bool = false) -> WindowItem {
+        WindowItem(id: id, name: id, window: QuotaWindow(usedPercent: used, windowDurationMins: 300, resetsAt: reset), limitReached: limited)
+    }
+    private func name(_ id: String) -> String { id == "codex" ? "Codex" : "Claude" }
+
+    func testSuggestsOtherAgentWhenItHasRoom() {
+        let items = [item("codex:5h", used: 92, reset: now + 7200), item("claude:5h", used: 38, reset: now + 7200)]
+        let advice = quotaAlertAdvice(provider: "codex", items: items, now: now)
+        XCTAssertEqual(advice, .switchTo(agent: "claude", headroom: 62))
+        let body = L10n(.english).quotaAlertBody(kind: .highUsage, used: 92, resetsAt: now + 7200, forecast: nil, advice: advice, agentName: name, now: now)
+        XCTAssertTrue(body.contains("92%"))
+        XCTAssertTrue(body.contains("Claude (62% left)"))
+        let zh = L10n(.zhHant).quotaAlertBody(kind: .highUsage, used: 92, resetsAt: now + 7200, forecast: nil, advice: advice, agentName: name, now: now)
+        XCTAssertTrue(zh.contains("建議改用 Claude（還有 62%）"))
+    }
+
+    func testBothLowNamesEarlierReset() {
+        let items = [item("codex:5h", used: 95, reset: now + 9000), item("claude:5h", used: 96, reset: now + 3600)]
+        let advice = quotaAlertAdvice(provider: "codex", items: items, now: now)
+        XCTAssertEqual(advice, .bothLow(earlier: "claude", resetsAt: now + 3600))
+        let body = L10n(.english).quotaAlertBody(kind: .highUsage, used: 95, resetsAt: now + 9000, forecast: nil, advice: advice, agentName: name, now: now)
+        XCTAssertTrue(body.contains("Both agents are low; Claude resets first"))
+    }
+
+    func testBothLowWithoutResetTimes() {
+        let items = [item("codex:5h", used: 95, reset: now - 1, limited: true), item("claude:5h", used: 100, reset: now - 1, limited: true)]
+        let advice = quotaAlertAdvice(provider: "codex", items: items, now: now)
+        XCTAssertEqual(advice, .bothLow(earlier: nil, resetsAt: nil))
+    }
+
+    func testNoFallbackKeepsOriginalText() {
+        let items = [item("codex:5h", used: 92, reset: now + 7200)]
+        XCTAssertNil(quotaAlertAdvice(provider: "codex", items: items, now: now))
+        XCTAssertNil(quotaAlertAdvice(provider: "deepseek", items: items, now: now))
+        let plain = L10n(.english).quotaAlertBody(kind: .highUsage, used: 92, resetsAt: now + 7200, forecast: nil, advice: nil, agentName: name, now: now)
+        XCTAssertFalse(plain.contains("\n"))
+    }
+
+    func testProjectedExhaustionBodyAndOncePerCycle() {
+        let items = [item("codex:5h", used: 60, reset: now + 36000), item("claude:5h", used: 38, reset: now + 36000)]
+        let forecast = forecastQuota(used: 60, perHour: 60, resetsAt: now + 36000, now: now)
+        var tracker = QuotaAlertTracker()
+        let first = tracker.alerts(windowID: "codex:5h", used: 60, resetsAt: now + 36000, forecast: forecast)
+        XCTAssertEqual(first, [.projectedExhaustion])
+        XCTAssertTrue(tracker.alerts(windowID: "codex:5h", used: 61, resetsAt: now + 36000, forecast: forecast).isEmpty)
+        let advice = quotaAlertAdvice(provider: "codex", items: items, now: now)
+        let body = L10n(.english).quotaAlertBody(kind: .projectedExhaustion, used: 60, resetsAt: now + 36000, forecast: forecast, advice: advice, agentName: name, now: now)
+        XCTAssertTrue(body.contains("before reset at this pace"))
+        XCTAssertTrue(body.contains("switching to Claude"))
+    }
+}

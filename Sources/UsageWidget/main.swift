@@ -921,13 +921,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
                                                  resetsAt: item.window.resetsAt, forecast: forecast) {
                 let content = UNMutableNotificationContent()
                 content.title = title(for: item)
-                switch kind {
-                case .highUsage:
-                    content.body = l.number(item.window.validUsedPercent ?? 0, decimals: 0) + "% " + l.text("alertHighUsage") + " · " + l.text("reset") + " " + l.countdown(item.window.resetsAt, now: now)
-                case .projectedExhaustion:
-                    let eta = forecast?.exhaustsAt.map { l.countdown(max($0, now + 1), now: now) } ?? "—"
-                    content.body = l.text("forecastFullIn") + " " + eta + " · " + l.text("alertBeforeReset")
-                }
+                let provider = String(item.id.split(separator: ":").first ?? "")
+                let advice = quotaAlertAdvice(provider: provider, items: [current].compactMap { $0 } + extraItems, now: now)
+                content.body = l.quotaAlertBody(kind: kind, used: item.window.validUsedPercent, resetsAt: item.window.resetsAt,
+                                                forecast: forecast, advice: advice, agentName: providerName, now: now)
                 let request = UNNotificationRequest(identifier: "quota.\(item.id).\(kind.rawValue)", content: content, trigger: nil)
                 UNUserNotificationCenter.current().add(request)
             }

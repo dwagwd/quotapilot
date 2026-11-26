@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.7.0
 
 - Quota alerts now include the router's suggestion. When Codex or Claude reaches 90% or would run out before reset, the same notification says whether to switch to the other agent (with how much it has left) or that both are low and which resets first. Still one notification per reset cycle, off by default, and it uses no quota. Texts in all 10 interface languages.
 

@@ -410,7 +410,15 @@ func shareReports(hours: Double) -> (reports: [[String: Any]], errors: [String: 
     }, model: { modelTracker.current[$0]?.model }, limitSince: { id, reset in
         reset.flatMap { LimitSightings.lookup(seen, windowID: id, resetsAt: $0) }
     })
-    return (ContributionReport.build(speed: speed, windows: uses, now: now, include: shareKinds()), errors)
+    let kinds = shareKinds()
+    // Local runs (opt-in): the speed of local models with a coarse description of this computer and the engine.
+    var groups: [LocalRunGroup] = []
+    var versions: [String: String] = [:]
+    if kinds.contains(.localRuns), settings.localModels.isEnabled {
+        groups = LocalRuns.groups(events: localLog.events(since: now - hours * 3600), settings: settings.localModels)
+        if !groups.isEmpty { versions = LocalEngineName.detectVersions(settings: settings.localModels, backends: Set(groups.map { $0.backend })) }
+    }
+    return (ContributionReport.build(speed: speed, windows: uses, now: now, include: kinds, localRuns: groups, hardware: HardwareInfo.current(), engineVersions: versions), errors)
 }
 
 /// After a share, or for `quotapilot compare`: this computer's numbers next to the published community medians.
@@ -438,6 +446,8 @@ func describeReport(_ r: [String: Any]) -> String {
         return "quota   \(r["provider"] ?? "?") \(r["plan"] ?? "?") \(r["window"] ?? "?"): \(l.number(n("percentUsed"), decimals: 1))% used, \(l.compact(n("tokensUsed"))) tokens"
     case "event":
         return "limit   \(r["provider"] ?? "?") \(r["plan"] ?? "?"): limit reached this hour"
+    case "localrun":
+        return LocalRuns.describe(r)
     default:
         return String(describing: r)
     }
@@ -767,7 +777,7 @@ USAGE
                                              Choose credential access and local log collection
   quotapilot config mode <auto|preferCodex|preferClaude>
   quotapilot config rule <web|review|plan|implement> <auto|codex|claude>
-  quotapilot share [--hours N] [--only speed,promptCache,quota,limitEvents] [--json] [--yes] | --forget
+  quotapilot share [--hours N] [--only speed,promptCache,quota,limitEvents,localRuns] [--json] [--yes] | --forget
                                              Preview anonymous speed and quota numbers and, only if
                                              you confirm, send them anonymously to AI Quota Watch.
                                              `share --yes` in cron shares daily.
@@ -927,12 +937,15 @@ case "share":
     if wantsJSON { print(json); exit(0) }  // preview only, never sends
     for (agent, error) in errors.sorted(by: { $0.key < $1.key }) { print(providerName(agent) + ": " + cliText(error)) }
     guard !reports.isEmpty else {
-        print("Nothing to share yet. Speed needs 3 calls per model and effort in the last \(hoursLabel(hours)); quota needs at least 1% of a 5-hour or weekly window used.")
+        print("Nothing to share yet. Speed needs 3 calls per model and effort in the last \(hoursLabel(hours)); quota needs at least 1% of a 5-hour or weekly window used; local runs (--only localRuns) need local models switched on and 3 timed requests per model.")
         exit(0)
     }
     print("QuotaPilot can share these anonymous numbers with AI Quota Watch:\n")
     for report in reports { print("  " + describeReport(report)) }
     print("\nExactly what would be sent:\n\(json)\n")
+    if reports.contains(where: { $0["type"] as? String == "localrun" }) {
+        print("Local runs (you chose to include them) add this computer's chip, memory size, operating system and the inference engine, in coarse buckets, so the website can rank local models by hardware.")
+    }
     print("No paths, project names, prompts or account ids are included. Times are rounded to the hour.")
     print("This sends the numbers anonymously to the AI Quota Watch collector: no account, and it keeps only a hashed id of this computer.")
     if arguments.contains("--github") || arguments.contains("--submit") {

@@ -175,6 +175,23 @@ typical whole-computer draw under sustained inference for the chip class, rounde
 If you know your machine's real figure (a wall plug meter, or a GPU's rated power), enter it; the estimate is labelled as one wherever it is used.
 `quotapilot local hardware` prints what was detected and the default. GPU cores are read from the Apple GPU's registry entry (`ioreg`), nothing is run with elevated rights.
 
+## 4b. Sharing local runs (opt-in)
+
+Off by default and **not** included in a default share; tick **What to share → Local model speed with this Mac's chip** (an alert shows exactly what would be sent first) or use
+`quotapilot share --only localRuns` (`--json` previews). Needs **Local models** on and at least 3 timed requests per model in the share window.
+
+Per model and engine the report (`type: "localrun"`) holds: public model name (family and version, no size or quantization), parameter size, quantization, engine (`ollama`, `lmstudio`,
+`llamacpp`, `omlx`, `strata`, `other`), engine version (`major.minor`, or `b4567` for llama.cpp; Ollama `/api/version` and llama.cpp `/props` are read on loopback with a 0.5 s timeout, other engines
+report none), chip (`Apple M4 Max`; others only the vendor), memory tier (rounded up to 8/16/24/32/48/64/96/128/192/256 GB), GPU core bucket (10/20/40/80), OS family and major, median generation
+and prompt tokens per second over the events, and the sample count. The name check (`LocalModelName`) accepts only known open-weight families, sizes, quantizations and a list of descriptive words;
+anything else leaves the whole model out. Engines whose upstream is not this computer are skipped. Detection: macOS `sysctl machdep.cpu.brand_string`, `ProcessInfo.physicalMemory` and one `ioreg`
+read for GPU cores; Linux `/proc/cpuinfo`; Windows the processor name from the environment (no GPU, version, or version detection there). Not editable before sending: the preview is the contract; decline
+by leaving the choice off.
+
+Collector: `collector/schema.js` allows the same fixed lists and refuses a report without model, engine, chip, memory tier, OS, sample count and a speed. Aggregation (`site/scripts/aggregate.mjs`)
+re-checks and rejects implausible claims (generation speed above `min(5000, 12000 ÷ billions of parameters)` tok/s, weights larger than 1.3 × the memory tier, fewer than 3 samples), keeps one report
+per person, group and day, and publishes `localRuns.rows` (3 or more established people; median and quartiles) and `localRuns.preliminary` (1-2 people; generation speed rounded to 5 tok/s, people count only) in `community.json`.
+
 ## 5. Test plan
 
 Fixtures and a fake local HTTP server on real loopback sockets; none of the five tools is needed (`Tests/UsageCoreTests/LocalLLMTests.swift`).
@@ -200,4 +217,5 @@ Fixtures and a fake local HTTP server on real loopback sockets; none of the five
 - [x] app: Local models window, statistics window lines, menu line
 - [x] CLI: `quotapilot local status|stats|poll|proxy|config`, `quotapilot stats` includes local
 - [x] tests, docs, changelog
+- [x] sharing: `localrun` reports, collector allow-list, aggregation, preview, PRIVACY.md
 - [x] electricity: price, currency, power, exchange rate; app lines, `quotapilot local stats|hardware|config`

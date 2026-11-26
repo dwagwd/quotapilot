@@ -110,7 +110,8 @@ public enum ContributionReport {
     }
 
     public static func build(speed: [OutputSpeedSample], windows: [WindowUse], now: Double,
-                             include: Set<ShareCategory> = Set(ShareCategory.allCases)) -> [[String: Any]] {
+                             include: Set<ShareCategory> = ShareCategory.defaultOn,
+                             localRuns: [LocalRunGroup] = [], hardware: HardwareInfo? = nil, engineVersions: [String: String] = [:]) -> [[String: Any]] {
         var reports: [[String: Any]] = []
         let date = hourISO(now)
 
@@ -165,11 +166,18 @@ public enum ContributionReport {
                 reports.append(event)
             }
         }
-        if reports.count > maximumReports {
-            let calls = { (r: [String: Any]) -> Int in (r["calls"] as? Int) ?? Int.max }
-            reports = Array(reports.sorted { calls($0) > calls($1) }.prefix(maximumReports))
+        // Local runs (opt-in): the computer's coarse description with the measured speed of each local model. They take their own
+        // few places so that one collector batch (30 reports) never drops them or the others.
+        var local: [[String: Any]] = []
+        if include.contains(.localRuns), let hardware {
+            local = LocalRuns.reports(groups: localRuns, hardware: hardware, versions: engineVersions, date: date)
         }
-        return reports
+        let room = maximumReports - local.count
+        if reports.count > room {
+            let calls = { (r: [String: Any]) -> Int in (r["calls"] as? Int) ?? Int.max }
+            reports = Array(reports.sorted { calls($0) > calls($1) }.prefix(room))
+        }
+        return reports + local
     }
 }
 
@@ -183,4 +191,10 @@ public enum ShareCategory: String, CaseIterable, Codable {
     case quota
     /// That a plan limit was reached, with the hour.
     case limitEvents
+    /// Opt-in, off by default: the measured speed of local models together with the computer's chip, memory tier, GPU core bucket, operating
+    /// system and the inference engine, so the website can rank local models by hardware.
+    case localRuns
+
+    /// What is shared until the user chooses otherwise: everything except the hardware description.
+    public static let defaultOn: Set<ShareCategory> = Set(allCases.filter { $0 != .localRuns })
 }

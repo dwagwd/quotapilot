@@ -3,13 +3,14 @@
 import { readFileSync, readdirSync, writeFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { sanitize as sanitizeReport } from "../../collector/schema.js";
 
 export const WINDOW_DAYS = 7;
 export const MIN_SAMPLES = 3;
 // A "feels worse" warning is a strong public claim, so it needs more people than a plain row, and at least
 // MIN_SAMPLES of them must say so themselves.
 export const ALERT_MIN_PEOPLE = 5;
-export const TYPES = ["speed", "rating", "quota", "event"];
+export const TYPES = ["speed", "rating", "quota", "event", "localrun"];
 export const PROVIDERS = ["chatgpt", "claude", "gemini", "grok"];
 export const EFFORTS = ["minimal", "low", "medium", "high", "xhigh", "max", "ultra"];
 // Preliminary rows: speed and plan quota for a model or plan that 1 or 2 established people report, so the page is
@@ -69,6 +70,29 @@ export function stats(values) {
   return { n: s.length, median: round(quantile(s, 0.5)), p25: round(quantile(s, 0.25)), p75: round(quantile(s, 0.75)) };
 }
 
+// Bits per weight by quantization, to tell an impossible claim (a 70B model at 8 bits "running" on 8 GB) from a real one.
+const QUANT_BITS = { Q2_K: 2.7, Q3_K_S: 3.2, Q3_K_M: 3.5, Q3_K_L: 3.8, Q4_0: 4.5, Q4_1: 5, Q4_K_S: 4.6, Q4_K_M: 4.8, Q5_0: 5.5, Q5_1: 6, Q5_K_S: 5.5, Q5_K_M: 5.7, Q6_K: 6.6, Q8_0: 8.5,
+  IQ2: 2.4, IQ3: 3.3, IQ4: 4.3, "2bit": 2.5, "3bit": 3.5, "4bit": 4.5, "5bit": 5.5, "6bit": 6.5, "8bit": 8.5, FP8: 8, FP16: 16, BF16: 16, MXFP4: 4.3, NVFP4: 4.3, INT4: 4.5, INT8: 8.5, AWQ: 4.5, GPTQ: 4.5 };
+// Plausibility limits for local runs: the generation speed a model of this size can reach on consumer hardware, and the memory it needs.
+export const localGenCap = (paramsB) => Math.min(5000, 12000 / Math.max(paramsB || 1, 1));
+export const LOCAL_MIN_SAMPLES = 3;
+
+// A local run (opt-in): re-checked with the collector's own allow-list, then against ranges that real machines reach.
+function cleanLocalRun(r, base) {
+  const v = sanitizeReport({ ...r, type: "localrun" });
+  if (!v) return null;
+  if (v.samples < LOCAL_MIN_SAMPLES) return null;
+  const paramsB = v.paramsB ?? null;
+  if (v.genTps != null && v.genTps > localGenCap(paramsB)) return null;
+  if (paramsB != null) {
+    const weightsGB = paramsB * (QUANT_BITS[v.quant] ?? 4) / 8;
+    if (weightsGB > v.memGB * 1.3) return null;  // does not fit in that memory, even with some offloading
+  }
+  const group = [v.localModel, paramsB ?? "", v.quant || "", v.engine, v.chip, v.memGB].join("|");
+  return { ...base, provider: "local", model: null, group, localModel: v.localModel, paramsB, quant: v.quant || null, engine: v.engine, engineVersion: v.engineVersion || null,
+    chip: v.chip, memGB: v.memGB, genTps: v.genTps ?? null, promptTps: v.promptTps ?? null, samples: v.samples };
+}
+
 // Validate one report; returns a clean object or null.
 export function clean(r, models) {
   if (!r || !TYPES.includes(r.type)) return null;
@@ -82,6 +106,7 @@ export function clean(r, models) {
   const dayOf = (v) => (typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : null);
   const base = { type: r.type, date: date.toISOString(), provider: (r.type === "quota" || r.type === "event") && r.provider ? r.provider : model ? model.provider : r.provider, model: r.model || null, reporter: r.reporter || "anon",
     firstSeen: dayOf(r.reporterFirstSeen), receivedDay: dayOf(r.receivedDay), via: r.via === "site" ? "site" : r.via ? "other" : null, ipGroup: typeof r.ipGroup === "string" && /^[0-9a-f]{8}$/.test(r.ipGroup) ? r.ipGroup : null };
+  if (r.type === "localrun") return cleanLocalRun(r, base);
   if (!PROVIDERS.includes(base.provider)) return null;
   const num = (v, lo, hi) => { const n = Number(v); return Number.isFinite(n) && n >= lo && n <= hi ? n : null; };
   if (r.type === "speed") {
@@ -139,7 +164,7 @@ export function dedupe(reports) {
     const episode = r.type === "event" && r.kind === "hit_limit";
     const key = episode
       ? [r.reporter, "event", "hit_limit", r.provider, r.resetAt ? "reset:" + r.resetAt.slice(0, 13) : "hour:" + r.date.slice(0, 13)].join("|")
-      : [r.reporter, r.type, r.model || r.plan, r.effort || "", r.window || "", r.kind || "", r.date.slice(0, 10)].join("|");
+      : [r.reporter, r.type, r.model || r.plan || r.group, r.effort || "", r.window || "", r.kind || "", r.date.slice(0, 10)].join("|");
     if (r.reporter === "anon" || !seen.has(key)) seen.set(key + (r.reporter === "anon" ? Math.random() : ""), r);
   }
   return [...seen.values()];
@@ -312,6 +337,22 @@ export function aggregate(raw, models, now = new Date(), blocked = []) {
     })
     .filter((q) => q.medianTokens != null && q.n >= 1 && q.n < MIN_SAMPLES && isKnownPlan(q.provider, q.plan)).sort((a, b) => a.provider.localeCompare(b.provider) || b.medianTokens - a.medianTokens);
 
+  // Local models by engine, chip and memory tier (opt-in reports). Same rules as speed rows: 3 established people for a published row,
+  // 1 or 2 for a coarse preliminary one (generation speed to the nearest 5 tok/s, no quartiles, no prompt speed, no sample counts).
+  const localGroups = Object.entries(groupBy(counted.filter((r) => r.type === "localrun"), (r) => r.group)).filter(([, rs]) => anchored(rs));
+  const localIdentity = (r) => ({ model: r.localModel, paramsB: r.paramsB, quant: r.quant, engine: r.engine, chip: r.chip, memGB: r.memGB });
+  const localRows = localGroups.map(([, rs]) => {
+    const gen = stats(perPerson(rs, (r) => r.genTps)), prompt = gatedMedian(perPerson(rs, (r) => r.promptTps));
+    return { ...localIdentity(rs[0]), n: people(rs), reports: rs.length, samples: rs.reduce((a, r) => a + r.samples, 0),
+      genTps: gen.n >= MIN_SAMPLES ? gen.median : null, genP25: gen.n >= MIN_SAMPLES ? gen.p25 : null, genP75: gen.n >= MIN_SAMPLES ? gen.p75 : null, promptTps: prompt };
+  }).filter((x) => x.n >= MIN_SAMPLES && (x.genTps != null || x.promptTps != null))
+    .sort((a, b) => a.model.localeCompare(b.model) || (b.genTps ?? 0) - (a.genTps ?? 0));
+  const localKey = (x) => [x.model, x.paramsB ?? "", x.quant || "", x.engine, x.chip, x.memGB].join("|");
+  const localPrelim = localGroups.filter(([k]) => !localRows.some((x) => localKey(x) === k)).map(([, rs]) => {
+    const values = perPerson(rs, (r) => r.genTps).sort((a, b) => a - b), median = quantile(values, 0.5);
+    return { ...localIdentity(rs[0]), n: values.length, genTps: median == null ? null : Math.max(PRELIM_SPEED_STEP, Math.round(median / PRELIM_SPEED_STEP) * PRELIM_SPEED_STEP) };
+  }).filter((x) => x.genTps != null && x.n >= 1 && x.n < MIN_SAMPLES).sort((a, b) => a.model.localeCompare(b.model) || b.genTps - a.genTps);
+
   // Events use a 30-day window: they are rarer than other reports.
   const eventSince = new Date(now.getTime() - 30 * 864e5);
   // Like every other row, a provider's events are published only once MIN_SAMPLES established people report
@@ -331,6 +372,7 @@ export function aggregate(raw, models, now = new Date(), blocked = []) {
     totals: { reports: recent.length, reporters: new Set(recent.map((r) => r.reporter).filter((r) => r !== "anon")).size, established: reporterUnits(counted).length, rejected },
     speed, effortUsage, tokenMix, ratings, quota,
     preliminary: { speed: preliminarySpeed, quota: preliminaryQuota },
+    localRuns: { rows: localRows, preliminary: localPrelim },
     events: { byHourUtc: byHour, counts: eventCounts }
   };
 }

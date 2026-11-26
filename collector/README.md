@@ -64,6 +64,8 @@ Also add Cloudflare rate-limiting rules in the dashboard (Security > WAF > Rate 
 
 ## Data quality
 
+Local runs (`type: "localrun"`, opt-in in the app) carry hardware and engine fields from fixed lists only (public model families, quantizations, engines, chip, memory tier, GPU core bucket, OS); a report without its identity or a speed is dropped, and those fields are removed from every other report type. The aggregation also rejects implausible ones (speed above 12,000 ÷ billions of parameters tok/s, weights larger than 1.3 × the memory tier) and publishes rows only from 3 people.
+
 The collector refuses reports dated in the future or more than 8 days back. `site/scripts/aggregate.mjs` then drops impossible values (speed above 4× the model's benchmark or 2,000 tok/s, calls longer than 15 minutes, absurd prompt or quota totals), counts each person once with their median, trims outliers, merges reporters sharing a network on the same day, waits until a reporter has been seen on two days, and publishes a row only from 3 people (a "feels worse" warning from 5, at least 3 of whom report it).
 
 ## Storage

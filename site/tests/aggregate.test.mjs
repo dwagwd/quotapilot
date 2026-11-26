@@ -327,3 +327,66 @@ test("a one-shot website report alone never makes a preliminary row", () => {
   const r = { type: "speed", model: "claude-opus-5-5", outputTokens: 900, seconds: 10, calls: 4, date: day(1), reporter: "site1", via: "site", ipGroup: "abcdef12", reporterFirstSeen: day(1).slice(0, 10), receivedDay: day(1).slice(0, 10) };
   assert.equal(aggregate([r], models, now).preliminary.speed.length, 0);
 });
+
+// ---- local runs ----
+const lr = (who, d, over = {}) => ({ type: "localrun", localModel: "qwen3-a3b-instruct", paramsB: 30, quant: "Q4_K_M", engine: "ollama", engineVersion: "0.5", chip: "Apple M4 Max", memGB: 64, gpuCores: 40,
+  os: "macos", osMajor: 26, genTps: 70, promptTps: 600, samples: 8, date: day(d), reporter: who, reporterFirstSeen: day(9).slice(0, 10), receivedDay: day(d).slice(0, 10), ...over });
+
+test("local runs: 3 people publish a row grouped by model, quantization, engine, chip and memory tier", () => {
+  const raw = [lr("a", 1, { genTps: 60 }), lr("b", 1, { genTps: 70 }), lr("c", 1, { genTps: 80 }), lr("d", 1, { engine: "llamacpp", genTps: 90 })];
+  const out = aggregate(raw, models, now);
+  assert.equal(out.localRuns.rows.length, 1);
+  const row = out.localRuns.rows[0];
+  assert.deepEqual({ model: row.model, paramsB: row.paramsB, quant: row.quant, engine: row.engine, chip: row.chip, memGB: row.memGB, n: row.n },
+    { model: "qwen3-a3b-instruct", paramsB: 30, quant: "Q4_K_M", engine: "ollama", chip: "Apple M4 Max", memGB: 64, n: 3 });
+  assert.equal(row.genTps, 70);
+  assert.equal(row.samples, 24);
+  assert.equal(row.promptTps, 600);
+  // the llama.cpp report is one person: a separate, preliminary row, rounded to 5 tok/s with no quartiles
+  assert.deepEqual(out.localRuns.preliminary, [{ model: "qwen3-a3b-instruct", paramsB: 30, quant: "Q4_K_M", engine: "llamacpp", chip: "Apple M4 Max", memGB: 64, n: 1, genTps: 90 }]);
+});
+
+test("local runs: one person never appears as a published row, and exact speeds stay private", () => {
+  const out = aggregate([lr("a", 1, { genTps: 71.3 }), lr("a", 2, { genTps: 72.9 })], models, now);
+  assert.equal(out.localRuns.rows.length, 0);
+  assert.equal(out.localRuns.preliminary.length, 1);
+  assert.equal(out.localRuns.preliminary[0].genTps, 70);
+  assert.equal(out.localRuns.preliminary[0].genP25, undefined);
+  assert.equal(out.localRuns.preliminary[0].promptTps, undefined);
+  assert.equal(out.localRuns.preliminary[0].samples, undefined);
+  // different memory tiers are different rows
+  const split = aggregate([lr("a", 1), lr("b", 1, { memGB: 128 }), lr("c", 1, { memGB: 128 })], models, now);
+  assert.equal(split.localRuns.rows.length, 0);
+  assert.equal(split.localRuns.preliminary.length, 2);
+});
+
+test("local runs: a one-shot site sender cannot be the only person behind a row", () => {
+  const site = (who) => lr(who, 1, { via: "site", ipGroup: "abcdef1" + who.length, reporterFirstSeen: day(1).slice(0, 10) });
+  assert.equal(aggregate([site("x")], models, now).localRuns.preliminary.length, 0);
+});
+
+test("local runs: implausible claims are rejected", () => {
+  const bad = (over) => clean(lr("a", 1, over), models);
+  assert.ok(bad({}), "baseline is valid");
+  assert.equal(bad({ genTps: 4000 }), null, "a 30B model does not generate 4000 tok/s");
+  assert.equal(bad({ paramsB: 70, quant: "Q8_0", memGB: 16, genTps: 5 }), null, "70B at 8 bits does not fit in 16 GB");
+  assert.equal(bad({ samples: 2 }), null, "fewer than 3 samples");
+  assert.equal(bad({ localModel: "acme-secret" }), null);
+  assert.equal(bad({ chip: "Apple M4 Max of Danny" }), null);
+  assert.equal(bad({ memGB: 36 }), null);
+  assert.equal(bad({ genTps: undefined, promptTps: undefined }), null);
+  assert.equal(bad({ date: day(-3) }), null, "future dates");
+  assert.equal(bad({ receivedDay: day(30).slice(0, 10) }), null, "backdated");
+});
+
+test("local runs: one report per person and group per day", () => {
+  const out = aggregate([lr("a", 1, { genTps: 10 }), lr("a", 1, { genTps: 70 }), lr("b", 1), lr("c", 1)], models, now);
+  assert.equal(out.localRuns.rows[0].reports, 3);
+});
+
+test("local runs stay out of the other statistics", () => {
+  const out = aggregate([lr("a", 1), lr("b", 1), lr("c", 1)], models, now);
+  assert.equal(out.speed.length, 0);
+  assert.equal(out.preliminary.speed.length, 0);
+  assert.equal(out.totals.reports, 3);
+});

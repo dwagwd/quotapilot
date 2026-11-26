@@ -2666,8 +2666,30 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
     @objc private func toggleShareCategory(_ sender: NSMenuItem) {
         guard let raw = sender.representedObject as? String, let category = ShareCategory(rawValue: raw) else { return }
         var kinds = settings.sharedCategories
-        if kinds.contains(category) { kinds.remove(category) } else { kinds.insert(category) }
+        if kinds.contains(category) { kinds.remove(category) } else {
+            // Local runs describe this Mac's hardware: shown with exactly what would be sent, and only added after a yes.
+            if category == .localRuns && !confirmLocalRuns() { return }
+            kinds.insert(category)
+        }
         settings.sharedCategories = kinds; saveSettings(); setupStatus()
+    }
+
+    private func confirmLocalRuns() -> Bool {
+        let now = Date().timeIntervalSince1970
+        let reports = currentShareReports(now: now, include: [.localRuns]).filter { $0["type"] as? String == "localrun" }
+        let preview: String
+        if reports.isEmpty {
+            let hardware = HardwareInfo.current()
+            preview = String(format: l.text("localRunsNothing"), (hardware.sharedChip ?? "?") + " / \(hardware.sharedMemoryTier) GB / " + hardware.sharedOS.family + " \(hardware.sharedOS.major)")
+        } else {
+            preview = reports.map { LocalRuns.describe($0) }.joined(separator: "\n")
+        }
+        let alert = NSAlert()
+        alert.messageText = l.text("shareKind.localRuns")
+        alert.informativeText = String(format: l.text("localRunsExplain"), preview)
+        alert.addButton(withTitle: l.text("localRunsOn")); alert.addButton(withTitle: l.text("cancel"))
+        NSApp.activate(ignoringOtherApps: true)
+        return alert.runModal() == .alertFirstButtonReturn
     }
 
     /// Right to erasure: turns daily sharing off and asks the collector to delete everything this Mac sent.
@@ -2700,7 +2722,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
         }, model: { tracker.current[$0]?.model }, limitSince: { id, reset in
             reset.flatMap { LimitSightings.lookup(seen, windowID: id, resetsAt: $0) }
         })
-        return ContributionReport.build(speed: recentSpeed, windows: uses, now: now, include: include)
+        var groups: [LocalRunGroup] = []
+        var versions: [String: String] = [:]
+        if include.contains(.localRuns), settings.localModels.isEnabled {
+            groups = LocalRuns.groups(events: localModelsModel.events.filter { $0.t >= now - 7 * 86400 }, settings: settings.localModels)
+            if !groups.isEmpty { versions = LocalEngineName.detectVersions(settings: settings.localModels, backends: Set(groups.map { $0.backend })) }
+        }
+        return ContributionReport.build(speed: recentSpeed, windows: uses, now: now, include: include,
+                                        localRuns: groups, hardware: HardwareInfo.current(), engineVersions: versions)
     }
 
     /// Fetches the public community statistics at most every 6 hours while the statistics window is used, and lines

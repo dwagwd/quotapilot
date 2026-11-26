@@ -254,7 +254,7 @@ public struct WidgetSettings: Codable, Equatable {
         set { autoShare = newValue }
     }
     public var sharedCategories: Set<ShareCategory> {
-        get { shareCategories.map { Set($0.compactMap(ShareCategory.init(rawValue:))) } ?? Set(ShareCategory.allCases) }
+        get { shareCategories.map { Set($0.compactMap(ShareCategory.init(rawValue:))) } ?? ShareCategory.defaultOn }
         set { shareCategories = ShareCategory.allCases.filter(newValue.contains).map(\.rawValue) }
     }
     public var quotaAlertsEnabled: Bool {

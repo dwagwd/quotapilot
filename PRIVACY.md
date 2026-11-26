@@ -1,6 +1,6 @@
 # Privacy and data handling
 
-Last updated: 2026-11-14 (website analytics added).
+Last updated: 2026-11-26 (opt-in local runs: hardware and inference engine added to sharing).
 
 QuotaPilot runs on your Mac and has no account or server of its own for the app. This page lists what it reads, what leaves the computer and when, and what it stores. The defaults below are for version 0.6.6 and later; earlier 0.6 versions had the two connection choices below turned on without asking.
 
@@ -40,6 +40,7 @@ Nothing is shared unless you run `quotapilot share` and confirm, or turn on **Sh
 - **Anonymous means pseudonymous:** the random install id is a stable pseudonym for this computer (the collector keeps only a keyed hash of it), so the collector can tell that two reports came from the same computer and can delete them on request, but it cannot tell who you are. Do not share the `install-id` file: whoever has it can send or delete reports as you. It is stored readable by you only.
 - **No named sharing:** reports are never filed as GitHub issues or linked to any account; the anonymous collector is the only destination.
 - **Contents:** model ids, reasoning effort labels, plan names, totals per model and effort (output and reasoning tokens, new input tokens, tokens read from and written to the prompt cache, call count and call time), quota percentage and tokens used per 5-hour or weekly window, and whether a limit was reached. Limit events carry the hour QuotaPilot first saw the limit reached (rounded to the hour) and the reset hour (also rounded to the hour), not the time of sharing. Reports can cover Codex, Claude Code, Gemini CLI and Grok CLI. They contain no prompts, file paths, project names, account ids or credentials.
+- **Local runs (a separate choice, off by default and not part of "everything"):** only if you tick **What to share → Local model speed with this Mac's chip** (or run `quotapilot share --only localRuns`), a report also carries, for each local model with at least 3 timed requests: the model's public name without its size and quantization (for example `qwen3-a3b-instruct`), its parameter size and quantization when the name has them (`30`, `Q4_K_M`), the inference engine (`ollama`, `lmstudio`, `llamacpp`, `omlx`, `strata`, `other`) and its version as `major.minor` or a llama.cpp build number where the engine tells it on this computer, the chip (`Apple M4 Max`; on other computers only `Intel`, `AMD`, `Qualcomm` or `Other`, no model number), the memory size rounded **up** to a standard size (8, 16, 24, 32, 48, 64, 96, 128, 192 or 256 GB), a GPU core bucket (up to 10, 20, 40 or 80, Apple silicon only), the operating system family and major version (no version for Linux), the median generation and prompt tokens per second, and how many requests that is. The app checks the model name on your computer against a list of public open-weight families (Llama, Qwen, Gemma, Mistral, DeepSeek, GLM, Kimi, Phi, gpt-oss and a few more) and a fixed list of descriptive words; a name that contains anything else (a project, company or person) is left out entirely, and for Hugging Face paths only the last part is used, never the user or organisation. Models served by another machine (an upstream that is not this computer) are left out, because their speed says nothing about this hardware. It never includes the computer's name, serial number, IP address, exact memory, exact CPU model, prompts or paths. Turning the choice on shows exactly what would be sent first (in the menu bar app and in `quotapilot share`), and nothing is sent until you also run `share` and confirm or turn on **Share anonymous stats daily**. Published rows follow the same rule as other rows: a (model, quantization, engine, chip, memory) row appears only from 3 different, established people, and a preliminary row from 1 or 2 people shows only a generation speed rounded to the nearest 5 tokens per second and the people count. These reports are deleted with the others (31 days, or at once with the delete button).
 - **Only public model names:** a report names a model only when it belongs to a public family (GPT, Codex, Claude, Gemini, Grok, DeepSeek, Kimi, GLM, Qwen). A private deployment or a model you named yourself is left out on your computer, and the collector refuses it as well.
 - **A plain connection:** the request carries the report and the random id, a fixed `QuotaPilot` user agent and nothing else: no cookies, no system version, no interface language.
 - **Only what the statistics need:** the collector keeps a fixed list of fields (`collector/schema.js`). Text fields accept known values (model ids, effort and app labels) or short id-like strings; `plan` accepts a short plan name (letters, digits, spaces and `().+-`, at most 30 characters), which is published only when 3 people sent the same name, and rows from 1-2 people show only plan names on a fixed list; numbers must be in range; times are cut to the hour. Anything else in a report is dropped before it is stored.
@@ -51,7 +52,7 @@ Nothing is shared unless you run `quotapilot share` and confirm, or turn on **Sh
 | Data | Where | Kept |
 |---|---|---|
 | Random install id | Only on your computer (`install-id`) or in your browser's local storage | Until you delete it; it is never stored on the server |
-| Anonymous reports (the fields listed above) under a keyed hash of the install id | Collector | 31 days, or until you delete them |
+| Anonymous reports (the fields listed above, including local runs if you chose them) under a keyed hash of the install id | Collector | 31 days, or until you delete them |
 | First-seen day of that hash | Collector | 31 days after it was first seen, or until you delete it |
 | Network hash in each report (a daily-salted hash of the /24 or /48 network) | Inside the report | With the report |
 | Rate-limit counters (keyed hashes of IP + day or install hash + day) | Collector | 1–2 days |
@@ -62,7 +63,7 @@ Nothing is shared unless you run `quotapilot share` and confirm, or turn on **Sh
 
 Each report is stored under a key built from the anonymous reporter hash, so deleting an install's reports normally completes immediately: nothing waits for expiry. Under heavy load a deletion can be refused for the rest of the day (the collector limits how many deletions it accepts a day); the app or website then retries later.
 
-Choose what to share in the menu bar (**What to share**: speed, prompt and cache tokens, plan quota, limit events) or with `quotapilot share --only speed,quota`.
+Choose what to share in the menu bar (**What to share**: speed, prompt and cache tokens, plan quota, limit events, and, off by default, local model speed with this computer's chip) or with `quotapilot share --only speed,quota`.
 
 ## AI Quota Watch website
 
@@ -82,6 +83,7 @@ In `~/Library/Application Support/QuotaPilot/`:
 - `task-ledger.json`: manually entered Codex task metadata, elapsed-time boundaries, retry counts, outcomes, and validation notes.
 - `account-observations.json`: quota and account-token snapshots captured at task boundaries, kept separate from task-attributed usage.
 - `usage-events.jsonl` (plus archived `usage-events-<time>.jsonl` files over 20 MB) and `usage-event-state.json`: append-only account-level quota/token checkpoints and source events, plus the latest checkpoint used to detect data gaps.
+- `local-llm-events.jsonl`: local model usage events (model id, backend, token counts and timings, no prompts), kept 35 days; only when **Local models** is on. The electricity price, currency, power and exchange rate you enter are stored with the app's other settings and never leave the computer.
 - `usage-stats.json` (statistics window): hourly token totals per provider, sparse quota samples and output-speed totals, kept 35 days.
 - `instance.lock`: prevents duplicate processes.
 

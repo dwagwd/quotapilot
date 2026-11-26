@@ -125,7 +125,8 @@ final class ContributionReportTests: XCTestCase {
         XCTAssertNil(noCache[0]["cacheReadTokens"])
         XCTAssertTrue(ContributionReport.build(speed: samples, windows: [], now: 0, include: [.quota]).isEmpty)
         var settings = WidgetSettings()
-        XCTAssertEqual(settings.sharedCategories, Set(ShareCategory.allCases), "everything until the user narrows it")
+        XCTAssertEqual(settings.sharedCategories, ShareCategory.defaultOn, "everything except the opt-in hardware description, until the user narrows it")
+        XCTAssertFalse(settings.sharedCategories.contains(.localRuns))
         settings.sharedCategories = [.speed]
         XCTAssertEqual(settings.shareCategories, ["speed"])
     }

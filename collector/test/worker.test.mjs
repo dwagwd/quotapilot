@@ -710,3 +710,63 @@ test("only public model families are stored; private or locally named models are
     assert.equal(sanitize({ type: "speed", model }).model, undefined, model);
   }
 });
+
+// ---- local runs (opt-in hardware and engine description) ----
+
+const run = { type: "localrun", localModel: "qwen3-a3b-instruct", paramsB: 30, quant: "Q4_K_M", engine: "ollama", engineVersion: "0.5", chip: "Apple M4 Max",
+  memGB: 64, gpuCores: 40, os: "macos", osMajor: 26, genTps: 71.4, promptTps: 640, samples: 12, date: "2026-11-26T10:00:00Z", via: "quotapilot" };
+
+test("a local run keeps only coarse values from fixed lists", () => {
+  const r = sanitize({ ...run, hostname: "dannys-mac", serial: "C02X", ip: "1.2.3.4", prompt: "secret" });
+  assert.deepEqual({ ...r, date: undefined }, { ...run, date: undefined, via: "quotapilot" });
+  assert.equal(r.hostname, undefined);
+  assert.equal(r.serial, undefined);
+});
+
+test("a local run needs its identity and a speed, and refuses values outside the lists", () => {
+  for (const missing of ["localModel", "engine", "chip", "memGB", "os", "samples"]) {
+    const r = { ...run }; delete r[missing];
+    assert.equal(sanitize(r), null, missing);
+  }
+  assert.equal(sanitize({ ...run, genTps: undefined, promptTps: undefined }), null, "no speed, nothing to store");
+  assert.equal(sanitize({ ...run, genTps: undefined }).genTps, undefined);
+  // private or made-up model names, other chips, exact memory and core counts, free-form engines and versions are dropped or refuse the report
+  assert.equal(sanitize({ ...run, localModel: "acme-secret-finetune" }), null);
+  assert.equal(sanitize({ ...run, localModel: "qwen3/../x" }), null);
+  assert.equal(sanitize({ ...run, chip: "Apple M4 Max (Danny's MacBook)" }), null);
+  assert.equal(sanitize({ ...run, chip: "Intel(R) Core(TM) i9-9980HK" }), null);
+  assert.equal(sanitize({ ...run, memGB: 36 }), null, "memory is a standard size");
+  assert.equal(sanitize({ ...run, gpuCores: 38 }).gpuCores, undefined, "GPU cores are a bucket");
+  assert.equal(sanitize({ ...run, engine: "my-custom-server" }), null);
+  assert.equal(sanitize({ ...run, engineVersion: "0.5.7-abc123 build 9" }).engineVersion, undefined);
+  assert.equal(sanitize({ ...run, quant: "q4-by-bob" }).quant, undefined);
+  assert.equal(sanitize({ ...run, genTps: 99999 }).genTps, undefined);
+  assert.equal(sanitize({ ...run, genTps: -3 }).genTps, undefined);
+  assert.equal(sanitize({ ...run, osMajor: 26.5 }).osMajor, undefined);
+  for (const chip of ["Apple M1", "Apple M3 Pro", "Apple M5 Ultra", "Intel", "AMD", "Qualcomm", "Other"]) assert.equal(sanitize({ ...run, chip }).chip, chip, chip);
+});
+
+test("hardware fields are stripped from every other report type", () => {
+  const r = sanitize({ ...good, chip: "Apple M4", memGB: 16, engine: "ollama", genTps: 5, samples: 3, localModel: "qwen3" });
+  for (const k of ["chip", "memGB", "engine", "genTps", "samples", "localModel"]) assert.equal(r[k], undefined, k);
+  assert.equal(r.model, good.model);
+});
+
+test("the collector stores a local run under the anonymous id like any report", async () => {
+  const e = env();
+  const res = await worker.fetch(post({ install, reports: [{ ...run, date: new Date().toISOString() }] }), e);
+  assert.equal(res.status, 200);
+  const stored = JSON.parse([...e.REPORTS.m.entries()].find(([k]) => k.startsWith("r:"))[1]);
+  assert.equal(stored[0].type, "localrun");
+  assert.equal(stored[0].chip, "Apple M4 Max");
+  assert.match(stored[0].reporter, /^anon-/);
+});
+
+test("the family list matches the app's", async () => {
+  const { readFileSync } = await import("node:fs");
+  const { LOCAL_FAMILIES, LOCAL_QUANTS } = await import("../schema.js");
+  const swift = readFileSync(new URL("../../Sources/UsageCore/LocalRuns.swift", import.meta.url), "utf8");
+  const list = (name) => JSON.parse("[" + swift.match(new RegExp(`${name} = \\[([^\\]]*)\\]`))[1].replace(/\s+/g, " ") + "]");
+  assert.deepEqual(list("families"), LOCAL_FAMILIES);
+  assert.deepEqual(list("quantizations"), LOCAL_QUANTS);
+});

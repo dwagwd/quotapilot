@@ -144,6 +144,18 @@ final class QuotaAlertAdviceTests: XCTestCase {
         let advice = quotaAlertAdvice(provider: "codex", items: items, now: now)
         let body = L10n(.english).quotaAlertBody(kind: .projectedExhaustion, used: 60, resetsAt: now + 36000, forecast: forecast, advice: advice, agentName: name, now: now)
         XCTAssertTrue(body.contains("before reset at this pace"))
-        XCTAssertTrue(body.contains("switching to Claude"))
+        XCTAssertNil(advice)
+        XCTAssertFalse(body.contains("\n"))
+    }
+
+    func testNoBothLowWhenAlertingAgentHasRoom() {
+        let items = [item("codex:5h", used: 40, reset: now + 36000), item("claude:5h", used: 95, reset: now + 36000)]
+        XCTAssertNil(quotaAlertAdvice(provider: "codex", items: items, now: now))
+    }
+
+    func testAdviceShowsActualRemainingNotSoonResetHeadroom() {
+        let items = [item("codex:5h", used: 92, reset: now + 7200), item("claude:5h", used: 95, reset: now + 600)] as [WindowItem]
+        // Routing counts the window as replenished (resets in 10 min), but the text shows the real 5% left.
+        XCTAssertEqual(quotaAlertAdvice(provider: "codex", items: items, now: now), .switchTo(agent: "claude", headroom: 5))
     }
 }

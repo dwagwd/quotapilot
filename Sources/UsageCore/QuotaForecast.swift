@@ -66,13 +66,25 @@ public func quotaAlertAdvice(provider: String, items: [WindowItem], now: Double)
     let rooms = AgentRouter.headroom(items: items, now: now)
     guard let other = AgentRouter.agents.first(where: { $0 != provider }),
           let otherRoom = rooms.first(where: { $0.provider == other }) else { return nil }
+    // Only advise when the alerting agent itself is low (a projected-exhaustion alert can fire at 30% used).
+    if let ownRoom = rooms.first(where: { $0.provider == provider }), ownRoom.headroom >= AgentRouter.minimumHeadroom { return nil }
     if otherRoom.headroom >= AgentRouter.minimumHeadroom {
-        return .switchTo(agent: other, headroom: otherRoom.headroom)
+        return .switchTo(agent: other, headroom: actualRemaining(provider: other, items: items, now: now) ?? otherRoom.headroom)
     }
     let known = rooms.filter { AgentRouter.agents.contains($0.provider) }
         .compactMap { room in room.resetsAt.flatMap { $0 > now ? (room.provider, $0) : nil } }
     guard let first = known.min(by: { $0.1 < $1.1 }) else { return .bothLow(earlier: nil, resetsAt: nil) }
     return .bothLow(earlier: first.0, resetsAt: first.1)
+}
+
+/// The real remaining percentage of an agent's tightest window (no "resets soon counts as full" rule).
+private func actualRemaining(provider: String, items: [WindowItem], now: Double) -> Double? {
+    items.compactMap { item -> Double? in
+        guard String(item.id.split(separator: ":").first ?? "") == provider, let used = item.window.validUsedPercent else { return nil }
+        if item.limitReached || used >= 100 { return 0 }
+        if let reset = item.window.resetsAt, reset <= now { return nil }
+        return 100 - used
+    }.min()
 }
 
 extension L10n {

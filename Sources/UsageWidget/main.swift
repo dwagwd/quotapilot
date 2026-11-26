@@ -922,7 +922,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
                 let content = UNMutableNotificationContent()
                 content.title = title(for: item)
                 let provider = String(item.id.split(separator: ":").first ?? "")
-                let advice = quotaAlertAdvice(provider: provider, items: [current].compactMap { $0 } + extraItems, now: now)
+                let advice = quotaAlertAdvice(provider: provider, items: items.filter { !isStale($0, now: now) }, now: now)
                 content.body = l.quotaAlertBody(kind: kind, used: item.window.validUsedPercent, resetsAt: item.window.resetsAt,
                                                 forecast: forecast, advice: advice, agentName: providerName, now: now)
                 let request = UNNotificationRequest(identifier: "quota.\(item.id).\(kind.rawValue)", content: content, trigger: nil)

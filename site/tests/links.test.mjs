@@ -45,6 +45,22 @@ test("internal links resolve to real pages", () => {
   } finally { rmSync(out, { recursive: true, force: true }); }
 });
 
+// Cloudflare Pages serves models/foo.html at /models/foo and redirects the .html form, so links, canonicals and the sitemap use the short form.
+test("links, canonical URLs and the sitemap use the extensionless form Pages serves", () => {
+  const out = mkdtempSync(join(tmpdir(), "aqw-pretty-"));
+  try {
+    execFileSync(process.execPath, [join(site, "scripts/build-pages.mjs"), out], { stdio: "pipe" });
+    const bad = [];
+    for (const file of walk(out)) {
+      const html = readFileSync(file, "utf8");
+      for (const m of html.matchAll(/(?:href|src)="([^"#?]*\.html)"/g)) if (!m[1].startsWith("http") || m[1].includes("aiquotawatch")) bad.push(`${relative(out, file)} -> ${m[1]}`);
+    }
+    const sitemap = readFileSync(join(out, "sitemap.xml"), "utf8");
+    for (const m of sitemap.matchAll(/<loc>([^<]*)<\/loc>/g)) if (m[1].endsWith(".html")) bad.push(`sitemap -> ${m[1]}`);
+    assert.deepEqual(bad, []);
+  } finally { rmSync(out, { recursive: true, force: true }); }
+});
+
 test("the install notes link points at a heading the README has", () => {
   const cfg = readFileSync(join(site, "assets/config.js"), "utf8");
   const anchor = cfg.match(/notesUrl:\s*"https:\/\/github\.com\/dwagwd\/quotapilot#([^"]+)"/)[1];

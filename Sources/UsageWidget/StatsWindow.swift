@@ -18,6 +18,7 @@ final class StatsModel: ObservableObject {
     @Published var localEvents: [LocalLLMEvent] = []
     @Published var localReference: String?
     @Published var localEnabled = false
+    @Published var localEnergy = EnergySettings()
 }
 
 enum StatsRange: String, CaseIterable, Identifiable {
@@ -57,7 +58,8 @@ struct StatsView: View {
     private func localSection(since: Double) -> some View {
         if model.localEnabled {
             GroupBox(l.text("localModelsTitle")) {
-                LocalUsageLines(events: model.localEvents.filter { $0.t >= since }, reference: model.localReference, l: l)
+                LocalUsageLines(events: model.localEvents.filter { $0.t >= since }, reference: model.localReference, l: l,
+                                monthEvents: model.localEvents.filter { $0.t >= Date().timeIntervalSince1970 - 30 * 86400 }, energy: model.localEnergy)
                     .padding(4).frame(maxWidth: .infinity, alignment: .leading)
             }
         }

@@ -145,6 +145,36 @@ and read in chunks with no size limit. The app compacts at start and hourly; the
 - The `/metrics` and oMLX pollers only see what happens while QuotaPilot runs.
 - The oMLX parser follows documented field names but its `models` list shape is not documented; a differing shape yields totals without a model split.
 
+## 4a. Electricity
+
+Running locally is free of API fees but not of electricity. Enter your price and QuotaPilot shows what the measured inference time cost, next to the
+hypothetical cloud cost. Nothing is computed or shown while the price is empty; there is no default price, because it differs everywhere.
+
+| Setting | Where | Default |
+|---|---|---|
+| Price per kWh (shown as per kWh / 每度 / 1 kWh あたり … by language) | **Local models…** window, `quotapilot local config electricity <price> [--currency CODE]` | empty |
+| Currency (ISO 4217) | same, `--currency` or `quotapilot local config currency EUR` | the system region's currency |
+| Device power in W | same, `quotapilot local config power <W|auto>` | typical value for this computer, below |
+| Exchange rate (units of your currency per 1 USD) | same, `quotapilot local config rate <n>` | empty; needed only to show cloud prices (USD) in your currency |
+
+Formulas (the same on the website calculator): `kWh = inference seconds ÷ 3600 × W ÷ 1000`; `cost = kWh × price`; `cost per 1M tokens = cost ÷ (measured tokens ÷ 1,000,000)`.
+Inference seconds are the times the local servers or the proxy measured (prompt plus generation); tokens of events without a measured time are left out and the screen says
+what share was measured. "Last 30 days" is the same calculation over the last 30 days of events. Numbers and currency follow the system region (the app: the interface language's formats).
+
+Power is an **estimate**. macOS cannot read real power without administrator rights (`powermetrics` needs sudo), and QuotaPilot never asks for it. The default is a
+typical whole-computer draw under sustained inference for the chip class, rounded from public measurements of Mac mini, MacBook Pro and Mac Studio under LLM load:
+
+| Computer | Default W |
+|---|---|
+| Apple M-series base (M1 … M5) | 20 |
+| Apple M-series Pro | 40 |
+| Apple M-series Max | 70 |
+| Apple M-series Ultra | 120 |
+| Any other computer (Intel/AMD/other CPU, Linux, Windows; GPU not known) | 100 |
+
+If you know your machine's real figure (a wall plug meter, or a GPU's rated power), enter it; the estimate is labelled as one wherever it is used.
+`quotapilot local hardware` prints what was detected and the default. GPU cores are read from the Apple GPU's registry entry (`ioreg`), nothing is run with elevated rights.
+
 ## 5. Test plan
 
 Fixtures and a fake local HTTP server on real loopback sockets; none of the five tools is needed (`Tests/UsageCoreTests/LocalLLMTests.swift`).
@@ -170,3 +200,4 @@ Fixtures and a fake local HTTP server on real loopback sockets; none of the five
 - [x] app: Local models window, statistics window lines, menu line
 - [x] CLI: `quotapilot local status|stats|poll|proxy|config`, `quotapilot stats` includes local
 - [x] tests, docs, changelog
+- [x] electricity: price, currency, power, exchange rate; app lines, `quotapilot local stats|hardware|config`

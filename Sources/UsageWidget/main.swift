@@ -1123,6 +1123,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
     private func syncLocalStatsModel() {
         statsModel.localEnabled = settings.localModels.isEnabled
         statsModel.localReference = settings.localModels.referenceModel
+        statsModel.localEnergy = settings.localModels.energySettings
         statsModel.localEvents = localModelsModel.events
     }
 

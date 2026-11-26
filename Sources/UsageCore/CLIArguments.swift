@@ -2,7 +2,7 @@ import Foundation
 
 public enum CLIArguments {
     /// Options that take a value in the next argument.
-    public static let valueOptions: Set<String> = ["--hours", "--interval", "--only", "--backend", "--listen", "--upstream", "--upstream-host"]
+    public static let valueOptions: Set<String> = ["--hours", "--interval", "--only", "--backend", "--listen", "--upstream", "--upstream-host", "--currency"]
 
     /// The words that are not options and not option values: `route --hours 6 review` gives `route review`.
     /// `-h` counts as a word so that `quotapilot -h` still reaches the help command.

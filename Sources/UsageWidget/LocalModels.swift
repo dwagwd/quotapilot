@@ -21,6 +21,9 @@ struct LocalUsageLines: View {
     let events: [LocalLLMEvent]
     let reference: String?
     let l: L10n
+    /// Everything of the last 30 days, for the monthly electricity figure.
+    var monthEvents: [LocalLLMEvent] = []
+    var energy = EnergySettings()
 
     var body: some View {
         let report = LocalLLMReport(events: events, reference: reference)
@@ -31,9 +34,40 @@ struct LocalUsageLines: View {
                 Text(String(format: l.text("localEquivalent"), l.usd(report.costUSD), report.reference.id)).font(.title3.weight(.semibold))
                     .help(l.text("localReferenceHelp"))
                 Text(l.text("localReferenceHelp")).font(.caption2).foregroundStyle(.secondary)
+                energyView
                 ForEach(report.lines, id: \.id) { line in lineView(line) }
                 if report.unmetered > 0 {
                     Text(String(format: l.text("localUnmetered"), l.compact(Double(report.unmetered)))).font(.caption2).foregroundStyle(.orange)
+                }
+            }
+        }
+    }
+
+    /// Electricity next to the hypothetical cloud cost; a prompt to enter the price while it is empty.
+    @ViewBuilder
+    private var energyView: some View {
+        if !energy.hasPrice {
+            Text(l.text("energyEmpty")).font(.caption).foregroundStyle(.secondary)
+        } else {
+            let result = LocalEnergyReport(events: events, reference: reference, settings: energy, locale: l.locale)
+            if let cost = result.cost, !result.isEmpty {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(String(format: l.text("energyCost"), l.money(cost, currency: result.currency), l.inferenceTime(seconds: result.seconds), l.number(result.watts, decimals: 0)))
+                        .font(.callout.weight(.semibold))
+                    if let perMillion = result.costPerMillionTokens {
+                        let cloud = result.cloudCostPerMillionTokens.map { l.money($0, currency: result.currency) } ?? l.usd(result.cloudPerMillionTokensUSD ?? 0)
+                        Text(String(format: l.text("energyPerMillion"), l.money(perMillion, currency: result.currency), cloud)).font(.caption)
+                    }
+                    let month = LocalEnergyReport(events: monthEvents, reference: reference, settings: energy, locale: l.locale)
+                    if let monthCost = month.cost, !month.isEmpty {
+                        Text(String(format: l.text("energyMonth"), l.money(monthCost, currency: month.currency))).font(.caption)
+                    }
+                    if result.cloudCost == nil { Text(l.text("energyNoRate")).font(.caption2).foregroundStyle(.secondary) }
+                    if result.coverage < 0.95 { Text(String(format: l.text("energyCoverage"), l.percent(result.coverage))).font(.caption2).foregroundStyle(.orange) }
+                    if energy.watts == nil {
+                        Text(String(format: l.text("energyEstimate"), l.number(result.watts, decimals: 0), DevicePower.estimate(for: .current()).basis))
+                            .font(.caption2).foregroundStyle(.secondary)
+                    }
                 }
             }
         }
@@ -52,6 +86,72 @@ struct LocalUsageLines: View {
             Text(parts.joined(separator: "  ·  ")).font(.caption2).foregroundStyle(.secondary)
                 .help(line.proxyMeasuredSpeed ? l.text("localProxyMeasured") : "")
         }
+    }
+}
+
+/// Electricity price, currency, device power and optional exchange rate. Saved with the Save button.
+struct EnergySettingsView: View {
+    @ObservedObject var model: LocalModelsModel
+    @State private var price = ""
+    @State private var currency = ""
+    @State private var watts = ""
+    @State private var rate = ""
+    @State private var loaded = false
+    private var l: L10n { L10n(model.language) }
+
+    private func number(_ text: String) -> Double? {
+        let trimmed = text.trimmingCharacters(in: .whitespaces).replacingOccurrences(of: ",", with: ".")
+        return trimmed.isEmpty ? nil : Double(trimmed)
+    }
+    private func show(_ value: Double?) -> String { value.map { $0 == $0.rounded() ? String(Int($0)) : String($0) } ?? "" }
+    private func load() {
+        let energy = model.settings.energySettings
+        price = show(energy.pricePerKWh); currency = energy.currency ?? ""; watts = show(energy.watts); rate = show(energy.usdRate)
+    }
+    private var valid: Bool {
+        EnergySettings.validate(price: number(price), watts: number(watts), rate: number(rate), currency: currency.isEmpty ? nil : currency.uppercased()) == nil
+            && (price.isEmpty || number(price) != nil) && (watts.isEmpty || number(watts) != nil) && (rate.isEmpty || number(rate) != nil)
+    }
+    private func save() {
+        var next = model.settings
+        var energy = EnergySettings()
+        energy.pricePerKWh = number(price).flatMap { $0 > 0 ? $0 : nil }
+        energy.currency = currency.isEmpty ? nil : currency.uppercased()
+        energy.watts = number(watts); energy.usdRate = number(rate)
+        next.energySettings = energy
+        model.settings = next; model.onChange?(next)
+    }
+
+    var body: some View {
+        let energy = model.settings.energySettings
+        let hardware = HardwareInfo.current()
+        let typical = DevicePower.estimate(for: hardware)
+        let systemCurrency = EnergySettings.systemCurrency(l.locale)
+        VStack(alignment: .leading, spacing: 6) {
+            Text(l.text("energyTitle")).font(.headline)
+            HStack {
+                Text(l.text("energyPrice")).font(.caption).frame(width: 200, alignment: .leading)
+                TextField("", text: $price).frame(width: 80)
+                TextField(systemCurrency, text: $currency).frame(width: 56)
+            }
+            HStack {
+                Text(l.text("energyPower")).font(.caption).frame(width: 200, alignment: .leading)
+                TextField(l.number(typical.watts, decimals: 0) + " (" + l.text("energyDefaultWatts") + ")", text: $watts).frame(width: 140)
+            }
+            if energy.resolvedCurrency(l.locale) != "USD" || !currency.isEmpty && currency.uppercased() != "USD" {
+                HStack {
+                    Text(l.text("energyRate")).font(.caption).frame(width: 200, alignment: .leading)
+                    TextField("", text: $rate).frame(width: 80)
+                    Text(currency.isEmpty ? systemCurrency : currency.uppercased()).font(.caption).foregroundStyle(.secondary)
+                }
+            }
+            HStack {
+                Button(l.text("localSave")) { save() }.disabled(!valid)
+                if !valid { Image(systemName: "exclamationmark.triangle").foregroundStyle(.orange) }
+            }
+            Text(String(format: l.text("energyEstimate"), l.number(typical.watts, decimals: 0), typical.basis)).font(.caption2).foregroundStyle(.secondary)
+        }
+        .onAppear { if !loaded { load(); loaded = true } }
     }
 }
 
@@ -89,10 +189,14 @@ struct LocalModelsView: View {
                     if model.keySaved { Image(systemName: "checkmark.circle").foregroundStyle(.green) }
                 }
                 Divider()
+                EnergySettingsView(model: model)
+                Divider()
                 Picker("", selection: $range) { ForEach(StatsRange.allCases) { Text($0.rawValue).tag($0) } }
                     .pickerStyle(.segmented).frame(width: 220)
                 LocalUsageLines(events: model.events.filter { $0.t >= Date().timeIntervalSince1970 - range.seconds },
-                                reference: model.settings.referenceModel, l: l)
+                                reference: model.settings.referenceModel, l: l,
+                                monthEvents: model.events.filter { $0.t >= Date().timeIntervalSince1970 - 30 * 86400 },
+                                energy: model.settings.energySettings)
             }.padding(14)
         }.frame(minWidth: 540, minHeight: 560)
     }

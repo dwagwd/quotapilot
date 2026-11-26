@@ -29,6 +29,22 @@ extension L10n {
         if value > 0 && value < 0.005 { return "<$0.01" }
         return "$" + number(value, decimals: value >= 100 ? 0 : 2)
     }
+    /// An amount in the user's currency, formatted for the interface language ("$0.42", "¥63", "0,42 €"). Small amounts get more digits.
+    public func money(_ value: Double, currency: String) -> String {
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .currency
+        formatter.locale = locale
+        formatter.currencyCode = currency
+        let size = abs(value)
+        if size > 0 && size < 0.01 { formatter.minimumFractionDigits = 4; formatter.maximumFractionDigits = 4 }
+        else if size < 1 { formatter.minimumFractionDigits = max(formatter.minimumFractionDigits, 2); formatter.maximumFractionDigits = max(formatter.maximumFractionDigits, 3) }
+        return formatter.string(from: NSNumber(value: value)) ?? currency + " " + number(value, decimals: 2)
+    }
+    /// Duration for a number of seconds ("3h 20m", "45m", "30s").
+    public func inferenceTime(seconds: Double) -> String {
+        if seconds < 60 { return "\(Int(seconds.rounded()))s" }
+        return activeTime(minutes: seconds / 60)
+    }
     public func percent(_ share: Double) -> String {
         let value = share * 100
         return number(value, decimals: value > 0 && value < 10 ? 1 : 0) + "%"

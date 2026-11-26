@@ -57,6 +57,8 @@ public struct LocalLLMSettings: Codable, Equatable {
     /// Price-table id of the cloud model that the equivalent cost is computed on.
     public var referenceModel: String? = nil
     public var backends: [String: LocalLLMBackendConfig]? = nil
+    /// Electricity price, currency and device power for the energy cost of local runs (empty until the user fills it in).
+    public var energy: EnergySettings? = nil
     public init() {}
 
     public var isEnabled: Bool { enabled ?? false }

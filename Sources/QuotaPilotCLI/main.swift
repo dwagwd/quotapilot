@@ -471,6 +471,13 @@ func localReport(hours: Double) -> LocalLLMReport? {
     return report.isEmpty ? nil : report
 }
 
+/// The events of the range and of the last 30 days, for the electricity figures.
+func localEnergyEvents(hours: Double) -> (range: [LocalLLMEvent], month: [LocalLLMEvent]) {
+    let now = Date().timeIntervalSince1970
+    let month = localLog.events(since: now - 30 * 86400)
+    return (month.filter { $0.t >= now - hours * 3600 }, month)
+}
+
 func localLineText(_ line: LocalLLMReport.Line) -> String {
     var parts = [line.requestsKnown ? "\(line.requests) requests" : "requests not reported",
                  "in \(l.compact(line.prompt)) · out \(l.compact(line.completion))"]
@@ -480,6 +487,44 @@ func localLineText(_ line: LocalLLMReport.Line) -> String {
     if line.activeSeconds >= 1 { parts.append("active " + l.activeTime(minutes: line.activeSeconds / 60)) }
     if line.unmetered > 0 { parts.append("\(line.unmetered) requests without token counts") }
     return "  " + (LocalLLMBackend(rawValue: line.backend)?.displayName ?? line.backend) + " · " + (line.model ?? "unknown model") + ": " + parts.joined(separator: " · ")
+}
+
+/// Number and currency formatting follow the system region (the text stays English).
+let regional = L10n(.system)
+
+/// Electricity cost of local runs: one line each for the range and the last 30 days, or a hint while no price is set.
+func localEnergyLines(range events: [LocalLLMEvent], month: [LocalLLMEvent], reference: String?) -> [String] {
+    let energy = loadSettings().localModels.energySettings
+    guard energy.hasPrice else { return ["  Electricity: not set. Enter your price per kWh with `quotapilot local config electricity <price per kWh> [--currency CODE]` to see what these runs cost in power."] }
+    let report = LocalEnergyReport(events: events, reference: reference, settings: energy)
+    guard !report.isEmpty, let cost = report.cost else { return [] }
+    var lines = ["  Electricity ≈ " + regional.money(cost, currency: report.currency) + " (\(l.inferenceTime(seconds: report.seconds)) of inference at \(l.number(report.watts, decimals: 0)) W = \(l.number(report.kWh, decimals: 3)) kWh)"]
+    if let perMillion = report.costPerMillionTokens {
+        var text = "  " + regional.money(perMillion, currency: report.currency) + " per 1M tokens of electricity"
+        if let cloud = report.cloudCostPerMillionTokens { text += " (cloud on \(LocalLLMReference.resolve(reference).id): " + regional.money(cloud, currency: report.currency) + ")" }
+        else { text += " (cloud: " + l.usd(report.cloudPerMillionTokensUSD ?? 0) + "; set `quotapilot local config rate <\(report.currency) per 1 USD>` to compare in one currency)" }
+        lines.append(text)
+    }
+    let monthly = LocalEnergyReport(events: month, reference: reference, settings: energy)
+    if let monthCost = monthly.cost, !monthly.isEmpty { lines.append("  Last 30 days ≈ " + regional.money(monthCost, currency: monthly.currency) + " of electricity") }
+    if report.coverage < 0.95 { lines.append("  Only \(l.percent(report.coverage)) of the tokens have a measured time; the rest are not in the electricity figure.") }
+    let hardware = HardwareInfo.current()
+    if energy.watts == nil { lines.append("  Power is an estimate: \(l.number(report.watts, decimals: 0)) W is typical for \(DevicePower.estimate(for: hardware).basis); macOS cannot read real power without sudo. Change it with `quotapilot local config power <W>`.") }
+    return lines
+}
+
+func localEnergyJSON(range events: [LocalLLMEvent], month: [LocalLLMEvent], reference: String?) -> [String: Any] {
+    let energy = loadSettings().localModels.energySettings
+    guard energy.hasPrice else { return ["configured": false, "note": "Set the electricity price with `quotapilot local config electricity <price per kWh>`."] }
+    func object(_ report: LocalEnergyReport) -> [String: Any] {
+        ["inferenceSeconds": report.seconds, "kWh": report.kWh, "cost": report.cost ?? NSNull(), "costPerMillionTokens": report.costPerMillionTokens ?? NSNull(),
+         "cloudCostSameCurrency": report.cloudCost ?? NSNull(), "cloudCostPerMillionTokensSameCurrency": report.cloudCostPerMillionTokens ?? NSNull(),
+         "cloudCostUSD": report.cloudCostUSD, "tokensMeasured": report.measuredTokens, "tokensTotal": report.totalTokens]
+    }
+    let range = LocalEnergyReport(events: events, reference: reference, settings: energy)
+    return ["configured": true, "currency": range.currency, "pricePerKWh": energy.pricePerKWh ?? NSNull(), "watts": range.watts, "wattsIsEstimate": energy.watts == nil,
+            "range": object(range), "last30Days": object(LocalEnergyReport(events: month, reference: reference, settings: energy)),
+            "note": "Estimate: power is a typical value for this computer unless set; macOS cannot read real power without administrator rights."]
 }
 
 func localReportText(_ report: LocalLLMReport) -> [String] {
@@ -572,9 +617,31 @@ func runLocalCommand(_ rest: [String]) -> Never {
         let range = hours
         let events = localLog.events(since: Date().timeIntervalSince1970 - range * 3600)
         let report = LocalLLMReport(events: events, reference: settings.localModels.referenceModel)
-        if wantsJSON { printJSON(localReportJSON(report)) }
+        let month = localLog.events(since: Date().timeIntervalSince1970 - 30 * 86400)
+        if wantsJSON {
+            var json = localReportJSON(report)
+            json["electricity"] = localEnergyJSON(range: events, month: month, reference: settings.localModels.referenceModel)
+            printJSON(json)
+        }
         else if report.isEmpty { print("No local model usage recorded in the last \(hoursLabel(range)). " + (settings.localModels.isEnabled ? "" : "Turn it on with `quotapilot local config on`.")) }
-        else { for line in localReportText(report) { print(line) } }
+        else {
+            for line in localReportText(report) { print(line) }
+            for line in localEnergyLines(range: events, month: month, reference: settings.localModels.referenceModel) { print(line) }
+        }
+        exit(0)
+    case "hardware":
+        let hardware = HardwareInfo.current()
+        let estimate = DevicePower.estimate(for: hardware)
+        let energy = settings.localModels.energySettings
+        if wantsJSON {
+            printJSON(["os": hardware.sharedOS.family, "osMajor": hardware.sharedOS.major, "cpu": hardware.cpuName ?? NSNull(), "chip": hardware.sharedChip ?? NSNull(),
+                       "memoryGiB": hardware.memoryGiB, "memoryTier": hardware.sharedMemoryTier, "gpuCores": hardware.gpuCores ?? NSNull(),
+                       "typicalWatts": estimate.watts, "wattsUsed": energy.resolvedWatts(hardware), "currency": energy.resolvedCurrency(), "pricePerKWh": energy.pricePerKWh ?? NSNull()])
+        } else {
+            print("This computer: " + (hardware.cpuName ?? "unknown CPU") + " · \(l.number(hardware.memoryGiB, decimals: 0)) GB memory" + (hardware.gpuCores.map { " · \($0) GPU cores" } ?? "") + " · " + hardware.os)
+            print("Typical power under local inference: \(l.number(estimate.watts, decimals: 0)) W (estimate for \(estimate.basis); not measured)")
+            print("Electricity: " + (energy.hasPrice ? "\(energy.pricePerKWh ?? 0) \(energy.resolvedCurrency()) per kWh, \(l.number(energy.resolvedWatts(hardware), decimals: 0)) W" : "price not set"))
+        }
         exit(0)
     case "config":
         let args = Array(rest.dropFirst())
@@ -585,6 +652,30 @@ func runLocalCommand(_ rest: [String]) -> Never {
                 fail("usage: quotapilot local config reference <model id from the price table, e.g. \(LocalLLMReference.defaultModel)>", code: 2)
             }
             save { $0.referenceModel = args[1] }; print("reference = \(args[1])")
+        case "electricity":
+            // `electricity 0.25 [--currency EUR]` sets the price per kWh; `electricity clear` removes it.
+            guard args.count >= 2 else { fail("usage: quotapilot local config electricity <price per kWh | clear> [--currency CODE]", code: 2) }
+            if args[1] == "clear" { save { $0.energySettings.pricePerKWh = nil }; print("electricity price cleared"); break }
+            guard let price = Double(args[1].replacingOccurrences(of: ",", with: ".")), price > 0, EnergySettings.validate(price: price) == nil else {
+                fail("the price per kWh must be a positive number (for example 0.25)", code: 2)
+            }
+            if let code = option("--currency") {
+                if let bad = EnergySettings.validate(currency: code) { fail(bad, code: 2) }
+                save { $0.energySettings.currency = code.uppercased() }
+            }
+            save { $0.energySettings.pricePerKWh = price }
+            print("electricity = \(price) \(settings.localModels.energySettings.resolvedCurrency()) per kWh")
+        case "currency":
+            guard args.count == 2, EnergySettings.validate(currency: args[1]) == nil else { fail("usage: quotapilot local config currency <ISO code, e.g. USD, EUR, JPY>", code: 2) }
+            save { $0.energySettings.currency = args[1].uppercased() }; print("currency = \(args[1].uppercased())")
+        case "power":
+            if args.count == 2, args[1] == "auto" { save { $0.energySettings.watts = nil }; print("power = typical value for this computer"); break }
+            guard args.count == 2, let watts = Double(args[1]), EnergySettings.validate(watts: watts) == nil else { fail("usage: quotapilot local config power <watts 1-5000 | auto>", code: 2) }
+            save { $0.energySettings.watts = watts }; print("power = \(watts) W")
+        case "rate":
+            if args.count == 2, args[1] == "clear" { save { $0.energySettings.usdRate = nil }; print("exchange rate cleared"); break }
+            guard args.count == 2, let rate = Double(args[1].replacingOccurrences(of: ",", with: ".")), EnergySettings.validate(rate: rate) == nil else { fail("usage: quotapilot local config rate <units of your currency per 1 USD | clear>", code: 2) }
+            save { $0.energySettings.usdRate = rate }; print("1 USD = \(rate) \(settings.localModels.energySettings.resolvedCurrency())")
         case "proxy":
             guard args.count == 3, ["on", "off"].contains(args[2]) else { fail("usage: quotapilot local config proxy <backend> <on|off> [--listen N] [--upstream N] [--upstream-host H]", code: 2) }
             let b = backend(args[1])
@@ -600,6 +691,8 @@ func runLocalCommand(_ rest: [String]) -> Never {
         default:
             print("local models: " + (settings.localModels.isEnabled ? "on" : "off"))
             print("reference: " + settings.localModels.reference)
+            let energy = settings.localModels.energySettings
+            print("electricity: " + (energy.hasPrice ? "\(energy.pricePerKWh ?? 0) \(energy.resolvedCurrency()) per kWh" : "not set") + " · power: " + (energy.watts.map { "\($0) W" } ?? "typical (\(energy.resolvedWatts()) W)"))
             for b in LocalLLMBackend.allCases { print("\(b.rawValue) proxy: " + (settings.localModels.proxyEnabled(b) ? "on" : "off")) }
         }
         exit(0)
@@ -652,7 +745,7 @@ func runLocalCommand(_ rest: [String]) -> Never {
         fflush(stdout)
         runLoopForever { service.stop() }
     default:
-        fail("usage: quotapilot local <status|stats|poll|proxy|config>", code: 2)
+        fail("usage: quotapilot local <status|stats|hardware|poll|proxy|config>", code: 2)
     }
 }
 
@@ -667,7 +760,7 @@ USAGE
   quotapilot route <web|review|plan|implement> [--json]
                                              Print the agent for a kind of task (exit 3 if none)
   quotapilot stats [--hours N] [--json]      Token totals, equivalent API cost, cache hit rate and shares by agent and model from local logs
-  quotapilot local <status|stats|poll|proxy|config>
+  quotapilot local <status|stats|hardware|poll|proxy|config>
                                              Local model usage (Ollama, LM Studio, llama.cpp, oMLX); see docs/local-llm.md
   quotapilot config [show]                   Show router mode and task rules
   quotapilot config <claude-plan|agent-logs> <on|off>
@@ -791,7 +884,12 @@ case "stats":
         }
         var object: [String: Any] = ["hours": hours, "total": breakdownJSON(total), "providers": summary.mapValues(breakdownJSON), "outputSpeed": speed,
                                      "usage": reportJSON(report)]
-        if let local = localReport(hours: hours) { object["local"] = localReportJSON(local) }
+        if let local = localReport(hours: hours) {
+            var json = localReportJSON(local)
+            let events = localEnergyEvents(hours: hours)
+            json["electricity"] = localEnergyJSON(range: events.range, month: events.month, reference: loadSettings().localModels.referenceModel)
+            object["local"] = json
+        }
         printJSON(object)
     } else {
         print("Tokens in the last \(hoursLabel(hours)): \(l.compact(total.total)) · ≈\(l.compact(total.total / hours))/h · ≈\(l.compact(total.total / hours / 3600))/s")
@@ -802,7 +900,11 @@ case "stats":
         for line in reportText(report) { print(line) }
         for line in speedText() { print("Output speed  " + line) }
         print("  Output speed = output tokens (incl. reasoning) ÷ model-call time. The time includes prefill and time to first token, so it is a lower bound on decode (TG) tok/s.")
-        if let local = localReport(hours: hours) { for line in localReportText(local) { print(line) } }
+        if let local = localReport(hours: hours) {
+            for line in localReportText(local) { print(line) }
+            let events = localEnergyEvents(hours: hours)
+            for line in localEnergyLines(range: events.range, month: events.month, reference: loadSettings().localModels.referenceModel) { print(line) }
+        }
     }
 case "share":
     if arguments.contains("--forget") {

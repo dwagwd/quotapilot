@@ -59,7 +59,9 @@
 
   function renderTable() {
     var list = visibleRows();
-    body.innerHTML = list.map(function (r) { return M.rowHtml(r, lang, { elec: elecText(r) }); }).join("");
+    var columns = document.querySelectorAll("#rankTable thead th").length || 1;
+    body.innerHTML = list.length ? list.map(function (r) { return M.rowHtml(r, lang, { elec: elecText(r) }); }).join("")
+      : "<tr><td class=\"empty\" colspan=\"" + columns + "\">" + M.esc(t.noRows) + "</td></tr>";
     $("rowCount").textContent = M.fill(t.showing, { n: list.length, m: state.rows.length });
     document.querySelectorAll("#rankTable th[data-col]").forEach(function (th) {
       var on = th.getAttribute("data-col") === state.sort;
@@ -75,9 +77,10 @@
   }
   function renderCalc() {
     var u = usage(), cur = currency(), res = $("resBody"), note = [];
-    if (!(u.inputM + u.outputM > 0)) { res.innerHTML = ""; $("resNote").textContent = ""; return; }
+    var emptyRow = function (text) { return "<tr><td class=\"empty\" colspan=\"4\">" + M.esc(text) + "</td></tr>"; };
+    if (!(u.inputM + u.outputM > 0)) { res.innerHTML = emptyRow(t.calcEmpty); $("resNote").textContent = ""; return; }
     var priced = M.priceRows(M.filterRows(state.rows, filters()), u, { currency: cur, rate: number("rate") || 0, watts: number("watts") || 0, price: number("kwh") || 0 });
-    res.innerHTML = priced.map(function (p) {
+    res.innerHTML = !priced.length ? emptyRow(t.noRows) : priced.map(function (p) {
       var cost = p.cost == null ? "<span class=\"muted\">" + M.esc(p.needsPrice ? t.resNeedPrice : t.none) + "</span>" : M.esc(M.money(p.cost, p.currency, locale));
       var speed = p.row.speed ? (p.row.speed.prelim ? "≈" + Math.round(p.row.speed.value) : p.row.speed.value) : t.none;
       var time = p.seconds == null ? t.none : M.fill(t.hoursUnit, { v: (p.seconds / 3600).toFixed(p.seconds < 36000 ? 1 : 0) });

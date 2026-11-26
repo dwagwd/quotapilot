@@ -235,6 +235,7 @@ table.models { width: 100%; border-collapse: collapse; font-size: 14px; min-widt
 .models tr:last-child td { border-bottom: 0; }
 .models .num { text-align: right; font-variant-numeric: tabular-nums; }
 .models .strong { font-weight: 700; }
+.calc-table td:first-child, .calc-table th:first-child { min-width: 9.5em; }
 .models .note { font-size: 11px; color: var(--muted); margin-top: 2px; }
 .empty { text-align: center; color: var(--muted); padding: 24px; }
 .fine { font-size: 12px; color: var(--muted); margin: 10px 0; max-width: 860px; }
@@ -512,6 +513,7 @@ i.banked, .lg.banked { background: var(--banked); }
 
 /* generated article pages */
 .article { max-width: 900px; padding-block: 28px 12px; }
+.article:has(#rankTable) { max-width: var(--wrap); }   /* the 11-column ranking table needs the room */
 .article h1 { font-size: clamp(26px, 4vw, 36px); letter-spacing: -0.02em; line-height: 1.15; margin: 8px 0 12px; text-wrap: balance; }
 .article h2 { font-size: 21px; margin: 32px 0 10px; }
 .article h3 { font-size: 16px; margin: 18px 0 4px; }

@@ -32,6 +32,10 @@ node scripts/check-i18n.mjs      # en and zh strings match
 npm test                         # all of the above plus aggregator tests
 ```
 
+## Publish data
+
+Daily data commits go live with `scripts/publish-site-data.sh` (run from the repo root; `--dry-run` shows the diff only). It pushes a commit onto `origin/main` that changes only `site/data/`, so other local commits are never pushed. The site deploy is triggered by a push to main that touches `site/**`.
+
 ## Community data
 
 Visitors report speed, ratings, quota used and limit/reset events with the form in the Community section.

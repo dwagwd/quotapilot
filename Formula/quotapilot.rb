@@ -7,14 +7,9 @@
 class Quotapilot < Formula
   desc "Desktop card and CLI for Codex and Claude Code plan quota, tokens and resets"
   homepage "https://aiquotawatch.pages.dev/"
-  url "https://github.com/dwagwd/quotapilot.git", tag: "v0.8.0", revision: "d21f40dc8bb7b8300f6b2480771f51c68db99043"
+  url "https://github.com/dwagwd/quotapilot.git", tag: "v0.9.0", revision: "0000000000000000000000000000000000000000"
   license "MIT"
   head "https://github.com/dwagwd/quotapilot.git", branch: "main"
-
-  bottle do
-    root_url "https://github.com/dwagwd/quotapilot/releases/download/v0.8.0"
-    sha256 cellar: :any_skip_relocation, arm64_sequoia: "9561c0ea591998ad2d6f8ede17a94a0f1aba3468bc826e83d2c70c66449b2cc9"
-  end
 
   depends_on macos: :ventura
 

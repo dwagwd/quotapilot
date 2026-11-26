@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.9.1
 
 - Windows: local model metering is not available yet (macOS and Linux only). `quotapilot local ...` says so on Windows and never writes or compacts the event log there; before, compaction could crash the Windows build.
 - Fixed a race in the metering proxy where a response to a HEAD request could be read as having a body and swallow the next call's metering.

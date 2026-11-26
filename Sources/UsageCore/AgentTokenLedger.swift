@@ -36,16 +36,16 @@ struct CountedCalls: Codable {
     private(set) var first: [String: Double] = [:]
     private(set) var usage: [String: TokenBreakdown] = [:]
     /// Returns the timestamp to book under and the usage not yet counted, or nil when nothing is new.
-    mutating func uncounted(_ event: AgentTokenEvent) -> (timestamp: Double, usage: TokenBreakdown)? {
+    mutating func uncounted(_ event: AgentTokenEvent) -> (timestamp: Double, usage: TokenBreakdown, isNew: Bool)? {
         guard let at = first[event.dedupeKey] else {
             first[event.dedupeKey] = event.timestamp; usage[event.dedupeKey] = event.usage
-            return (event.timestamp, event.usage)
+            return (event.timestamp, event.usage, true)
         }
         let previous = usage[event.dedupeKey] ?? TokenBreakdown()
         let growth = event.usage.growth(since: previous)
         guard !growth.isEmpty || growth.reasoning > 0 else { return nil }
         usage[event.dedupeKey] = previous.merged(with: event.usage)
-        return (at, growth)
+        return (at, growth, false)
     }
     func contains(_ key: String) -> Bool { first[key] != nil }
     mutating func keep(where include: (Double) -> Bool) {
@@ -60,6 +60,12 @@ public struct AgentTokenEvent: Equatable {
     public let usage: TokenBreakdown
     /// Identifies the same API call when a session log is forked or replayed into another file.
     public let dedupeKey: String
+    /// Normalized (lowercase) model id as found in the log; nil when the log does not name one (Grok) or it could
+    /// not be attributed (Codex lines before any `turn_context`).
+    public var model: String?
+    public init(provider: String, timestamp: Double, usage: TokenBreakdown, dedupeKey: String, model: String? = nil) {
+        self.provider = provider; self.timestamp = timestamp; self.usage = usage; self.dedupeKey = dedupeKey; self.model = model
+    }
 }
 
 /// Parses token usage from local agent session logs. Only numeric usage fields are read;
@@ -113,7 +119,8 @@ public enum AgentLogParser {
         guard !breakdown.isEmpty else { return nil }
         let id = (message["id"] as? String) ?? (object["uuid"] as? String) ?? "\(time)"
         return AgentTokenEvent(provider: providerForModel(message["model"] as? String), timestamp: time, usage: breakdown,
-                               dedupeKey: "claude|\(id)|\(object["requestId"] as? String ?? "")")
+                               dedupeKey: "claude|\(id)|\(object["requestId"] as? String ?? "")",
+                               model: ModelIdentity.normalize(message["model"] as? String))
     }
 }
 
@@ -131,7 +138,8 @@ extension AgentLogParser {
                                    cacheWrite: 0, output: number(tokens["output"]) + thoughts, reasoning: thoughts)
         guard !usage.isEmpty else { return nil }
         return AgentTokenEvent(provider: "gemini", timestamp: time, usage: usage,
-                               dedupeKey: "gemini|\(object["id"] as? String ?? "\(time)")")
+                               dedupeKey: "gemini|\(object["id"] as? String ?? "\(time)")",
+                               model: ModelIdentity.normalize(object["model"] as? String))
     }
 
     /// Grok CLI unified log (`~/.grok/logs/unified.jsonl`): `shell.turn.inference_done` lines with
@@ -166,15 +174,19 @@ public struct AgentTokenLedger {
     public static let bucketSeconds: Double = 300
     public let retention: Double
     private var buckets: [String: [Double: TokenBreakdown]] = [:]
+    /// Per "provider|model" usage and call count per bucket (see `ModelKey`).
+    private var modelBuckets: [String: [Double: ModelSlice]] = [:]
     private var seen = CountedCalls()
     public init(retention: Double = 31 * 86400) { self.retention = retention }
 
     /// Counts a call once; a later line for the same call with larger numbers adds only the difference.
     @discardableResult
     public mutating func add(_ event: AgentTokenEvent) -> Bool {
-        guard let (timestamp, usage) = seen.uncounted(event) else { return false }
+        guard let (timestamp, usage, isNew) = seen.uncounted(event) else { return false }
         let start = (timestamp / Self.bucketSeconds).rounded(.down) * Self.bucketSeconds
         buckets[event.provider, default: [:]][start, default: TokenBreakdown()].add(usage)
+        let key = ModelKey.key(provider: event.provider, model: event.model, existing: modelBuckets)
+        modelBuckets[key, default: [:]][start, default: ModelSlice()].add(usage, calls: isNew ? 1 : 0)
         return true
     }
 
@@ -185,6 +197,27 @@ public struct AgentTokenLedger {
             buckets[provider] = buckets[provider]?.filter { $0.key + Self.bucketSeconds > cutoff }
             if buckets[provider]?.isEmpty == true { buckets.removeValue(forKey: provider) }
         }
+        for key in Array(modelBuckets.keys) {
+            modelBuckets[key] = modelBuckets[key]?.filter { $0.key + Self.bucketSeconds > cutoff }
+            if modelBuckets[key]?.isEmpty == true { modelBuckets.removeValue(forKey: key) }
+        }
+    }
+
+    /// Per-model usage and calls plus active time for `[since, now]`; usage not attributed to a model
+    /// (events recorded before models were tracked) comes back as a row without a model.
+    public func statsInput(since: Double, now: Double) -> UsageStatsInput {
+        var rows: [String: ModelSlice] = [:]
+        var active = Set<Double>()
+        for (key, series) in modelBuckets {
+            for (start, slice) in series where start + Self.bucketSeconds > since && start <= now {
+                rows[key, default: ModelSlice()].add(slice.usage, calls: slice.calls)
+                active.insert(start)
+            }
+        }
+        for series in buckets.values {
+            for start in series.keys where start + Self.bucketSeconds > since && start <= now { active.insert(start) }
+        }
+        return UsageStatsInput.make(modelTotals: rows, providerTotals: summary(since: since, now: now), activeSlots: active.count)
     }
 
     /// Usage per provider for buckets that overlap `[since, now]`.
@@ -265,7 +298,7 @@ public final class AgentLogScanner {
         }
         if isCancelled() {
             // Discarding this batch must also rewind files completed earlier in the same scan.
-            offsets.removeAll(); timers.removeAll(); lastFullEnumeration = -.infinity
+            offsets.removeAll(); timers.removeAll(); currentModels.removeAll(); lastFullEnumeration = -.infinity
             lastModelEvents = []; lastSpeedSamples = []
             return []
         }
@@ -290,7 +323,7 @@ public final class AgentLogScanner {
     public func backfillFile(_ path: String, source index: Int, windowStart: Double) -> [AgentTokenEvent] {
         guard sources.indices.contains(index) else { return [] }
         let events = scanFile(URL(fileURLWithPath: path), source: sources[index], windowStart: windowStart)
-        offsets.removeValue(forKey: path)
+        offsets.removeValue(forKey: path); currentModels.removeValue(forKey: path)
         return events
     }
 
@@ -340,7 +373,7 @@ public final class AgentLogScanner {
         }
         guard !isCancelled() else {
             // A partially read file is retried in full; never persist an offset past unprocessed usage.
-            offsets.removeValue(forKey: key); timers.removeValue(forKey: key)
+            offsets.removeValue(forKey: key); timers.removeValue(forKey: key); currentModels.removeValue(forKey: key)
             return []
         }
         return events
@@ -352,6 +385,8 @@ public final class AgentLogScanner {
         var events: [AgentTokenEvent] = []
         var position = offset
         var carry = Data()
+        var model = currentModels[url.path]
+        defer { currentModels[url.path] = model }
         while position < size && !isCancelled() {
             guard (try? handle.seek(toOffset: position)) != nil,
                   let chunk = try? handle.read(upToCount: Int(min(UInt64(chunkSize), size - position))), !chunk.isEmpty else { break }
@@ -360,7 +395,7 @@ public final class AgentLogScanner {
             carry.append(chunk)
             guard let lastNewline = carry.lastIndex(of: 0x0A) else { continue }
             let complete = carry[carry.startIndex...lastNewline]
-            events += parseLines(complete, source: source, path: url.path).filter { $0.timestamp >= windowStart }
+            events += parseLines(complete, source: source, path: url.path, model: &model).filter { $0.timestamp >= windowStart }
             carry = Data(carry[carry.index(after: lastNewline)...])
         }
         // Keep a trailing partial line for the next scan.
@@ -386,6 +421,24 @@ public final class AgentLogScanner {
             }
         }
         offsets[url.path] = end
+        // Codex names the model only on `turn_context` lines, so token lines read before one (newer chunks) wait
+        // for the model found in an older chunk. `newest` is what later incremental reads continue with.
+        var pending: [Int] = []
+        var newest: String?
+        defer { if let newest { currentModels[url.path] = newest } else { currentModels.removeValue(forKey: url.path) } }
+        func parseChunk(_ data: Data) {
+            var model: String?
+            let parsed = parseLines(data, source: source, model: &model)
+            if let model {
+                for index in pending { events[index].model = model }
+                pending = []
+                if newest == nil { newest = model }
+            }
+            for event in parsed {
+                if event.model == nil { pending.append(events.count) }
+                events.append(event)
+            }
+        }
         var cursor = end
         while cursor > 0 && !isCancelled() {
             let start = cursor > UInt64(chunkSize) ? cursor - UInt64(chunkSize) : 0
@@ -399,13 +452,13 @@ public final class AgentLogScanner {
                 tail = Data(chunk[chunk.startIndex...firstNewline].dropLast())
                 body = Data(chunk[chunk.index(after: firstNewline)...])
             } else { tail = Data() }
-            let parsed = parseLines(body, source: source)
-            events += parsed.filter { $0.timestamp >= windowStart }
+            let before = events.count
+            parseChunk(body)
             cursor = start
-            if let oldest = parsed.map(\.timestamp).min(), oldest < windowStart { break }
+            if let oldest = events[before...].map(\.timestamp).min(), oldest < windowStart { break }
         }
-        if cursor == 0, !tail.isEmpty { events += parseLines(tail, source: source).filter { $0.timestamp >= windowStart } }
-        return events
+        if cursor == 0, !tail.isEmpty { parseChunk(tail) }
+        return events.filter { $0.timestamp >= windowStart }
     }
 
     /// Model observations found by the last scan (requested/served models and reroutes).
@@ -423,7 +476,10 @@ public final class AgentLogScanner {
     /// scans are still paired.
     private var timers: [String: CallTimer] = [:]
 
-    private func parseLines(_ data: Data, source: Source, path: String? = nil) -> [AgentTokenEvent] {
+    /// Model last named by a Codex `turn_context` per file, carried across incremental reads.
+    private var currentModels: [String: String] = [:]
+
+    private func parseLines(_ data: Data, source: Source, path: String? = nil, model current: inout String?) -> [AgentTokenEvent] {
         var events: [AgentTokenEvent] = []
         var timer = path.flatMap { timers[$0] } ?? CallTimer(provider: source.provider)
         defer { if let path { timers[path] = timer } }
@@ -433,8 +489,14 @@ public final class AgentLogScanner {
             // drains: free them per line, or a large log keeps hundreds of MB alive until the process exits.
             Portable.drainingTemporaries {
                 let string = String(decoding: line, as: UTF8.self)
-                if let event = source.parse(string) { events.append(event) }
-                if let parseModel = source.parseModel, let model = parseModel(string) { lastModelEvents.append(model) }
+                if var event = source.parse(string) {
+                    if event.model == nil { event.model = current }
+                    events.append(event)
+                }
+                if let parseModel = source.parseModel, let model = parseModel(string) {
+                    lastModelEvents.append(model)
+                    if model.kind != .served { current = ModelIdentity.normalize(model.model) ?? current }
+                }
                 lastSpeedSamples += timer.feed(string)
             }
         }

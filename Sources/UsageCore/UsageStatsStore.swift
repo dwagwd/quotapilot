@@ -27,6 +27,10 @@ public struct UsageStatsStore: Codable {
     /// Log files already read by an unfinished backfill, so a restart continues instead of starting over.
     public private(set) var backfilledFiles: Set<String>? = nil
     private var tokenHours: [String: [String: TokenBreakdown]] = [:]
+    /// Per "provider|model" usage and call count per hour (absent in files written before 0.8.0).
+    private var modelHours: [String: [String: ModelSlice]]? = nil
+    /// Per hour, a bit mask of the twelve five-minute slots with activity (absent in older files).
+    private var activityHours: [String: Int]? = nil
     private var recentKeys: [String: Double] = [:]
     /// Usage already counted per recent call, so streamed rewrites add only their growth (absent in older files).
     private var recentUsage: [String: TokenBreakdown]? = nil
@@ -44,21 +48,30 @@ public struct UsageStatsStore: Codable {
     @discardableResult
     public mutating func add(_ event: AgentTokenEvent) -> Bool {
         if recentUsage == nil { recentUsage = [:] }
-        let booked: Double, usage: TokenBreakdown
+        let booked: Double, usage: TokenBreakdown, isNew: Bool
         if let first = recentKeys[event.dedupeKey] {
             // Same call seen again: count only growth (a streamed message rewritten with more output tokens).
             guard let previous = recentUsage?[event.dedupeKey] else { return false }
             let growth = event.usage.growth(since: previous)
             guard !growth.isEmpty else { return false }
-            booked = first; usage = growth
+            booked = first; usage = growth; isNew = false
             recentUsage?[event.dedupeKey] = previous.merged(with: event.usage)
         } else {
             guard event.timestamp > acceptAfter else { return false }
             recentKeys[event.dedupeKey] = event.timestamp
             recentUsage?[event.dedupeKey] = event.usage
-            booked = event.timestamp; usage = event.usage
+            booked = event.timestamp; usage = event.usage; isNew = true
         }
-        tokenHours[event.provider, default: [:]][Self.hourKey(booked), default: TokenBreakdown()].add(usage)
+        let hour = Self.hourKey(booked)
+        tokenHours[event.provider, default: [:]][hour, default: TokenBreakdown()].add(usage)
+        var models = modelHours ?? [:]
+        modelHours = nil  // avoid a copy of the table while mutating it
+        let key = ModelKey.key(provider: event.provider, model: event.model, existing: models)
+        models[key, default: [:]][hour, default: ModelSlice()].add(usage, calls: isNew ? 1 : 0)
+        modelHours = models
+        let slot = min(11, max(0, Int((booked - (Double(hour) ?? 0)) / AgentTokenLedger.bucketSeconds)))
+        if activityHours == nil { activityHours = [:] }
+        activityHours?[hour, default: 0] |= 1 << slot
         return true
     }
 
@@ -159,6 +172,15 @@ public struct UsageStatsStore: Codable {
             tokenHours[provider] = tokenHours[provider]?.filter { (Double($0.key) ?? 0) + 3600 > cutoff }
             if tokenHours[provider]?.isEmpty == true { tokenHours.removeValue(forKey: provider) }
         }
+        if var models = modelHours {
+            modelHours = nil
+            for key in Array(models.keys) {
+                models[key] = models[key]?.filter { (Double($0.key) ?? 0) + 3600 > cutoff }
+                if models[key]?.isEmpty == true { models.removeValue(forKey: key) }
+            }
+            modelHours = models
+        }
+        activityHours = activityHours?.filter { (Double($0.key) ?? 0) + 3600 > cutoff }
         if var hours = speedHours {
             for provider in Array(hours.keys) {
                 hours[provider] = hours[provider]?.filter { (Double($0.key) ?? 0) + 3600 > cutoff }
@@ -184,6 +206,24 @@ public struct UsageStatsStore: Codable {
             }
         }
         return result
+    }
+
+    /// Per-model usage, calls and active time for `[since, now]`, for the cost and cache statistics.
+    /// Usage stored before models were tracked appears as a row without a model.
+    public func statsInput(since: Double, now: Double) -> UsageStatsInput {
+        var rows: [String: ModelSlice] = [:]
+        for (key, hours) in modelHours ?? [:] {
+            for (hour, slice) in hours {
+                guard let start = Double(hour), start + 3600 > since, start <= now else { continue }
+                rows[key, default: ModelSlice()].add(slice.usage, calls: slice.calls)
+            }
+        }
+        var slots = 0
+        for (hour, mask) in activityHours ?? [:] {
+            guard let start = Double(hour), start + 3600 > since, start <= now else { continue }
+            slots += mask.nonzeroBitCount
+        }
+        return UsageStatsInput.make(modelTotals: rows, providerTotals: tokenTotals(since: since, now: now), activeSlots: slots)
     }
 
     /// Token totals per provider in buckets of `bucket` seconds (a multiple of an hour), oldest first.

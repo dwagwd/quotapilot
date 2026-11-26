@@ -418,7 +418,7 @@ func shareReports(hours: Double) -> (reports: [[String: Any]], errors: [String: 
         groups = LocalRuns.groups(events: localLog.events(since: now - hours * 3600), settings: settings.localModels)
         if !groups.isEmpty { versions = LocalEngineName.detectVersions(settings: settings.localModels, backends: Set(groups.map { $0.backend })) }
     }
-    return (ContributionReport.build(speed: speed, windows: uses, now: now, include: kinds, localRuns: groups, hardware: HardwareInfo.current(), engineVersions: versions), errors)
+    return (ContributionReport.build(speed: speed, windows: uses, now: now, include: kinds, localRuns: groups, hardware: kinds.contains(.localRuns) ? HardwareInfo.current() : nil, engineVersions: versions), errors)
 }
 
 /// After a share, or for `quotapilot compare`: this computer's numbers next to the published community medians.
@@ -517,6 +517,7 @@ func localEnergyLines(range events: [LocalLLMEvent], month: [LocalLLMEvent], ref
     }
     let monthly = LocalEnergyReport(events: month, reference: reference, settings: energy)
     if let monthCost = monthly.cost, !monthly.isEmpty { lines.append("  Last 30 days ≈ " + regional.money(monthCost, currency: monthly.currency) + " of electricity") }
+    lines.append("  Electricity adds up the measured time of every request, so requests that ran in parallel overstate the kWh.")
     if report.coverage < 0.95 { lines.append("  Only \(l.percent(report.coverage)) of the tokens have a measured time; the rest are not in the electricity figure.") }
     let hardware = HardwareInfo.current()
     if energy.watts == nil { lines.append("  Power is an estimate: \(l.number(report.watts, decimals: 0)) W is typical for \(DevicePower.estimate(for: hardware).basis); macOS cannot read real power without sudo. Change it with `quotapilot local config power <W>`.") }

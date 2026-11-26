@@ -90,7 +90,7 @@ ${links}`;
   const chipTable = (list, speedHeader) => {
     const sorted = list.slice().sort((a, b) => a.chip.localeCompare(b.chip) || a.memGB - b.memGB || a.name.localeCompare(b.name) || (b.speed?.value ?? 0) - (a.speed?.value ?? 0));
     return `<div class="table-scroll" tabindex="0"><table class="models"><thead><tr><th scope="col">${esc(t.chipsChip)}</th><th scope="col" class="num">${esc(t.chipsMemory)}</th><th scope="col">${esc(t.cModel)}</th><th scope="col">${esc(t.chipsEngine)}</th><th scope="col" class="num">${esc(speedHeader)}</th><th scope="col" class="num">${esc(t.chipsPrompt)}</th><th scope="col" class="num">${esc(t.chipsPeople)}</th></tr></thead><tbody>${sorted.map((r) =>
-      `<tr><td>${esc(r.chip)}</td><td class="num">${r.memGB} GB</td><td><strong>${esc(r.name)}</strong></td><td>${esc(M.ENGINES[r.engine] || r.engine)}</td><td class="num">${r.prelim ? "≈" + Math.round(r.speed.value) : r.speed.value}</td><td class="num">${r.promptTps != null ? Math.round(r.promptTps) : esc(t.none)}</td><td class="num">${r.people}</td></tr>`).join("")}</tbody></table></div>`;
+      `<tr><td>${esc(r.chip)}</td><td class="num">${esc(Number(r.memGB))} GB</td><td><strong>${esc(r.name)}</strong></td><td>${esc(M.ENGINES[r.engine] || r.engine)}</td><td class="num">${esc(r.prelim ? "≈" + Math.round(Number(r.speed.value)) : Number(r.speed.value))}</td><td class="num">${r.promptTps != null ? esc(Math.round(Number(r.promptTps))) : esc(t.none)}</td><td class="num">${esc(Number(r.people))}</td></tr>`).join("")}</tbody></table></div>`;
   };
   const published = local.filter((r) => apple(r) && !r.prelim), prelim = local.filter((r) => apple(r) && r.prelim);
   const empty = `<div class="empty-state"><h2>${esc(t.chipsEmptyTitle)}</h2><p>${esc(t.chipsEmpty)}</p>

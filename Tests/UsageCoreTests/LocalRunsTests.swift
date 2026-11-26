@@ -144,4 +144,20 @@ final class LocalRunsTests: XCTestCase {
             }
         }
     }
+
+    func testSharedFixtureGrammarMatchesTheCollector() throws {
+        let url = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("collector/test/local-model-fixture.json")
+        let object = try JSONSerialization.jsonObject(with: Data(contentsOf: url)) as? [String: [String]]
+        for id in object?["valid"] ?? [] { XCTAssertTrue(LocalModelName.isValidID(id), id) }
+        for id in object?["invalid"] ?? [] { XCTAssertFalse(LocalModelName.isValidID(id), id) }
+        XCTAssertFalse((object?["valid"] ?? []).isEmpty)
+    }
+
+    func testParsedIdsAlwaysPassTheStrictGrammar() {
+        for name in ["qwen3:30b-a3b-instruct-2507-q4_K_M", "llama3.1:8b", "gpt-oss:20b", "qwen2.5vl:7b", "llama-buy-scamcoin-now:7b", "gemma3n:e4b", "deepseek-r1-distill-llama-70b"] {
+            if let parsed = LocalModelName.parse(name) { XCTAssertTrue(LocalModelName.isValidID(parsed.id), name) }
+        }
+        XCTAssertNil(LocalModelName.parse("llama-buy-scamcoin-now:7b"))
+        XCTAssertNil(LocalModelName.parse("qwen2.5vl:7b"))
+    }
 }

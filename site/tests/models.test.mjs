@@ -87,6 +87,10 @@ test("monthly cost: cloud tokens at list price with a cache share, local by elec
   const opus = M.cloudRows(models, community).find((r) => r.id === "claude-opus-5-5");
   assert.equal(M.monthlyCloudUsd(opus, { inputM: 10, outputM: 2, cachedShare: 0 }), 10 * 4 + 2 * 20);
   assert.equal(M.monthlyCloudUsd(opus, { inputM: 10, outputM: 2, cachedShare: 0.5 }), 5 * 4 + 5 * 0.2 + 2 * 20);
+  // cache writes are priced at the model's cache-write price when it has one, else at the input price
+  assert.equal(M.monthlyCloudUsd(opus, { inputM: 10, outputM: 0, cachedShare: 0.5, cacheWriteShare: 0.2 }), 10 * (0.3 * 4 + 0.5 * 0.2 + 0.2 * 5));
+  const noWrite = { ...opus, cacheWrite: null };
+  assert.equal(M.monthlyCloudUsd(noWrite, { inputM: 10, outputM: 0, cachedShare: 0, cacheWriteShare: 0.2 }), 10 * 4);
   const local = M.localRows(community)[0];
   // 2M output tokens at 72.4 tok/s plus 10M prompt tokens at 640 tok/s
   const seconds = (2e6 / 72.4) + (10e6 / 640);
@@ -133,8 +137,9 @@ test("quotapilot stats --json is read into monthly millions of tokens, leaving l
     providers: { claude: { input: 100000, cacheRead: 900000, cacheWrite: 0, output: 40000, reasoning: 10000, total: 1050000 }, local: { input: 5e6, cacheRead: 0, cacheWrite: 0, output: 5e6, reasoning: 0, total: 1e7 } } });
   const p = M.parseStats(json);
   assert.ok(Math.abs(p.inputM - 30) < 1e-9, "1M input per day = 30M per month");
-  assert.ok(Math.abs(p.outputM - 1.5) < 1e-9);
+  assert.ok(Math.abs(p.outputM - 1.2) < 1e-9, "reasoning tokens are part of output, not added to it");
   assert.ok(Math.abs(p.cachedShare - 0.9) < 1e-9);
+  assert.ok(Math.abs(p.cacheWriteShare) < 1e-9);
   assert.equal(M.parseStats("not json"), null);
   assert.equal(M.parseStats("{}"), null);
   assert.equal(M.parseStats(JSON.stringify({ hours: 0, providers: { a: { input: 1 } } })), null);

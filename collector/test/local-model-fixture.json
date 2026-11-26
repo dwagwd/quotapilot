@@ -1,0 +1,6 @@
+{
+  "valid": ["qwen3", "qwen3-a3b-instruct", "qwen3-a3b-instruct-2507", "llama3-1", "llama3-2-vision", "gpt-oss", "gemma3n", "gemma-3-it", "deepseek-r1", "deepseek-r1-distill-llama",
+            "mixtral-instruct-v0-1", "smollm2", "phi4", "qwen2-5-coder-instruct", "mistral-small", "llama"],
+  "invalid": ["llama-buy-scamcoin-now", "llama-acme", "qwen3-bob", "qwen-call-555-1234", "gpt-oss-acme", "gpt", "oss", "acme-llama", "philip", "llama3-1-for-dannys-mac", "qwen3--instruct",
+              "Qwen3", "qwen3_instruct", "llama3.1", "", "qwen3-12345", "yin", "qwen3-instruct-instruct-instruct-instruct-instruct-instruct-instruct-instruct"]
+}

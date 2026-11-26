@@ -62,6 +62,7 @@ struct LocalUsageLines: View {
                     if let monthCost = month.cost, !month.isEmpty {
                         Text(String(format: l.text("energyMonth"), l.money(monthCost, currency: month.currency))).font(.caption)
                     }
+                    Text(l.text("energyParallel")).font(.caption2).foregroundStyle(.secondary)
                     if result.cloudCost == nil { Text(l.text("energyNoRate")).font(.caption2).foregroundStyle(.secondary) }
                     if result.coverage < 0.95 { Text(String(format: l.text("energyCoverage"), l.percent(result.coverage))).font(.caption2).foregroundStyle(.orange) }
                     if energy.watts == nil {

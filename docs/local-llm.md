@@ -157,6 +157,8 @@ hypothetical cloud cost. Nothing is computed or shown while the price is empty; 
 | Device power in W | same, `quotapilot local config power <W|auto>` | typical value for this computer, below |
 | Exchange rate (units of your currency per 1 USD) | same, `quotapilot local config rate <n>` | empty; needed only to show cloud prices (USD) in your currency |
 
+Electricity sums the measured time of every request, so requests that ran in parallel overstate the kWh.
+
 Formulas (the same on the website calculator): `kWh = inference seconds ÷ 3600 × W ÷ 1000`; `cost = kWh × price`; `cost per 1M tokens = cost ÷ (measured tokens ÷ 1,000,000)`.
 Inference seconds are the times the local servers or the proxy measured (prompt plus generation); tokens of events without a measured time are left out and the screen says
 what share was measured. "Last 30 days" is the same calculation over the last 30 days of events. Numbers and currency follow the system region (the app: the interface language's formats).
@@ -180,12 +182,12 @@ If you know your machine's real figure (a wall plug meter, or a GPU's rated powe
 Off by default and **not** included in a default share; tick **What to share → Local model speed with this Mac's chip** (an alert shows exactly what would be sent first) or use
 `quotapilot share --only localRuns` (`--json` previews). Needs **Local models** on and at least 3 timed requests per model in the share window.
 
-Per model and engine the report (`type: "localrun"`) holds: public model name (family and version, no size or quantization), parameter size, quantization, engine (`ollama`, `lmstudio`,
-`llamacpp`, `omlx`, `strata`, `other`), engine version (`major.minor`, or `b4567` for llama.cpp; Ollama `/api/version` and llama.cpp `/props` are read on loopback with a 0.5 s timeout, other engines
+Per model and engine the report (`type: "localrun"`) holds: public model name (family and version, no size or quantization), parameter size, quantization, engine (the app sends `ollama`, `lmstudio`,
+`llamacpp`, `omlx`, `strata` or `other`; the collector also accepts `mlx` and `vllm`), engine version (`major.minor`, or `b4567` for llama.cpp; Ollama `/api/version` and llama.cpp `/props` are read on loopback with a 0.5 s timeout, other engines
 report none), chip (`Apple M4 Max`; others only the vendor), memory tier (rounded up to 8/16/24/32/48/64/96/128/192/256 GB), GPU core bucket (10/20/40/80), OS family and major, median generation
 and prompt tokens per second over the events, and the sample count. The name check (`LocalModelName`) accepts only known open-weight families, sizes, quantizations and a list of descriptive words;
-anything else leaves the whole model out. Engines whose upstream is not this computer are skipped. Detection: macOS `sysctl machdep.cpu.brand_string`, `ProcessInfo.physicalMemory` and one `ioreg`
-read for GPU cores; Linux `/proc/cpuinfo`; Windows the processor name from the environment (no GPU, version, or version detection there). Not editable before sending: the preview is the contract; decline
+anything else leaves the whole model out. The collector applies the same grammar to the shared id (`isLocalModelId`; a fixture list, `collector/test/local-model-fixture.json`, is tested by both Swift and JS), so free text after a family name is refused. Engines whose upstream is not this computer are skipped. Detection: macOS `sysctl machdep.cpu.brand_string`, `ProcessInfo.physicalMemory` and one `ioreg`
+read for GPU cores; Linux `/proc/cpuinfo`; Windows the processor name from the environment (no GPU cores or engine versions there). Not editable before sending: the preview is the contract; decline
 by leaving the choice off.
 
 Collector: `collector/schema.js` allows the same fixed lists and refuses a report without model, engine, chip, memory tier, OS, sample count and a speed. Aggregation (`site/scripts/aggregate.mjs`)

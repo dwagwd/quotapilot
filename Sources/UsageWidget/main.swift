@@ -2666,19 +2666,40 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
     @objc private func toggleShareCategory(_ sender: NSMenuItem) {
         guard let raw = sender.representedObject as? String, let category = ShareCategory(rawValue: raw) else { return }
         var kinds = settings.sharedCategories
-        if kinds.contains(category) { kinds.remove(category) } else {
-            // Local runs describe this Mac's hardware: shown with exactly what would be sent, and only added after a yes.
-            if category == .localRuns && !confirmLocalRuns() { return }
-            kinds.insert(category)
-        }
+        if kinds.contains(category) { kinds.remove(category) }
+        else if category == .localRuns {
+            // Local runs describe this Mac's hardware: the exact JSON is shown first, and they are added only after a yes. The engine
+            // version probes (loopback requests) run off the main thread before the alert.
+            refreshEngineVersions { [weak self] in
+                guard let self, self.confirmLocalRuns() else { return }
+                var next = self.settings.sharedCategories; next.insert(.localRuns)
+                self.settings.sharedCategories = next; self.saveSettings(); self.setupStatus()
+            }
+            return
+        } else { kinds.insert(category) }
         settings.sharedCategories = kinds; saveSettings(); setupStatus()
+    }
+
+    /// Engine versions are read from loopback servers, so this happens on a background queue; reports use the last result.
+    private var engineVersionCache: (stamp: Double, values: [String: String]) = (0, [:])
+    private func refreshEngineVersions(_ done: @escaping () -> Void) {
+        let local = settings.localModels
+        DispatchQueue.global(qos: .utility).async { [weak self] in
+            let found = local.isEnabled ? LocalEngineName.detectVersions(settings: local, backends: Set(LocalLLMBackend.allCases.map(\.rawValue))) : [:]
+            DispatchQueue.main.async {
+                self?.engineVersionCache = (Date().timeIntervalSince1970, found)
+                done()
+            }
+        }
     }
 
     private func confirmLocalRuns() -> Bool {
         let now = Date().timeIntervalSince1970
         let reports = currentShareReports(now: now, include: [.localRuns]).filter { $0["type"] as? String == "localrun" }
         let preview: String
-        if reports.isEmpty {
+        if !reports.isEmpty, let data = try? JSONSerialization.data(withJSONObject: reports, options: [.prettyPrinted, .sortedKeys]) {
+            preview = String(decoding: data, as: UTF8.self)   // the raw JSON, exactly as it would be sent
+        } else if reports.isEmpty {
             let hardware = HardwareInfo.current()
             preview = String(format: l.text("localRunsNothing"), (hardware.sharedChip ?? "?") + " / \(hardware.sharedMemoryTier) GB / " + hardware.sharedOS.family + " \(hardware.sharedOS.major)")
         } else {
@@ -2723,13 +2744,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
             reset.flatMap { LimitSightings.lookup(seen, windowID: id, resetsAt: $0) }
         })
         var groups: [LocalRunGroup] = []
-        var versions: [String: String] = [:]
         if include.contains(.localRuns), settings.localModels.isEnabled {
             groups = LocalRuns.groups(events: localModelsModel.events.filter { $0.t >= now - 7 * 86400 }, settings: settings.localModels)
-            if !groups.isEmpty { versions = LocalEngineName.detectVersions(settings: settings.localModels, backends: Set(groups.map { $0.backend })) }
         }
+        // Hardware is described only when local runs are part of the share.
         return ContributionReport.build(speed: recentSpeed, windows: uses, now: now, include: include,
-                                        localRuns: groups, hardware: HardwareInfo.current(), engineVersions: versions)
+                                        localRuns: groups, hardware: include.contains(.localRuns) ? HardwareInfo.current() : nil,
+                                        engineVersions: engineVersionCache.values)
     }
 
     /// Fetches the public community statistics at most every 6 hours while the statistics window is used, and lines
@@ -2766,6 +2787,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
     private func autoShareIfDue() {
         let now = Date().timeIntervalSince1970
         guard settings.autoShareEnabled, AutoShareSchedule.isDue(lastAttempt: defaults.double(forKey: "lastAutoShare"), now: now) else { return }
+        if settings.sharedCategories.contains(.localRuns), now - engineVersionCache.stamp > 3600 {
+            refreshEngineVersions { [weak self] in self?.autoShareIfDue() }   // probes off the main thread, then the share goes on
+            return
+        }
         let reports = currentShareReports(now: now, include: settings.sharedCategories)
         guard !reports.isEmpty else { return }
         defaults.set(now, forKey: "lastAutoShare")  // one attempt a day, even if it fails

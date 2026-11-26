@@ -37,7 +37,7 @@
       rateHelp: "Cloud prices are in USD. Without an exchange rate, other currencies show USD for cloud models.",
       wattsHelp: "Apple chips draw about 20 W (base), 40 W (Pro), 70 W (Max) and 120 W (Ultra) under load; other computers often 100 W or more. This is an estimate: enter your own figure if you know it.",
       resTitle: "Monthly cost for your usage", resModel: "Model", resCost: "Cost per month", resSpeed: "Speed (tok/s)", resTime: "Generation time per month",
-      resNoElec: "Enter an electricity price to price local models.", resNoRate: "USD (no exchange rate set)", resOutputOnly: "Local cost counts generation time (and prompt time where the prompt speed is known).",
+      resNeedPrice: "enter electricity price", resNoElec: "Enter an electricity price to price local models.", resNoRate: "USD (no exchange rate set)", resOutputOnly: "Local cost counts generation time (and prompt time where the prompt speed is known).",
       hoursUnit: "{v} h",
       elecTitle: "Electricity calculator", elecIntro: "What does it cost to run a model on your own computer? Uses the price, power and hours above.",
       elecSpeed: "Generation speed (tokens per second)", elecCompare: "Compare with cloud model", elecKwh: "Energy per month", elecMonth: "Electricity per month", elecTokens: "Tokens generated per month if it runs that long",
@@ -80,7 +80,7 @@
       rateHelp: "雲端價格以美元計。沒有填匯率時，雲端模型在其他幣別下仍顯示美元。",
       wattsHelp: "Apple 晶片滿載約 20 W（基本款）、40 W（Pro）、70 W（Max）、120 W（Ultra）；其他電腦常在 100 W 以上。這是估算，知道實際數字請自行填寫。",
       resTitle: "依你的用量算出的每月費用", resModel: "模型", resCost: "每月費用", resSpeed: "速度（tok/s）", resTime: "每月生成時間",
-      resNoElec: "輸入每度電價，才能替本機模型估價。", resNoRate: "美元（未設定匯率）", resOutputOnly: "本機費用只計算生成時間（已知提示速度時也計入提示處理時間）。",
+      resNeedPrice: "請輸入電價", resNoElec: "輸入每度電價，才能替本機模型估價。", resNoRate: "美元（未設定匯率）", resOutputOnly: "本機費用只計算生成時間（已知提示速度時也計入提示處理時間）。",
       hoursUnit: "{v} 小時",
       elecTitle: "電費計算器", elecIntro: "在自己的電腦上跑模型要花多少電費？使用上方的電價、功率與使用時數。",
       elecSpeed: "生成速度（每秒 token）", elecCompare: "與雲端模型比較", elecKwh: "每月用電量", elecMonth: "每月電費", elecTokens: "若一直在跑，每月生成的 token 數",
@@ -245,8 +245,9 @@
   function monthlyCloudUsd(row, usage) {
     if (row.input == null || row.output == null) return null;
     const cached = Math.min(Math.max(usage.cachedShare || 0, 0), 1);
-    const cacheRead = row.cacheRead ?? row.input;
-    return (usage.inputM * (1 - cached) * row.input) + (usage.inputM * cached * cacheRead) + (usage.outputM * row.output);
+    const written = Math.min(Math.max(usage.cacheWriteShare || 0, 0), 1 - cached);
+    const cacheRead = row.cacheRead ?? row.input, cacheWrite = row.cacheWrite ?? row.input;
+    return usage.inputM * ((1 - cached - written) * row.input + cached * cacheRead + written * cacheWrite) + usage.outputM * row.output;
   }
   // Seconds of generation (and prompt processing where the prompt speed is known) for a month of use on a local row.
   function localSeconds(row, usage) {
@@ -309,11 +310,11 @@
     const providers = o.providers && typeof o.providers === "object" ? Object.entries(o.providers).filter(([k]) => k !== "local").map(([, v]) => v) : o.total ? [o.total] : [];
     if (!providers.length) return null;
     const sum = (k) => providers.reduce((a, p) => a + (Number(p && p[k]) || 0), 0);
-    const input = sum("input"), cacheRead = sum("cacheRead"), cacheWrite = sum("cacheWrite"), output = sum("output") + sum("reasoning");
+    const input = sum("input"), cacheRead = sum("cacheRead"), cacheWrite = sum("cacheWrite"), output = sum("output");   // reasoning tokens are already part of output
     const inputAll = input + cacheRead + cacheWrite;
     if (!(inputAll + output > 0)) return null;
     const scale = (30 * 24) / hours;
-    return { hours, inputM: (inputAll * scale) / 1e6, outputM: (output * scale) / 1e6, cachedShare: inputAll > 0 ? cacheRead / inputAll : 0 };
+    return { hours, inputM: (inputAll * scale) / 1e6, outputM: (output * scale) / 1e6, cachedShare: inputAll > 0 ? cacheRead / inputAll : 0, cacheWriteShare: inputAll > 0 ? cacheWrite / inputAll : 0 };
   }
 
   root.AQW_MODELS = { BLEND, SMARTNESS, PROVIDERS, ENGINES, STRINGS, T, fill, esc, usd, money, contextTokens, blended, currencyForLocale, COMMON_CURRENCIES, REGION_CURRENCY, EURO,

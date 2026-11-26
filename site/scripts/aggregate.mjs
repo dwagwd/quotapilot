@@ -3,7 +3,7 @@
 import { readFileSync, readdirSync, writeFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { sanitize as sanitizeReport } from "../../collector/schema.js";
+import { sanitize as sanitizeReport, isLocalModelId } from "../../collector/schema.js";
 
 export const WINDOW_DAYS = 7;
 export const MIN_SAMPLES = 3;
@@ -80,7 +80,7 @@ export const LOCAL_MIN_SAMPLES = 3;
 // A local run (opt-in): re-checked with the collector's own allow-list, then against ranges that real machines reach.
 function cleanLocalRun(r, base) {
   const v = sanitizeReport({ ...r, type: "localrun" });
-  if (!v) return null;
+  if (!v || !isLocalModelId(v.localModel)) return null;   // strict grammar for every published or preliminary row
   if (v.samples < LOCAL_MIN_SAMPLES) return null;
   const paramsB = v.paramsB ?? null;
   if (v.genTps != null && v.genTps > localGenCap(paramsB)) return null;

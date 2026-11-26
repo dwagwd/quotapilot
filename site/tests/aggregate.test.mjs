@@ -390,3 +390,10 @@ test("local runs stay out of the other statistics", () => {
   assert.equal(out.preliminary.speed.length, 0);
   assert.equal(out.totals.reports, 3);
 });
+
+test("local runs: an id outside the strict grammar never becomes a row, not even a preliminary one", () => {
+  const out = aggregate([lr("a", 1, { localModel: "llama-buy-scamcoin-now" })], models, now);
+  assert.equal(out.localRuns.preliminary.length, 0);
+  assert.equal(out.localRuns.rows.length, 0);
+  assert.equal(clean(lr("a", 1, { localModel: "llama-buy-scamcoin-now" }), models), null);
+});

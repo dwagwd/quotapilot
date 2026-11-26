@@ -770,3 +770,28 @@ test("the family list matches the app's", async () => {
   assert.deepEqual(list("families"), LOCAL_FAMILIES);
   assert.deepEqual(list("quantizations"), LOCAL_QUANTS);
 });
+
+// ---- review fixes: strict local model grammar, local-only fields ----
+
+test("the shared local model fixture: valid ids pass and made-up text after a family name is refused", async () => {
+  const { readFileSync } = await import("node:fs");
+  const { isLocalModelId } = await import("../schema.js");
+  const fixture = JSON.parse(readFileSync(new URL("./local-model-fixture.json", import.meta.url), "utf8"));
+  for (const id of fixture.valid) assert.equal(isLocalModelId(id), true, id);
+  for (const id of fixture.invalid) assert.equal(isLocalModelId(id), false, id);
+  assert.equal(sanitize({ ...run, localModel: "llama-buy-scamcoin-now" }), null);
+});
+
+test("the word list matches the app's", async () => {
+  const { readFileSync } = await import("node:fs");
+  const { LOCAL_WORDS } = await import("../schema.js");
+  const swift = readFileSync(new URL("../../Sources/UsageCore/LocalRuns.swift", import.meta.url), "utf8");
+  const body = swift.match(/static let words: Set<String> = \[([^\]]*)\]/)[1];
+  assert.deepEqual(JSON.parse("[" + body.replace(/\s+/g, " ") + "]").sort(), [...LOCAL_WORDS].sort());
+});
+
+test("a local run keeps only local fields, type, hour and sender label", () => {
+  const r = sanitize({ ...run, plan: "Max 5x", model: "claude-opus-5-5", provider: "claude", window: "5h", kind: "hit_limit", effort: "high", client: "Codex", task: "coding",
+    outputTokens: 5, inputTokens: 5, cacheReadTokens: 5, seconds: 9, calls: 2, score: 5, percentUsed: 10, tokensUsed: 5, inputShare: 0.5, degraded: true, resetAt: "2026-11-26T10:00:00Z" });
+  assert.deepEqual(Object.keys(r).sort(), ["chip", "date", "engine", "engineVersion", "genTps", "gpuCores", "localModel", "memGB", "os", "osMajor", "paramsB", "promptTps", "quant", "samples", "type", "via"]);
+});

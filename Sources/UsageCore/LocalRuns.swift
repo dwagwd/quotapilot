@@ -68,15 +68,34 @@ public enum LocalModelName {
         while index < tokens.count {
             let token = tokens[index]; index += 1
             if let size = size(token) { if params == nil { params = size }; continue }
-            if token.range(of: #"^a[0-9]+(\.[0-9]+)?b$"#, options: .regularExpression) != nil { kept.append(token); continue }
+            if token.range(of: #"^a[0-9]+b$"#, options: .regularExpression) != nil { kept.append(token); continue }
             if token.range(of: #"^v?[0-9]{1,4}(\.[0-9]{1,2})?$"#, options: .regularExpression) != nil { kept.append(token); continue }
             if token == "gguf" || token == "mlx" { continue }   // file and repository format words, not part of the model
             if words.contains(token) || isFamilyToken(token) { kept.append(token); continue }
             return nil   // an unknown word could be a project, company or person: nothing is shared
         }
         let id = kept.joined(separator: "-").replacingOccurrences(of: ".", with: "-")
-        guard id.count <= 48, id.range(of: #"^[a-z0-9-]+$"#, options: .regularExpression) != nil else { return nil }
+        guard isValidID(id) else { return nil }
         return Parsed(id: id, paramsB: params, quant: quant)
+    }
+
+    /// The strict grammar of a shared id (dots already dashes), identical to `isLocalModelId` in `collector/schema.js`; a shared fixture
+    /// (`collector/test/local-model-fixture.json`) is tested on both sides. A family, then only listed words, version numbers, active-size
+    /// tokens (`a3b`) and further family names.
+    public static func isValidID(_ id: String) -> Bool {
+        guard !id.isEmpty, id.count <= 48, id.range(of: #"^[a-z0-9-]+$"#, options: .regularExpression) != nil else { return false }
+        let tokens = id.split(separator: "-", omittingEmptySubsequences: false).map(String.init)
+        var index: Int
+        if tokens[0] == "gpt", tokens.count > 1, tokens[1] == "oss" { index = 2 }
+        else if isFamilyToken(tokens[0]) { index = 1 }
+        else { return false }
+        while index < tokens.count {
+            let token = tokens[index]; index += 1
+            if token.range(of: #"^v?[0-9]{1,4}$"#, options: .regularExpression) != nil || token.range(of: #"^a[0-9]+b$"#, options: .regularExpression) != nil
+                || words.contains(token) || isFamilyToken(token) { continue }
+            return false
+        }
+        return true
     }
 
     /// `qwen3`, `llama3.1`, `gemma3n`, `phi4`, `deepseek`: a family name with an optional version (and up to two letters) glued on.

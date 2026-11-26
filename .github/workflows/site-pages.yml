@@ -34,6 +34,10 @@ jobs:
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 22
+      - name: Use the latest community stats
+        # Before the pages are built: the ranking pages bake community numbers (and decide between rows and the empty state) at build time.
+        run: |
+          git fetch --depth 1 origin community-data 2>/dev/null && git show FETCH_HEAD:community.json > site/data/community.json || echo "No community data yet"
       - name: Check data
         working-directory: site
         run: npm test
@@ -46,9 +50,6 @@ jobs:
           mkdir -p _site
           cp -R site/index.html site/404.html site/assets site/data site/plans site/resets site/models site/zh site/sitemap.xml site/robots.txt site/_headers _site/
           rm -rf _site/data/submissions
-      - name: Use the latest community stats
-        run: |
-          git fetch --depth 1 origin community-data 2>/dev/null && git show FETCH_HEAD:community.json > _site/data/community.json || echo "No community data yet"
       - name: Deploy to Cloudflare Pages (primary)
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}

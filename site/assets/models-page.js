@@ -36,7 +36,7 @@
     return /^[A-Z]{3}$/.test(c) ? c : "USD";
   }
 
-  var state = { sort: null, dir: "asc", rows: [], cloud: [] };
+  var state = { sort: null, dir: "asc", rows: [], cloud: [], pastedWrite: 0 };   // pastedWrite: cache-write share of input from pasted stats
 
   function filters() {
     var budget = number("fBudget");
@@ -71,14 +71,14 @@
 
   function usage() {
     var cached = number("cachedPct");
-    return { inputM: number("inTok") || 0, outputM: number("outTok") || 0, cachedShare: Math.min(Math.max((cached || 0) / 100, 0), 1) };
+    return { inputM: number("inTok") || 0, outputM: number("outTok") || 0, cachedShare: Math.min(Math.max((cached || 0) / 100, 0), 1), cacheWriteShare: state.pastedWrite };
   }
   function renderCalc() {
     var u = usage(), cur = currency(), res = $("resBody"), note = [];
     if (!(u.inputM + u.outputM > 0)) { res.innerHTML = ""; $("resNote").textContent = ""; return; }
     var priced = M.priceRows(M.filterRows(state.rows, filters()), u, { currency: cur, rate: number("rate") || 0, watts: number("watts") || 0, price: number("kwh") || 0 });
     res.innerHTML = priced.map(function (p) {
-      var cost = p.cost == null ? "<span class=\"muted\">" + M.esc(p.needsPrice ? t.resNoElec.split(".")[0] : t.none) + "</span>" : M.esc(M.money(p.cost, p.currency, locale));
+      var cost = p.cost == null ? "<span class=\"muted\">" + M.esc(p.needsPrice ? t.resNeedPrice : t.none) + "</span>" : M.esc(M.money(p.cost, p.currency, locale));
       var speed = p.row.speed ? (p.row.speed.prelim ? "≈" + Math.round(p.row.speed.value) : p.row.speed.value) : t.none;
       var time = p.seconds == null ? t.none : M.fill(t.hoursUnit, { v: (p.seconds / 3600).toFixed(p.seconds < 36000 ? 1 : 0) });
       return "<tr><td><strong>" + M.esc(p.row.name) + "</strong><div class=\"note\">" + M.esc(p.row.kind === "cloud" ? (M.PROVIDERS[p.row.provider] || p.row.provider) : (M.ENGINES[p.row.engine] || p.row.engine) + " · " + p.row.chip) + "</div></td><td class=\"num\">" + cost + "</td><td class=\"num\">" + M.esc(String(speed)) + "</td><td class=\"num\">" + M.esc(time) + "</td></tr>";
@@ -133,7 +133,7 @@
 
     ["fType", "fProvider", "fBudget", "fChip", "fMem"].forEach(function (id) { $(id).addEventListener("input", renderAll); });
     ["inTok", "outTok", "cachedPct", "cur", "rate", "kwh", "watts", "hoursDay", "elSpeed", "elCompare"].forEach(function (id) {
-      $(id).addEventListener("input", function () { persist(); renderAll(); });
+      $(id).addEventListener("input", function () { if (id === "inTok" || id === "cachedPct") state.pastedWrite = 0; persist(); renderAll(); });
     });
     $("fReset").addEventListener("click", function () {
       $("fType").value = "all"; $("fProvider").value = "all"; $("fChip").value = "all"; $("fMem").value = "all"; $("fBudget").value = "";
@@ -153,6 +153,7 @@
       var round = function (v) { return v >= 10 ? String(Math.round(v)) : String(Math.round(v * 100) / 100); };
       $("inTok").value = round(parsed.inputM); $("outTok").value = round(parsed.outputM); $("cachedPct").value = String(Math.round(parsed.cachedShare * 100));
       $("pasteMsg").textContent = M.fill(t.pasteOk, { hours: Math.round(parsed.hours), inM: round(parsed.inputM), outM: round(parsed.outputM) });
+      state.pastedWrite = parsed.cacheWriteShare || 0;
       persist(); renderAll();
     });
     // A local row's speed is a sensible default for the electricity calculator.

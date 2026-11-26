@@ -19,6 +19,29 @@ export const LOCAL_FAMILIES = ["llama", "codellama", "mistral", "mixtral", "mini
   "deepseek", "glm", "kimi", "granite", "olmo", "smollm", "nemotron", "minimax", "yi", "internlm", "command", "aya", "starcoder", "hermes", "falcon", "exaone", "solar", "gpt-oss"];
 export const LOCAL_QUANTS = ["Q2_K", "Q3_K_S", "Q3_K_M", "Q3_K_L", "Q4_0", "Q4_1", "Q4_K_S", "Q4_K_M", "Q5_0", "Q5_1", "Q5_K_S", "Q5_K_M", "Q6_K", "Q8_0",
   "IQ2", "IQ3", "IQ4", "2bit", "3bit", "4bit", "5bit", "6bit", "8bit", "FP8", "FP16", "BF16", "MXFP4", "NVFP4", "INT4", "INT8", "AWQ", "GPTQ"];
+// Words that may follow the family in a local model id. Kept in step with LocalModelName.words in the app (a shared fixture tests both).
+export const LOCAL_WORDS = ["instruct", "chat", "it", "base", "coder", "code", "thinking", "reasoning", "vl", "vision", "mini", "small", "large",
+  "medium", "tiny", "preview", "latest", "moe", "distill", "r1", "flash", "lite", "math", "turbo", "next", "omni",
+  "max", "plus", "guard", "embed", "mlx", "gguf", "text", "dev", "air", "scout", "maverick"];
+const ONE_WORD_FAMILIES = LOCAL_FAMILIES.filter((f) => f !== "gpt-oss");
+// A family name with an optional version (and up to two letters after a number) glued on: qwen3, gemma3n, phi4.
+const familyToken = (tok) => ONE_WORD_FAMILIES.some((f) => tok.startsWith(f) && /^(?:[0-9]{1,2}[a-z]{0,2})?$/.test(tok.slice(f.length)));
+/** The strict grammar of a shared local model id (dots already turned into dashes): a family, then only listed words, version numbers
+ *  (`3`, `v0`), active-size tokens (`a3b`) and further family names. Anything else, such as `llama-buy-scamcoin-now`, is refused. */
+export function isLocalModelId(id) {
+  if (typeof id !== "string" || id.length === 0 || id.length > 48 || !/^[a-z0-9-]+$/.test(id)) return false;
+  const tokens = id.split("-");
+  let i;
+  if (tokens[0] === "gpt" && tokens[1] === "oss") i = 2;
+  else if (familyToken(tokens[0])) i = 1;
+  else return false;
+  for (; i < tokens.length; i++) {
+    const t = tokens[i];
+    if (/^v?[0-9]{1,4}$/.test(t) || /^a[0-9]+b$/.test(t) || LOCAL_WORDS.includes(t) || familyToken(t)) continue;
+    return false;
+  }
+  return true;
+}
 export const LOCAL_ENGINES = ["ollama", "lmstudio", "llamacpp", "omlx", "strata", "mlx", "vllm", "other"];
 export const MEMORY_TIERS = [8, 16, 24, 32, 48, 64, 96, 128, 192, 256];
 export const GPU_CORE_BUCKETS = [10, 20, 40, 80];
@@ -27,7 +50,7 @@ const CHIP = /^(?:Apple M[1-9][0-9]?(?: Pro| Max| Ultra)?|Intel|AMD|Qualcomm|Oth
 
 export const RULES = {
   type: enumOf(...TYPES),
-  localModel: pattern(new RegExp("^(?:" + LOCAL_FAMILIES.join("|") + ")[a-z0-9-]{0,44}$")),
+  localModel: (v) => (isLocalModelId(v) ? v : undefined),
   paramsB: range(0.05, 2000),
   quant: enumOf(...LOCAL_QUANTS),
   engine: enumOf(...LOCAL_ENGINES),
@@ -76,6 +99,9 @@ export function sanitize(report) {
   const resetAt = typeof report.resetAt === "string" ? hourOf(report.resetAt) : undefined;
   if (resetAt) out.resetAt = resetAt;
   if (out.type === "localrun") {
+    // Only the local fields, the type, the hour and the sender label stay: nothing meant for other report types.
+    const keep = new Set(["type", "date", "via", "localModel", "paramsB", "quant", "engine", "engineVersion", "chip", "memGB", "gpuCores", "os", "osMajor", "genTps", "promptTps", "samples"]);
+    for (const k of Object.keys(out)) if (!keep.has(k)) delete out[k];
     // A local run is only useful, and only stored, with its full identity and at least one speed.
     const need = ["localModel", "engine", "chip", "memGB", "os", "samples"];
     if (need.some((k) => out[k] === undefined) || (out.genTps === undefined && out.promptTps === undefined)) return null;

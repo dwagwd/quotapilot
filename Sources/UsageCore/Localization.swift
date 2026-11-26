@@ -68,6 +68,9 @@ public struct L10n {
         for (key, values) in statsTranslations {
             result[key, default: [:]].merge(values) { _, new in new }
         }
+        for (key, values) in completionTranslations {
+            result[key, default: [:]].merge(values) { _, new in new }
+        }
         return result
     }()
     private static let baseTable: [String: [String: String]] = [

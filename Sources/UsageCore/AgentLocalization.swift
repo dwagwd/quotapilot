@@ -26,7 +26,7 @@ let agentTranslations: [String: [String: String]] = [
     "field.outputSpeed": ["en": "tok/s", "zh-Hant": "輸出 tok/s", "zh-Hans": "输出 tok/s", "ja": "出力 tok/s", "ko": "출력 tok/s", "es": "tok/s", "fr": "tok/s", "de": "tok/s", "pt-BR": "tok/s", "it": "tok/s"],
     "field.model": ["en": "Model", "zh-Hant": "模型", "zh-Hans": "模型", "ja": "モデル", "ko": "모델", "es": "Modelo", "fr": "Modèle", "de": "Modell", "pt-BR": "Modelo", "it": "Modello"],
     "field.effort": ["en": "Effort", "zh-Hant": "推理強度", "zh-Hans": "推理强度", "ja": "推論強度", "ko": "추론 강도", "es": "Esfuerzo", "fr": "Effort", "de": "Aufwand", "pt-BR": "Esforço", "it": "Sforzo"],
-    "field.total": ["en": "All-agent total", "zh-Hant": "全部總量", "zh-Hans": "全部总量", "ja": "全体合計", "ko": "전체 합계", "es": "Total", "fr": "Total", "de": "Gesamt", "pt-BR": "Total", "it": "Totale"],
+    "field.total": ["en": "All agents", "zh-Hant": "全部總量", "zh-Hans": "全部总量", "ja": "全体合計", "ko": "전체 합계", "es": "Total", "fr": "Total", "de": "Gesamt", "pt-BR": "Total", "it": "Totale"],
     "systemFields": ["en": "System readings on the card:", "zh-Hant": "小卡顯示系統狀態：", "zh-Hans": "小卡显示系统状态：", "ja": "システム情報を表示：", "ko": "시스템 정보 표시:", "es": "Mostrar sistema:", "fr": "Afficher le système :", "de": "Systemwerte anzeigen:", "pt-BR": "Mostrar sistema:", "it": "Mostra sistema:"],
     "system.cpu": ["en": "CPU", "zh-Hant": "CPU", "zh-Hans": "CPU", "ja": "CPU", "ko": "CPU", "es": "CPU", "fr": "CPU", "de": "CPU", "pt-BR": "CPU", "it": "CPU"],
     "system.gpu": ["en": "GPU", "zh-Hant": "GPU", "zh-Hans": "GPU", "ja": "GPU", "ko": "GPU", "es": "GPU", "fr": "GPU", "de": "GPU", "pt-BR": "GPU", "it": "GPU"],

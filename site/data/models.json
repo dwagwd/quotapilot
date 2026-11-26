@@ -1,22 +1,22 @@
 {
-  "lastReviewed": "2026-11-25",
+  "lastReviewed": "2026-11-26",
   "sources": {
     "anthropic": {
       "name": "Claude API pricing",
       "url": "https://platform.claude.com/docs/en/about-claude/pricing",
-      "checked": "2026-11-25",
+      "checked": "2026-11-26",
       "covers": "Claude API prices"
     },
     "google": {
       "name": "Gemini API pricing",
       "url": "https://aistudio.google.com/docs/pricing",
-      "checked": "2026-11-25",
+      "checked": "2026-11-26",
       "covers": "Gemini API prices (≤200k prompt bracket)"
     },
     "xai": {
       "name": "xAI models & pricing",
       "url": "https://docs.x.ai/docs/models",
-      "checked": "2026-11-25",
+      "checked": "2026-11-26",
       "covers": "Grok API prices (<200k prompt bracket)"
     },
     "openai3p": {

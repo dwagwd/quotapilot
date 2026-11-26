@@ -600,6 +600,10 @@ func runLocalCommand(_ rest: [String]) -> Never {
         #endif
         while true { RunLoop.main.run(until: Date().addingTimeInterval(3600)) }
     }
+    if !LocalLLMLog.isSupported {
+        if wantsJSON { printJSON(["supported": false, "message": LocalLLMLog.unsupportedMessage]) } else { print(LocalLLMLog.unsupportedMessage) }
+        exit(["poll", "proxy"].contains(rest.first ?? "status") ? 1 : 0)
+    }
     switch rest.first ?? "status" {
     case "status":
         let local = settings.localModels

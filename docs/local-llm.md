@@ -83,7 +83,7 @@ A relay on `127.0.0.1` only, one listener per configured backend (for example Ol
   Ollama's native API and llama.cpp's non-OpenAI endpoints always include counts.
 - Compressed responses (`Content-Encoding`) are forwarded untouched and counted as unmetered.
 - HTTP only (no TLS) and the `Host` header is not rewritten, since bytes pass unchanged. The default upstream is loopback.
-- Platforms: macOS and Linux (POSIX sockets). Not on Windows (no sockets in the portable layer); `quotapilot local proxy` says so.
+- Platforms: macOS and Linux (POSIX sockets, flock and file identity). Not on Windows: the event log needs cross-process locking and rewrite detection that Windows does not provide in the portable layer, so on Windows local model metering (the event log, pollers, the proxy and compaction) is off. Every `quotapilot local ...` command prints "local models: macOS and Linux only", nothing is written, and the local section stays empty.
 
 ### 2.2 llama.cpp poller
 

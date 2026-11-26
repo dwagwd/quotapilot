@@ -25,6 +25,10 @@ attached to every GitHub release. It does everything except draw a desktop card:
 | Compare with the community | statistics window | `compare`, and after `share` |
 | Always-visible card, notifications | yes | no: run `quotapilot watch` in a terminal |
 
+## Local models
+
+Local model metering (the event log, the llama.cpp and oMLX pollers, `quotapilot local poll|proxy|stats` recording and compaction) is macOS and Linux only. On Windows it is not available yet: `quotapilot local ...` prints "local models: macOS and Linux only" and nothing is recorded.
+
 ## Acceptance check (runs in CI on every push)
 
 `scripts/platform-acceptance.py` runs the built tool the way a person would. CI runs it on Linux x64, Linux ARM64

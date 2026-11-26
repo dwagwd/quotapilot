@@ -382,6 +382,7 @@ final class LocalLLMTests: XCTestCase {
         XCTAssertNil(try JSONDecoder().decode(WidgetSettings.self, from: JSONSerialization.data(withJSONObject: json)).localLLM, "settings saved before this feature still load")
     }
 
+    #if canImport(Darwin) || canImport(Glibc) || canImport(Musl)
     func testLogAppendReadTailAndCompaction() throws {
         let url = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".jsonl")
         defer { try? FileManager.default.removeItem(at: url) }
@@ -408,6 +409,22 @@ final class LocalLLMTests: XCTestCase {
         let attributes = try FileManager.default.attributesOfItem(atPath: url.path)
         XCTAssertEqual((attributes[.posixPermissions] as? NSNumber)?.intValue, 0o600, "the event file is private")
     }
+    #endif
+
+    func testEventLogIsDisabledWhereTheLockAndInodeSemanticsAreMissing() {
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".jsonl")
+        defer { try? FileManager.default.removeItem(at: url) }
+        let log = LocalLLMLog(url: url)
+        log.append([LocalLLMEvent(id: "a", t: 1, backend: "ollama", via: "proxy", model: "m", prompt: 1)])
+        log.compact(now: 2)
+        if LocalLLMLog.isSupported {
+            XCTAssertEqual(log.events().count, 1)
+        } else {
+            XCTAssertTrue(log.events().isEmpty)
+            XCTAssertFalse(FileManager.default.fileExists(atPath: url.path), "nothing is written on an unsupported platform")
+            XCTAssertEqual(LocalLLMLog.unsupportedMessage, "local models: macOS and Linux only")
+        }
+    }
 
     func testLocalizationCompleteInAllLanguages() {
         for language in WidgetLanguage.allCases where language != .system {
@@ -424,6 +441,7 @@ final class LocalLLMTests: XCTestCase {
 
     // MARK: Event file: compaction, readers, locks
 
+    #if canImport(Darwin) || canImport(Glibc) || canImport(Musl)
     private func tempLog() -> (LocalLLMLog, URL) {
         let url = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".jsonl")
         return (LocalLLMLog(url: url), url)
@@ -524,6 +542,7 @@ final class LocalLLMTests: XCTestCase {
         XCTAssertFalse(ProcessLock(url: url).tryAcquire())
         c.release()
     }
+    #endif
 
     #if canImport(Darwin) || canImport(Glibc) || canImport(Musl)
     func testPollingStepsAsideForAProxyOrPollerInAnotherProcess() throws {

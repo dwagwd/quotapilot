@@ -218,6 +218,16 @@ public final class LocalLLMLog {
     public static let detailSeconds: Double = 2 * 86400
     /// Bytes read at a time; tests make it small.
     static var chunkSize = 4 * 1_048_576
+    /// The event file relies on flock and on inode identity, which Windows does not provide here, so local model metering is
+    /// macOS and Linux only: elsewhere nothing is ever written, compacted or read.
+    public static let isSupported: Bool = {
+        #if canImport(Darwin) || canImport(Glibc) || canImport(Musl)
+        return true
+        #else
+        return false
+        #endif
+    }()
+    public static let unsupportedMessage = "local models: macOS and Linux only"
     public let url: URL
     private let lock = NSLock()
     private var lockURL: URL { URL(fileURLWithPath: url.path + ".lock") }
@@ -250,7 +260,7 @@ public final class LocalLLMLog {
     }
 
     public func append(_ events: [LocalLLMEvent]) {
-        guard !events.isEmpty else { return }
+        guard Self.isSupported, !events.isEmpty else { return }
         let data = Self.encode(events)
         withFileLock {
             try? FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
@@ -282,6 +292,7 @@ public final class LocalLLMLog {
     /// Events appended after the cursor and the cursor to continue from. When the file was replaced (compaction) the whole new file is
     /// read and `rewritten` is true: the caller must discard what it kept from the old one. Reads in chunks; there is no size limit.
     public func readNew(from cursor: Cursor) -> (events: [LocalLLMEvent], cursor: Cursor, rewritten: Bool) {
+        guard Self.isSupported else { return ([], Cursor(), false) }
         guard let handle = try? FileHandle(forReadingFrom: url) else { return ([], Cursor(), cursor.identity != nil || cursor.offset > 0) }
         defer { try? handle.close() }
         var identity: UInt64?
@@ -320,6 +331,7 @@ public final class LocalLLMLog {
     /// Drops events past retention and merges older ones per hour. The read and the replacement happen under the file lock,
     /// so a line appended meanwhile by another process is never lost. Rewrites only when something changed.
     public func compact(now: Double) {
+        guard Self.isSupported else { return }
         withFileLock {
             let all = readNew(from: Cursor()).events
             guard !all.isEmpty else { return }

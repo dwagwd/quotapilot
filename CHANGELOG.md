@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- Windows: local model metering is not available yet (macOS and Linux only). `quotapilot local ...` says so on Windows and never writes or compacts the event log there; before, compaction could crash the Windows build.
+- Fixed a race in the metering proxy where a response to a HEAD request could be read as having a body and swallow the next call's metering.
+
 ## 0.9.0
 
 - With **Local models** off, QuotaPilot no longer contacts any local backend (status, probes, the Local models window, engine version probes) and never reads the oMLX key from the Keychain or sends it.

@@ -131,12 +131,16 @@ public final class LocalLLMService {
     }
 
     /// One look at what the pollers would see, for `quotapilot local status`: no proxy is started, no lock taken, nothing recorded.
-    public func probe() -> [LocalLLMBackend: LocalPollState] {
+    /// Nothing is contacted, and the oMLX key is not read, while the master switch in `settings` is off.
+    public func probe(settings: LocalLLMSettings) -> [LocalLLMBackend: LocalPollState] {
+        guard settings.isEnabled else { return [.llamacpp: .off, .omlx: .off] }
+        probing = true; defer { probing = false }
         _ = pollLlama(now: Date().timeIntervalSince1970)
         _ = pollOMLX(now: Date().timeIntervalSince1970)
         return [.llamacpp: pollState(.llamacpp), .omlx: pollState(.omlx)]
     }
 
+    private var probing = false
     private func setState(_ backend: LocalLLMBackend, _ state: LocalPollState) { lock.lock(); pollStates[backend] = state; lock.unlock() }
 
     private func pollLlama(now: Double) -> [LocalLLMEvent] {
@@ -165,6 +169,9 @@ public final class LocalLLMService {
 
     private func pollOMLX(now: Double) -> [LocalLLMEvent] {
         let port = omlxPort
+        // Defence in depth: the key is never read, and nothing is sent, unless local metering is on.
+        lock.lock(); let on = settings.isEnabled; lock.unlock()
+        guard on || probing else { setState(.omlx, .off); return [] }
         guard LocalHTTP.portAnswers(port: port) else { setState(.omlx, .notRunning); return [] }
         var headers: [String: String] = [:]
         if let key = omlxKey(), !key.isEmpty { headers["Authorization"] = "Bearer " + key }

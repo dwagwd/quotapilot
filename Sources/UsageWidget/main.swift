@@ -1129,6 +1129,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
 
     private func refreshLocalStatus() {
         let local = settings.localModels
+        // Master switch off: no connection to any backend and no Keychain read.
+        guard local.isEnabled else {
+            localModelsModel.detectedPort = [:]; localModelsModel.pollStates = [:]; localModelsModel.proxyErrors = [:]; localModelsModel.keySaved = false
+            return
+        }
+        localModelsModel.keySaved = KeychainSecret.read("omlx-api-key") != nil
         localQueue.async { [weak self] in
             guard let self else { return }
             var ports: [String: Int] = [:], states: [String: LocalPollState] = [:], errors: [String: String] = [:]
@@ -1147,7 +1153,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
     @objc private func showLocalModels() {
         localModelsModel.settings = settings.localModels
         localModelsModel.language = settings.language
-        localModelsModel.keySaved = KeychainSecret.read("omlx-api-key") != nil
         ingestLocalEvents()
         refreshLocalStatus()
         if localModelsWindow == nil {

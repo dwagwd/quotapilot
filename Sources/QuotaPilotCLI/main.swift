@@ -605,7 +605,7 @@ func runLocalCommand(_ rest: [String]) -> Never {
         let local = settings.localModels
         // Report only: no proxy is started and no lock is taken.
         let service = LocalLLMService(log: localLog)
-        let probed = service.probe()
+        let probed = service.probe(settings: local)
         func pollText(_ b: LocalLLMBackend) -> String { local.isEnabled && b.hasPoller && !local.proxyEnabled(b) ? pollStateText(probed[b] ?? .off) : "off" }
         if wantsJSON {
             var backends: [String: Any] = [:]

@@ -137,6 +137,7 @@ public enum LocalEngineName {
     /// llama.cpp (`/props`, `build_info`). Short timeouts; only loopback addresses; nothing for engines without such an endpoint.
     public static func detectVersions(settings: LocalLLMSettings, backends: Set<String>) -> [String: String] {
         var found: [String: String] = [:]
+        guard settings.isEnabled else { return found }   // local metering off: nothing is contacted
         if backends.contains(LocalLLMBackend.ollama.rawValue), isLocal(settings, .ollama),
            let reply = LocalHTTP.get(port: settings.upstreamPort(.ollama), path: "/api/version", timeout: 0.5), reply.status == 200,
            let object = try? JSONSerialization.jsonObject(with: reply.body) as? [String: Any], let version = coarseVersion(object["version"] as? String) {

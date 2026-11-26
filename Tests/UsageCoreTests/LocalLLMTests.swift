@@ -584,7 +584,7 @@ final class LocalLLMTests: XCTestCase {
         defer { try? FileManager.default.removeItem(at: dir) }
         let (log, url) = tempLog(); defer { cleanup(url) }
         let service = LocalLLMService(log: log, llamaPorts: [1], omlxPort: 1, lockDirectory: dir)
-        XCTAssertEqual(service.probe()[.llamacpp], .notRunning)
+        XCTAssertEqual(service.probe(settings: { var s = LocalLLMSettings(); s.enabled = true; return s }())[.llamacpp], .notRunning)
         XCTAssertFalse(service.proxyRunning(.ollama))
         XCTAssertFalse(FileManager.default.fileExists(atPath: dir.path), "no lock file was created")
     }

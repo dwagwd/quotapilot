@@ -62,14 +62,16 @@ final class LocalizationCompletenessTests: XCTestCase {
         }
     }
 
-    /// Format specifiers must survive translation, or String(format:) misreads the arguments.
+    /// Format specifiers must survive translation in the same order, or String(format:) misreads the arguments.
     func testTranslationsKeepFormatSpecifiers() {
+        let pattern = try! NSRegularExpression(pattern: "%(\\d+\\$)?[-+0#]*\\d*(\\.\\d+)?(ll|l)?[@dsfiuxXcC]")
         func specifiers(_ s: String) -> [String] {
-            s.replacingOccurrences(of: "%%", with: "").components(separatedBy: "%").dropFirst().compactMap { $0.first.map(String.init) }.sorted()
+            let text = s.replacingOccurrences(of: "%%", with: "")
+            return pattern.matches(in: text, range: NSRange(text.startIndex..., in: text)).map { (text as NSString).substring(with: $0.range).replacingOccurrences(of: "i", with: "d") }   // %i and %d are the same
         }
-        for (key, values) in completionTranslations {
-            guard let english = L10n.table[key]?["en"] else { continue }
-            for (code, text) in values { XCTAssertEqual(specifiers(text), specifiers(english), "\(key) \(code)") }
+        for (key, values) in L10n.table {
+            guard let english = values["en"] else { continue }
+            for (code, text) in values where code != "en" { XCTAssertEqual(specifiers(text), specifiers(english), "\(key) \(code)") }
         }
     }
 }

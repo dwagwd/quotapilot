@@ -260,7 +260,7 @@ func localRunsAlert(l: L10n, preview: String) -> NSAlert {
     alert.informativeText = parts.first?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
     let box = NSScrollView(frame: NSRect(x: 0, y: 0, width: 360, height: 180))
     box.hasVerticalScroller = true; box.borderType = .bezelBorder
-    let text = NSTextView(frame: NSRect(x: 0, y: 0, width: 360, height: 180))
+    let text = NSTextView(frame: NSRect(origin: .zero, size: box.contentSize))
     text.isEditable = false; text.isRichText = false; text.drawsBackground = false
     text.font = .monospacedSystemFont(ofSize: 11, weight: .regular)
     text.textContainerInset = NSSize(width: 4, height: 4)

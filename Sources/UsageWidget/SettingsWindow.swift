@@ -214,6 +214,13 @@ final class SettingsWindowController: NSWindowController {
         claudePlan.state = settings.claudePlanEnabled ? .on : .off
         claudePlan.frame = NSRect(x: 22, y: 150, width: 396, height: 24)
         view.addSubview(claudePlan)
+        // Room for the two rows of tool buttons: everything above them moves up, and the message area (a long error can take
+        // three lines) sits between the buttons and the hint above it, so nothing overlaps.
+        let toolIDs: Set<String> = ["agentCollaboration", "connectAgents", "usageStats", "localModels"]
+        for control in view.subviews where control.frame.minY >= 46 && !toolIDs.contains(control.identifier?.rawValue ?? "") { control.frame.origin.y += 46 }
+        errorLabel.frame = NSRect(x: 22, y: 114, width: 396, height: 50)
+        errorLabel.cell?.truncatesLastVisibleLine = false
+        view.setFrameSize(NSSize(width: 440, height: 1140))
     }
     required init?(coder: NSCoder) { fatalError("Not used") }
     private var scrollView: NSScrollView?

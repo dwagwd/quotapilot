@@ -5,6 +5,8 @@ import Darwin
 import Glibc
 #elseif canImport(Musl)
 import Musl
+#elseif canImport(WinSDK)
+import WinSDK
 #endif
 
 /// Platform-neutral helpers so the core builds on macOS, Linux and Windows.
@@ -15,6 +17,22 @@ public enum Portable {
         return try autoreleasepool(invoking: body)
         #else
         return try body()
+        #endif
+    }
+
+    /// Atomically replaces `destination` with `source` (creating it when absent). POSIX `rename(2)` keeps the source file's
+    /// permissions; Windows uses `MoveFileExW` with replace-existing and write-through, because swift-corelibs-foundation's
+    /// `replaceItemAt` is not implemented there and traps. Returns false (leaving `source` in place) on failure.
+    @discardableResult
+    public static func atomicReplace(_ destination: URL, with source: URL) -> Bool {
+        #if canImport(WinSDK)
+        return destination.path.withCString(encodedAs: UTF16.self) { to in
+            source.path.withCString(encodedAs: UTF16.self) { from in
+                MoveFileExW(from, to, DWORD(MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH))
+            }
+        }
+        #else
+        return rename(source.path, destination.path) == 0
         #endif
     }
 

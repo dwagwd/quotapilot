@@ -332,11 +332,7 @@ public final class LocalLLMLog {
                   let handle = try? FileHandle(forWritingTo: temporary) else { return }
             handle.write(Self.encode(merged))
             try? handle.close()
-            #if canImport(Darwin) || canImport(Glibc) || canImport(Musl)
-            if rename(temporary.path, url.path) != 0 { try? FileManager.default.removeItem(at: temporary) }
-            #else
-            _ = try? FileManager.default.replaceItemAt(url, withItemAt: temporary)
-            #endif
+            if !Portable.atomicReplace(url, with: temporary) { try? FileManager.default.removeItem(at: temporary) }
         }
     }
 

@@ -213,20 +213,24 @@ public final class LocalMeteringProxy {
             LocalSockets.shutdownBoth(client)   // nothing more will come back: let the other direction end
             finished.signal()
         }
-        Self.pump(from: client, to: upstream) { tap.requestBytes($0) }
+        // The request is observed BEFORE it is forwarded: its method must be queued before any response can exist, or the response
+        // side could read a HEAD answer as one with a body and swallow the next exchange.
+        Self.pump(from: client, to: upstream, observeFirst: true) { tap.requestBytes($0) }
         LocalSockets.shutdownWrite(upstream)
         finished.wait()
     }
 
     /// Copies bytes from `source` to `destination` as they arrive, then hands the same bytes to `observe`. Forwarding comes first so
     /// metering never delays the client.
-    private static func pump(from source: Int32, to destination: Int32, observe: (Data) -> Void) {
+    /// With `observeFirst` the observer sees the bytes before they are forwarded (used for requests, which are never large enough to matter).
+    private static func pump(from source: Int32, to destination: Int32, observeFirst: Bool = false, observe: (Data) -> Void) {
         var buffer = [UInt8](repeating: 0, count: 64 * 1024)
         while true {
             let count = LocalSockets.receive(source, into: &buffer)
             if count <= 0 { break }
+            if observeFirst { observe(Data(buffer[0..<count])) }
             let ok = buffer.withUnsafeBytes { LocalSockets.sendAll(destination, UnsafeRawBufferPointer(rebasing: $0[0..<count])) }
-            observe(Data(buffer[0..<count]))
+            if !observeFirst { observe(Data(buffer[0..<count])) }
             if !ok { break }
         }
         LocalSockets.shutdownWrite(destination)

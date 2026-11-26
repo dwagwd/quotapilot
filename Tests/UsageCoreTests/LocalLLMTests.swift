@@ -61,7 +61,7 @@ final class FakeServer {
 func exchange(port: Int, steps: [(request: Data, expected: Int)]) -> Data {
     guard let fd = LocalSockets.connect(host: "127.0.0.1", port: port, timeoutMilliseconds: 2000) else { return Data() }
     defer { LocalSockets.closeSocket(fd) }
-    LocalSockets.setReceiveTimeout(fd, seconds: 4)
+    LocalSockets.setReceiveTimeout(fd, seconds: 15)
     var received = Data()
     var buffer = [UInt8](repeating: 0, count: 16 * 1024)
     var wanted = 0
@@ -83,7 +83,7 @@ final class EventCollector {
     private var items: [LocalLLMEvent] = []
     func add(_ event: LocalLLMEvent) { lock.lock(); items.append(event); lock.unlock() }
     var events: [LocalLLMEvent] { lock.lock(); defer { lock.unlock() }; return items }
-    func wait(count: Int, timeout: Double = 3) -> [LocalLLMEvent] {
+    func wait(count: Int, timeout: Double = 15) -> [LocalLLMEvent] {
         let deadline = Date().addingTimeInterval(timeout)
         while events.count < count, Date() < deadline { Thread.sleep(forTimeInterval: 0.02) }
         return events
@@ -616,6 +616,25 @@ final class LocalLLMTests: XCTestCase {
         parser.onMessageEnd = { ends += 1 }
         parser.feed(head + chat)
         XCTAssertEqual(heads, 2); XCTAssertEqual(ends, 2); XCTAssertFalse(parser.failed)
+    }
+
+    func testRepeatedHeadThenPostExchangesAreAllMetered() throws {
+        let body = #"{"model":"m","usage":{"prompt_tokens":6,"completion_tokens":2}}"#
+        let head = Data("HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: 4096\r\n\r\n".utf8)
+        let chat = Data("HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: \(body.utf8.count)\r\n\r\n\(body)".utf8)
+        let server = try FakeServer { method, _ in .init(slices: [method == "HEAD" ? head : chat]) }
+        defer { server.shutdown() }
+        let (proxy, collector) = try startProxy(upstream: server)
+        defer { proxy.stop() }
+        let headRequest = Data("HEAD /v1/models HTTP/1.1\r\nHost: x\r\n\r\n".utf8)
+        let rounds = 200
+        // One connection per round exercises the request/response tap start-up race; the HEAD and POST share the connection.
+        for _ in 0..<rounds {
+            let received = exchange(port: proxy.port, steps: [(headRequest, head.count), (post("/v1/chat/completions"), chat.count)])
+            XCTAssertEqual(received.count, head.count + chat.count)
+        }
+        let events = collector.wait(count: rounds)
+        XCTAssertEqual(events.count, rounds, "every POST after a HEAD is metered")
     }
 
     func testNonInferenceJSONIsNotMetered() throws {

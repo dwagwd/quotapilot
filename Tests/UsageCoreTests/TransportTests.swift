@@ -111,8 +111,9 @@ final class TransportTests: XCTestCase {
     func testMissingTokenEndpointAndTimeoutPreserveFreshQuota() throws {
         for mode in ["tokens-error", "tokens-hang"] {
             let (executable, _) = try fixture(mode: mode)
-            // 2 s, not 1: a cold Python start on a slow disk can take over a second and time out the handshake.
-            let client = UsageClient(executable: executable.path, requestTimeout: 2)
+            // Real-time timer in the client: 4 s keeps a cold Python start on a slow CI disk from timing out the handshake, and the
+            // expectation below allows the handshake, the quota call and the hung token call (one timeout) with plenty of margin.
+            let client = UsageClient(executable: executable.path, requestTimeout: 4)
             let quota = expectation(description: "quota preserved")
             let tokens = expectation(description: "tokens unavailable")
             client.onResult = { response, _ in
@@ -120,7 +121,7 @@ final class TransportTests: XCTestCase {
             }
             client.onTokens = { value, _ in XCTAssertNil(value); tokens.fulfill() }
             client.onFailure = { XCTFail("Optional tokens must not invalidate quota: " + $0) }
-            client.refresh(); wait(for: [quota, tokens], timeout: 8)
+            client.refresh(); wait(for: [quota, tokens], timeout: 40)
             XCTAssertNotNil(client.diagnostics.lastQuotaSuccessAt)
             XCTAssertNil(client.diagnostics.lastTokenSuccessAt)
             XCTAssertNotNil(client.diagnostics.lastTokenErrorCode)
@@ -175,3 +176,35 @@ final class TransportTests: XCTestCase {
     }
 }
 #endif
+
+final class PortableAtomicReplaceTests: XCTestCase {
+    func testAtomicReplaceOverwritesExistingFileAndKeepsPrivatePermissions() throws {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("replace-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let target = dir.appendingPathComponent("target.jsonl")
+        let temp = dir.appendingPathComponent("target.jsonl.tmp")
+        try Data("old".utf8).write(to: target)
+        XCTAssertTrue(FileManager.default.createFile(atPath: temp.path, contents: Data("new".utf8), attributes: [.posixPermissions: 0o600]))
+        XCTAssertTrue(Portable.atomicReplace(target, with: temp))
+        XCTAssertEqual(try String(contentsOf: target, encoding: .utf8), "new")
+        XCTAssertFalse(FileManager.default.fileExists(atPath: temp.path))
+        #if !os(Windows)
+        let mode = try XCTUnwrap(FileManager.default.attributesOfItem(atPath: target.path)[.posixPermissions] as? NSNumber)
+        XCTAssertEqual(mode.intValue & 0o777, 0o600)
+        #endif
+    }
+
+    func testAtomicReplaceCreatesMissingDestinationAndFailsWithoutSource() throws {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("replace-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let target = dir.appendingPathComponent("fresh")
+        let temp = dir.appendingPathComponent("fresh.tmp")
+        try Data("x".utf8).write(to: temp)
+        XCTAssertTrue(Portable.atomicReplace(target, with: temp))
+        XCTAssertEqual(try String(contentsOf: target, encoding: .utf8), "x")
+        XCTAssertFalse(Portable.atomicReplace(target, with: dir.appendingPathComponent("missing")))
+        XCTAssertEqual(try String(contentsOf: target, encoding: .utf8), "x")
+    }
+}

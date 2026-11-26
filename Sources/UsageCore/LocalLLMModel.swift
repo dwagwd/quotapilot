@@ -179,12 +179,12 @@ public final class ProcessLock {
     }
 
     /// Blocks until the lock is free (exclusive).
-    func acquireBlocking() -> Bool {
+    func acquireBlocking(shared: Bool = false) -> Bool {
         #if canImport(Darwin) || canImport(Glibc) || canImport(Musl)
         try? FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
         let descriptor = open(url.path, O_RDWR | O_CREAT, 0o600)
         guard descriptor >= 0 else { return false }
-        guard flock(descriptor, LOCK_EX) == 0 else { _ = close(descriptor); return false }
+        guard flock(descriptor, shared ? LOCK_SH : LOCK_EX) == 0 else { _ = close(descriptor); return false }
         fd = descriptor
         return true
         #else

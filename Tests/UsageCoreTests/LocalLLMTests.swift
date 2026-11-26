@@ -553,6 +553,32 @@ final class LocalLLMTests: XCTestCase {
         cli.stop()
     }
 
+    func testSkippedBackendLosesItsBaselineSoAnotherProcessesTrafficIsNotRecounted() throws {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let (log, url) = tempLog(); defer { cleanup(url) }
+        var prompt = 1000
+        let server = try FakeServer { _, target in
+            let body = target == "/metrics" ? "llamacpp:prompt_tokens_total \(prompt)\nllamacpp:tokens_predicted_total 0\n" : #"{"data":[{"id":"g"}]}"#
+            return .init(slices: [Data("HTTP/1.1 200 OK\r\nContent-Length: \(body.utf8.count)\r\nConnection: close\r\n\r\n\(body)".utf8)], closeAfter: true)
+        }
+        defer { server.shutdown() }
+        let service = LocalLLMService(log: log, llamaPorts: [server.port], lockDirectory: dir)
+        var settings = LocalLLMSettings(); settings.enabled = true
+        service.apply(settings)
+        XCTAssertTrue(service.pollOnce(now: 1).isEmpty, "baseline 1000")
+        let marker = ProcessLock(url: dir.appendingPathComponent("local-llm-proxy-llamacpp.lock"))
+        XCTAssertTrue(marker.tryAcquire(shared: true))
+        prompt = 6000
+        XCTAssertTrue(service.pollOnce(now: 2).isEmpty)
+        XCTAssertEqual(service.pollState(.llamacpp), .proxiedElsewhere)
+        marker.release()
+        XCTAssertTrue(service.pollOnce(now: 3).isEmpty, "a new baseline, the 5000 tokens belong to the other process")
+        prompt = 6200
+        XCTAssertEqual(service.pollOnce(now: 4).first?.prompt, 200)
+    }
+
     func testProbeStartsNoProxyAndTakesNoLock() throws {
         let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: dir) }

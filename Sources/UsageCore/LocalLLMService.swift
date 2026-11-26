@@ -75,12 +75,13 @@ public final class LocalLLMService {
             if !settings.polls(backend) { lock.lock(); pollStates[backend] = .off; lock.unlock() }
             guard wanted else { continue }
             let proxy = LocalMeteringProxy(backend: backend, listenPort: settings.listenPort(backend), upstreamHost: settings.upstreamHost(backend),
-                                           upstreamPort: settings.upstreamPort(backend)) { [weak self] event in self?.record([event]) }
+                                           upstreamPort: settings.upstreamPort(backend)) { [weak self] event in self?.proxyRecordQueue.async { self?.record([event]) } }
             do {
                 try proxy.start()
                 // Shared: any number of proxies may hold it; a poller elsewhere sees that this backend is metered by a proxy.
                 let marker = proxyLockURL(backend).map { ProcessLock(url: $0) }
-                _ = marker?.tryAcquire(shared: true)
+                // Blocking: an exclusive probe by a poller elsewhere holds the file only for an instant, and the marker must not be missed.
+                if let marker, !marker.acquireBlocking(shared: true) { lock.lock(); proxyErrors[backend] = "could not take the proxy marker lock"; lock.unlock() }
                 lock.lock(); proxies[backend] = proxy; proxyLocks[backend] = marker; lock.unlock()
             }
             catch { lock.lock(); proxyErrors[backend] = "\(error)"; lock.unlock() }
@@ -93,9 +94,13 @@ public final class LocalLLMService {
     public func stop() {
         lock.lock(); let all = Array(proxies.values); proxies = [:]; let locks = Array(proxyLocks.values); proxyLocks = [:]; lock.unlock()
         all.forEach { $0.stop() }
+        proxyRecordQueue.sync {}   // events of requests finished before stop are written
         locks.forEach { $0.release() }
         pollLock?.release()
     }
+
+    /// Serial queue for appends from proxy connections: a compaction holding the file lock must never stall the forwarding threads.
+    private let proxyRecordQueue = DispatchQueue(label: "quotapilot.local-llm.record")
 
     private func record(_ events: [LocalLLMEvent]) {
         log.append(events)
@@ -109,15 +114,20 @@ public final class LocalLLMService {
         var events: [LocalLLMEvent] = []
         let wanted = [LocalLLMBackend.llamacpp, .omlx].filter(settings.polls)
         if !wanted.isEmpty, !acquirePollLock() {
-            for backend in wanted { setState(backend, .otherProcess) }
+            for backend in wanted { setState(backend, .otherProcess); forgetBaseline(backend) }
             return []
         }
         for backend in wanted {
-            if let url = proxyLockURL(backend), ProcessLock.isHeldElsewhere(url) { setState(backend, .proxiedElsewhere); continue }
+            if let url = proxyLockURL(backend), ProcessLock.isHeldElsewhere(url) { setState(backend, .proxiedElsewhere); forgetBaseline(backend); continue }
             events += backend == .llamacpp ? pollLlama(now: now) : pollOMLX(now: now)
         }
         if !events.isEmpty { record(events) }
         return events
+    }
+
+    /// A skipped backend loses its baseline: whatever another process metered meanwhile must not be counted here later.
+    private func forgetBaseline(_ backend: LocalLLMBackend) {
+        if backend == .llamacpp { llamaDiffer = LlamaMetricsDiffer(); llamaPort = nil } else { omlxDiffer = OMLXUsageDiffer() }
     }
 
     /// One look at what the pollers would see, for `quotapilot local status`: no proxy is started, no lock taken, nothing recorded.

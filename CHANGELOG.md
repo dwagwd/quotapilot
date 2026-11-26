@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.9.2
+
+- Settings: the four tool buttons sit in two rows instead of one truncated row, and an error message is no longer hidden behind them.
+- The local-runs sharing confirmation shows the exact data in a scrolling box, so it fits on screen with many models.
+- 41 interface texts (Settings, statistics, community comparison, menus) are now in all 10 languages; a test keeps placeholders and coverage in check.
+- Local models window: help texts are no longer shown twice.
+- Website `/models/`: an explanation when a filter matches nothing, a hint in the cost calculator before numbers are entered, and full width on desktop.
+
 ## 0.9.1
 
 - Windows: local model metering is not available yet (macOS and Linux only). `quotapilot local ...` says so on Windows and never writes or compacts the event log there; before, compaction could crash the Windows build.

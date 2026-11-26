@@ -2710,10 +2710,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
         } else {
             preview = reports.map { LocalRuns.describe($0) }.joined(separator: "\n")
         }
-        let alert = NSAlert()
-        alert.messageText = l.text("shareKind.localRuns")
-        alert.informativeText = String(format: l.text("localRunsExplain"), preview)
-        alert.addButton(withTitle: l.text("localRunsOn")); alert.addButton(withTitle: l.text("cancel"))
+        let alert = localRunsAlert(l: l, preview: preview)
         NSApp.activate(ignoringOtherApps: true)
         return alert.runModal() == .alertFirstButtonReturn
     }

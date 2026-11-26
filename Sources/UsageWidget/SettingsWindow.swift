@@ -135,7 +135,7 @@ final class SettingsWindowController: NSWindowController {
         errorLabel.frame = NSRect(x: 22, y: 48, width: 396, height: 32)
         errorLabel.font = .systemFont(ofSize: 11); errorLabel.textColor = .systemRed
         let cancel = NSButton(title: l.text("cancel"), target: self, action: #selector(cancel))
-        cancel.frame = NSRect(x: 244, y: 12, width: 82, height: 30); cancel.bezelStyle = .rounded
+        cancel.frame = NSRect(x: 220, y: 12, width: 106, height: 30); cancel.bezelStyle = .rounded
         cancel.keyEquivalent = "\u{1b}"
         let apply = NSButton(title: l.text("apply"), target: self, action: #selector(apply))
         apply.frame = NSRect(x: 332, y: 12, width: 88, height: 30); apply.bezelStyle = .rounded
@@ -203,7 +203,8 @@ final class SettingsWindowController: NSWindowController {
             button.identifier = NSUserInterfaceItemIdentifier(tool)
             button.bezelStyle = .rounded
             button.controlSize = .small
-            button.frame = NSRect(x: 14 + CGFloat(index) * 104, y: 50, width: 102, height: 30)
+            // Two rows of two: four buttons in one row truncated their titles ("Agent collabo…").
+            button.frame = NSRect(x: 22 + CGFloat(index % 2) * 200, y: index < 2 ? 80 : 52, width: 196, height: 26)
             view.addSubview(button)
         }
         // Keep saved-login access visible alongside the other collection choices.

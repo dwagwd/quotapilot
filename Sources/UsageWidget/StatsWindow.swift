@@ -149,12 +149,14 @@ struct StatsView: View {
                     }
                 }.clipShape(RoundedRectangle(cornerRadius: 3))
             }.frame(height: 14)
-            HStack(spacing: 10) {
+            // A grid instead of one row: long translations ("new input (incl. cache writes) 1.4%") wrap inside their own cell.
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: 190), spacing: 10, alignment: .topLeading)], alignment: .leading, spacing: 3) {
                 ForEach(report.categories, id: \.kind) { category in
-                    HStack(spacing: 3) {
+                    HStack(alignment: .firstTextBaseline, spacing: 3) {
                         Circle().fill(categoryColor(category.kind)).frame(width: 7, height: 7)
                         Text(l.categoryName(category.kind) + " " + l.percent(category.share)).font(.caption2)
-                    }
+                            .fixedSize(horizontal: false, vertical: true)
+                    }.frame(maxWidth: .infinity, alignment: .leading)
                 }
             }
         }

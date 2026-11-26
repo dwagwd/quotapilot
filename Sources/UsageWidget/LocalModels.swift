@@ -247,3 +247,27 @@ final class LocalModelsWindowController: NSWindowController {
     required init?(coder: NSCoder) { fatalError("Not used") }
     func present() { showWindow(nil); NSApp.activate(ignoringOtherApps: true); window?.makeKeyAndOrderFront(nil) }
 }
+
+/// Confirmation for sharing local model speeds. The preview is the raw JSON of every model; it scrolls in its own box
+/// so many models cannot make the alert taller than the screen.
+func localRunsAlert(l: L10n, preview: String) -> NSAlert {
+    let alert = NSAlert()
+    alert.messageText = l.text("shareKind.localRuns")
+    let marker = "\u{1}"
+    let parts = String(format: l.text("localRunsExplain"), marker).components(separatedBy: marker)
+    alert.informativeText = parts.first?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+    let box = NSScrollView(frame: NSRect(x: 0, y: 0, width: 360, height: 180))
+    box.hasVerticalScroller = true; box.borderType = .bezelBorder
+    let text = NSTextView(frame: NSRect(x: 0, y: 0, width: 360, height: 180))
+    text.isEditable = false; text.isRichText = false; text.drawsBackground = false
+    text.font = .monospacedSystemFont(ofSize: 11, weight: .regular)
+    text.textContainerInset = NSSize(width: 4, height: 4)
+    text.isHorizontallyResizable = false; text.isVerticallyResizable = true
+    text.autoresizingMask = [.width]
+    text.textContainer?.widthTracksTextView = true
+    text.string = preview
+    box.documentView = text
+    alert.accessoryView = box
+    alert.addButton(withTitle: l.text("localRunsOn")); alert.addButton(withTitle: l.text("cancel"))
+    return alert
+}

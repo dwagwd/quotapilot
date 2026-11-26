@@ -576,3 +576,28 @@ a.lang-toggle { text-decoration: none; display: inline-flex; align-items: center
 .prelim { margin: 1rem 0; }
 .prelim h4 { margin: 0 0 .25rem; }
 .prelim .badge { margin-left: .35rem; font-size: .75em; vertical-align: middle; }
+
+/* /models/: ranking table, filters and calculators */
+.models-tools, .calc { margin: var(--s-4) 0; min-width: 0; }
+.field-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: var(--s-3); margin: var(--s-3) 0; }
+.field { display: grid; gap: 4px; font-size: var(--t-s); color: var(--muted); min-width: 0; }
+.field input, .field select, .calc textarea { box-sizing: border-box; width: 100%; min-width: 0; min-height: var(--tap); padding: 0 10px; font: inherit; font-size: var(--t-base); color: var(--text); background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-s); }
+.calc textarea { padding: 10px; font-family: var(--mono); font-size: var(--t-s); resize: vertical; }
+.paste { margin: var(--s-3) 0; }
+.paste summary { cursor: pointer; color: var(--accent); min-height: var(--tap); display: flex; align-items: center; }
+.calc h2 { margin-top: var(--s-6); }
+.result-list { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px var(--s-4); margin: var(--s-3) 0; }
+.result-list dt { color: var(--muted); font-size: var(--t-s); }
+.result-list dd { margin: 0; font-weight: 600; font-variant-numeric: tabular-nums; text-align: right; }
+table.rank-table { min-width: 1260px; }
+.rank-table td[data-col="name"] { min-width: 190px; }
+.rank-table td[data-col="provider"] { min-width: 170px; }
+.rank-table td[data-col="speed"], .rank-table td[data-col="rating"] { white-space: nowrap; }
+table.rank-table td, table.rank-table th { vertical-align: top; }
+table.calc-table { min-width: 480px; }
+.rank-table .muted, .models .muted { color: var(--muted); }
+.rank-table th[hidden], .rank-table td[hidden] { display: none; }
+.empty-state { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-l); padding: var(--s-5); margin: var(--s-4) 0; }
+.empty-state h2 { margin-top: 0; }
+.empty-state pre { margin: 0; padding: var(--s-3); background: var(--surface-2); border-radius: var(--r-m); font-size: var(--t-s); width: max-content; min-width: 100%; box-sizing: border-box; }
+.article, .article > * { min-width: 0; }

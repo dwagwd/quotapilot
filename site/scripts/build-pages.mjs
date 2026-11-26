@@ -4,6 +4,7 @@
 import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { modelsPages } from "./models-pages.mjs";
 
 const root = fileURLToPath(new URL("..", import.meta.url));
 const args = process.argv.slice(2);
@@ -12,7 +13,7 @@ const BASE = (baseIndex >= 0 ? args[baseIndex + 1] : process.env.SITE_URL || "ht
 const OUT = args.find((a, i) => !a.startsWith("--") && args[i - 1] !== "--base") || root;
 
 const load = (f) => JSON.parse(readFileSync(join(root, "data", f), "utf8"));
-const plans = load("plans.json"), changes = load("changes.json"), resets = load("resets.json"), models = load("models.json");
+const plans = load("plans.json"), changes = load("changes.json"), resets = load("resets.json"), models = load("models.json"), community = load("community.json");
 
 // Sponsor link comes from the same config the home page uses (assets/config.js); empty or non-https = no sponsor link.
 const runBrowserScript = (file) => { const w = {}; new Function("window", readFileSync(join(root, "assets", file), "utf8"))(w); return w; };
@@ -51,7 +52,7 @@ const T = {
     resetsPageTitle: (y) => `Codex usage limit reset history (${y}): every reset, with times`,
     resetsNav: "Reset history", notAffiliated: "Independent tracker, not affiliated with OpenAI, Anthropic, Google or xAI.",
     privacy: "Privacy", method: "How the numbers are made", sourceCode: "Source on GitHub", sponsor: "Sponsor",
-    resetsFoot: "Codex reset history", installLine: "Free macOS app: QuotaPilot",
+    modelsNav: "Model ranking", resetsFoot: "Codex reset history", installLine: "Free macOS app: QuotaPilot",
     installTitle: "See your own quota before you hit the limit", installBody: "QuotaPilot is a free, open-source macOS app that shows how much Codex and Claude Code quota you have left and when it resets. No account; nothing leaves your Mac unless you choose to share.", installCta: "Install notes and other systems",
     theme: "Theme", themeAuto: "Auto", themeLight: "Light", themeDark: "Dark"
   },
@@ -78,7 +79,7 @@ const T = {
     resetsPageTitle: (y) => `Codex 額度重置紀錄（${y}）：每一次重置與時間`,
     resetsNav: "重置紀錄", notAffiliated: "獨立追蹤網站，與 OpenAI、Anthropic、Google、xAI 無關。",
     privacy: "隱私政策", method: "數據怎麼來的", sourceCode: "GitHub 原始碼", sponsor: "贊助",
-    resetsFoot: "Codex 重置紀錄", installLine: "免費 macOS App：QuotaPilot",
+    modelsNav: "模型排行", resetsFoot: "Codex 重置紀錄", installLine: "免費 macOS App：QuotaPilot",
     installTitle: "在撞到上限之前，先看到自己的額度", installBody: "QuotaPilot 是免費、開源的 macOS App，顯示 Codex 與 Claude Code 還剩多少額度、什麼時候重置。不需要帳號；除非你選擇分享，資料不會離開你的 Mac。", installCta: "安裝說明與其他系統",
     theme: "主題", themeAuto: "自動", themeLight: "淺色", themeDark: "深色"
   }
@@ -97,7 +98,7 @@ const installCard = (t, home) => !INSTALL.length ? "" : `<aside class="page-inst
 const pages = [];
 // Cloudflare Pages (and GitHub Pages) serve "plans/claude.html" at "plans/claude"; link to that form.
 const pretty = (path) => path.replace(/index\.html$/, "").replace(/\.html$/, "");
-function page({ lang, path, title, description, body, alt, jsonLd, lastmod }) {
+function page({ lang, path, title, description, body, alt, jsonLd, lastmod, scripts = [] }) {
   const t = T[lang];
   const depth = path.split("/").length - 1;
   const up = "../".repeat(depth);
@@ -131,7 +132,7 @@ ${[].concat(jsonLd || []).map((j) => `<script type="application/ld+json">${JSON.
 <body>
 <header class="topbar"><div class="wrap topbar-inner">
   <a class="brand" href="${home}"><span class="brand-mark" aria-hidden="true"></span><span>${t.home}</span></a>
-  <nav class="nav"><a href="${up}${zh}plans/">${t.plansIndex}</a><a href="${up}${zh}resets/codex">${t.resetsNav}</a></nav>
+  <nav class="nav"><a href="${up}${zh}models/">${t.modelsNav}</a><a href="${up}${zh}plans/">${t.plansIndex}</a><a href="${up}${zh}resets/codex">${t.resetsNav}</a></nav>
   <div class="topbar-actions">
     ${sponsorChip}
     <button class="icon-btn theme-toggle" id="themeToggle" type="button" data-mode="auto" aria-label="${t.theme}: ${t.themeAuto}" title="${t.theme}: ${t.themeAuto}" data-l-label="${t.theme}" data-l-auto="${t.themeAuto}" data-l-light="${t.themeLight}" data-l-dark="${t.themeDark}">${THEME_ICONS}</button>
@@ -146,12 +147,13 @@ ${installCard(t, home)}
 <footer class="footer"><div class="wrap footer-inner">
   <p class="foot-row"><strong>AI Quota Watch</strong> · ${t.notAffiliated}</p>
   <nav class="footer-links"><a href="${REPO}/blob/main/PRIVACY.md" rel="noopener">${t.privacy}</a><a href="${REPO}/blob/main/collector/README.md" rel="noopener">${t.method}</a><a href="${REPO}" rel="noopener">${t.sourceCode}</a>${SPONSOR ? `<a class="foot-sponsor" href="${esc(SPONSOR)}" target="_blank" rel="noopener">♥ ${t.sponsor}</a>` : ""}</nav>
-  <nav class="footer-links"><a href="${up}${zh}plans/">${t.plansIndex}</a><a href="${up}${zh}resets/codex">${t.resetsFoot}</a></nav>
+  <nav class="footer-links"><a href="${up}${zh}models/">${t.modelsNav}</a><a href="${up}${zh}plans/">${t.plansIndex}</a><a href="${up}${zh}resets/codex">${t.resetsFoot}</a></nav>
   <p class="foot-install"><a href="${home}#install">${t.installLine} ↗</a></p>
   <div class="foot-controls"><label class="foot-theme"><span>${t.theme}</span><select id="themeSelect"><option value="auto">${t.themeAuto}</option><option value="light">${t.themeLight}</option><option value="dark">${t.themeDark}</option></select></label></div>
 </div></footer>
 <script src="${up}assets/theme-toggle.js"></script>
 <script src="${up}assets/hit.js"></script>
+${scripts.map((src) => `<script src="${up}${src}"></script>`).join("\n")}
 </body>
 </html>
 `;
@@ -218,6 +220,8 @@ ${faq.map(([q, a]) => `<h3>${esc(q)}</h3><p>${esc(a)}</p>`).join("")}
 <div class="table-scroll"><table class="models"><thead><tr><th>${t.when}</th><th>${t.kind}</th><th>${t.what}</th><th>${t.source}</th></tr></thead><tbody>
 ${rs.map((r) => `<tr><td class="num">${esc(r.timeKnown === false ? r.at.slice(0, 10) : r.at.slice(0, 16).replace("T", " "))}</td><td><span class="kind ${r.kind}">${r.kind === "full" ? t.full : t.banked}</span></td><td>${esc(loc(r.text))}</td><td>${badge(lang, r.confidence)} <a href="${esc(r.source)}" rel="noopener">${esc(host(r.source))}</a></td></tr>`).join("")}
 </tbody></table></div><p class="fine">${t.dataAsOf} ${esc(resets.lastReviewed)}.</p>` });
+  // /models/: the ranking with its calculators, and two search pages generated from the data.
+  for (const def of modelsPages({ lang, root, models, community, base: BASE })) page({ lang, ...def });
   // /resets/ itself: an index, so the obvious address (and the 404 page's link to it) works.
   page({ lang, path: `${prefix}resets/index.html`, alt: `${other}resets/index.html`, title: `${t.resetsNav} · AI Quota Watch`, description: t.resetsIntro, lastmod: resets.lastReviewed,
     body: `<h1>${t.resetsNav}</h1><ul class="plain"><li><a href="codex">${esc(t.resetsTitle)}</a></li></ul>` });

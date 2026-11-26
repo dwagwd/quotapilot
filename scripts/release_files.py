@@ -7,7 +7,7 @@ DIRECTORIES = ("Sources", "Tests", "scripts", "skills", ".github", ".codex-plugi
 # Local tool state (Wrangler cache with account details, editor/agent folders) and build output never ship.
 SKIPPED_PARTS = {"node_modules", "_site", "__pycache__"}
 # Pages that site/scripts/build-pages.mjs regenerates (ignored in site/.gitignore).
-GENERATED = ("site/plans/", "site/effort/", "site/resets/", "site/zh/", "site/sitemap.xml", "site/robots.txt")
+GENERATED = ("site/plans/", "site/effort/", "site/resets/", "site/models/", "site/zh/", "site/sitemap.xml", "site/robots.txt")
 FILES = ("Package.swift", "VERSION", "LICENSE", "README.md", "README.zh-TW.md", "CONTRIBUTING.md", "SECURITY.md", "PRIVACY.md", "CHANGELOG.md", ".gitignore")
 def public_files():
     files = [ROOT / name for name in FILES if (ROOT / name).is_file()]

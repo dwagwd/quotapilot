@@ -186,7 +186,7 @@ window.I18N = {
     "live.loaded": "Page loaded", "live.loadedNote": "re-reads every minute, not a new measurement",
     "live.justNow": "just now",
     "live.minAgo": "{m} min ago",
-    "foot.plans": "Plans by product", "foot.resets": "Codex reset history", 
+    "foot.plans": "Plans by product", "foot.resets": "Codex reset history", "foot.models": "Model ranking", 
     
     
     
@@ -199,7 +199,7 @@ window.I18N = {
     
     "sup.full": "QuotaPilot: quota %, tokens, speed, effort", "sup.tokens": "QuotaPilot: tokens only, no plan quota", "sup.limits": "QuotaPilot: limit hits only",
     "plan.alsoFrom": "also from", "sup.none": "",
-    "nav.plans": "Plans", "nav.sources": "Sources",
+    "nav.plans": "Plans", "nav.sources": "Sources", "nav.models": "Models",
     "hero.title": "How much AI do you actually get?",
     "hero.lede": "Usage limits, resets and real speeds for ChatGPT, Claude, Gemini and Grok. Checked by hand, measured by the people who use them. Free macOS app, no account, nothing leaves your Mac without your say-so.",
     "hero.ctaCli": "Get QuotaPilot for {os} — free CLI",
@@ -425,7 +425,7 @@ window.I18N = {
     "live.loaded": "頁面讀取", "live.loadedNote": "每分鐘重新讀取，不是新的量測",
     "live.justNow": "剛剛",
     "live.minAgo": "{m} 分鐘前",
-    "foot.plans": "各產品方案", "foot.resets": "Codex 重置紀錄", 
+    "foot.plans": "各產品方案", "foot.resets": "Codex 重置紀錄", "foot.models": "模型排行", 
     
     
     
@@ -438,7 +438,7 @@ window.I18N = {
     
     "sup.full": "QuotaPilot：額度 %、tokens、速度、推理強度", "sup.tokens": "QuotaPilot：只有 tokens，沒有方案額度", "sup.limits": "QuotaPilot：只有撞上限事件",
     "plan.alsoFrom": "同屬", "sup.none": "",
-    "nav.plans": "方案", "nav.sources": "來源",
+    "nav.plans": "方案", "nav.sources": "來源", "nav.models": "模型排行",
     "hero.title": "你的 AI 方案到底能用多少？",
     "hero.lede": "ChatGPT、Claude、Gemini、Grok 的用量額度、重置時間與實測速度，由人工查證、由真實使用者量測。免費 macOS App，不需帳號，未經你同意不會送出任何資料。",
     "hero.ctaCli": "下載 QuotaPilot（{os}，免費 CLI）",

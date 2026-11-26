@@ -26,6 +26,13 @@ for (const m of models.models) {
   // Benchmark scores are not republished here (third-party terms); only vendor list prices and context sizes.
   for (const k of ["intelligence", "speed", "costPerTask", "metricSrc"]) if (k in m) errors.push(`${m.id}: ${k} must not be stored`);
   if ((m.input != null || m.output != null) && !models.sources[m.priceSrc]) errors.push(`${m.id}: price without priceSrc`);
+  // Cache prices (USD per million tokens) are optional; Anthropic's cacheWrite is the 5-minute write price.
+  for (const k of ["cacheRead", "cacheWrite"]) {
+    if (!(k in m)) continue;
+    if (typeof m[k] !== "number" || !(m[k] >= 0)) errors.push(`${m.id}: ${k} must be a non-negative number`);
+    if (m.input == null || !models.sources[m.priceSrc]) errors.push(`${m.id}: ${k} needs input and a priceSrc`);
+    else if (m[k] > m.input * 2) errors.push(`${m.id}: ${k} is implausibly high versus input`);
+  }
   if (m.priceNote && (!m.priceNote.en || !m.priceNote.zh)) errors.push(`${m.id}: priceNote needs en + zh`);
 }
 for (const c of changes.changes) {

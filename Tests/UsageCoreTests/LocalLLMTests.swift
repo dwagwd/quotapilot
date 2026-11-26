@@ -349,8 +349,15 @@ final class LocalLLMTests: XCTestCase {
         XCTAssertFalse(LocalLLMIntegration.skipsAgentEvent(local, settings: settings))
         XCTAssertFalse(LocalLLMIntegration.skipsAgentEvent(local, settings: nil))
         settings.enabled = true
-        XCTAssertTrue(LocalLLMIntegration.skipsAgentEvent(local, settings: settings))
+        XCTAssertTrue(LocalLLMIntegration.skipsAgentEvent(local, settings: settings), "a poller is running, the backend is unnamed")
         XCTAssertFalse(LocalLLMIntegration.skipsAgentEvent(cloud, settings: settings))
+        let ollama = AgentTokenEvent(provider: "claude", timestamp: 1, usage: TokenBreakdown(input: 1), dedupeKey: "k3", model: "ollama/qwen3:8b")
+        XCTAssertFalse(LocalLLMIntegration.skipsAgentEvent(ollama, settings: settings), "Ollama is not metered: its calls stay in the agent logs")
+        settings.update(.ollama) { $0.proxy = true }
+        XCTAssertTrue(LocalLLMIntegration.skipsAgentEvent(ollama, settings: settings))
+        let llama = AgentTokenEvent(provider: "claude", timestamp: 1, usage: TokenBreakdown(input: 1), dedupeKey: "k4", model: "llamacpp/x")
+        settings.update(.llamacpp) { $0.proxy = false }
+        XCTAssertTrue(LocalLLMIntegration.skipsAgentEvent(llama, settings: settings), "llama.cpp has its poller")
     }
 
     func testSettingsDefaultsPollingRuleAndValidation() throws {
@@ -382,11 +389,11 @@ final class LocalLLMTests: XCTestCase {
         let now = 10_000_000.0
         let recent = LocalLLMEvent(id: "r", t: now - 100, backend: "ollama", via: "proxy", model: "m", prompt: 10, completion: 5)
         log.append([recent])
-        let first = log.readNew(from: 0)
+        let first = log.readNew(from: LocalLLMLog.Cursor())
         XCTAssertEqual(first.events, [recent])
         let next = LocalLLMEvent(id: "n", t: now - 50, backend: "ollama", via: "proxy", model: "m", prompt: 1, completion: 1)
         log.append([next])
-        XCTAssertEqual(log.readNew(from: first.offset).events, [next], "tailing reads only what was appended")
+        XCTAssertEqual(log.readNew(from: first.cursor).events, [next], "tailing reads only what was appended")
         // Two old events of one hour merge; one past retention disappears.
         let old1 = LocalLLMEvent(id: "o1", t: now - 5 * 86400, backend: "ollama", via: "proxy", model: "m", requests: 1, prompt: 10, completion: 5, seconds: 1)
         let old2 = LocalLLMEvent(id: "o2", t: now - 5 * 86400 + 60, backend: "ollama", via: "proxy", model: "m", requests: 1, prompt: 20, completion: 7, seconds: 2)
@@ -413,6 +420,222 @@ final class LocalLLMTests: XCTestCase {
             for (code, text) in translations { XCTAssertEqual(text.components(separatedBy: "%@").count, placeholders, "\(code): \(key)") }
         }
     }
+
+
+    // MARK: Event file: compaction, readers, locks
+
+    private func tempLog() -> (LocalLLMLog, URL) {
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".jsonl")
+        return (LocalLLMLog(url: url), url)
+    }
+    private func cleanup(_ url: URL) { for suffix in ["", ".lock", ".tmp"] { try? FileManager.default.removeItem(atPath: url.path + suffix) } }
+
+    func testReaderSurvivesCompactionByAnotherProcessWithoutDuplicatesOrDoubleBooking() {
+        let (log, url) = tempLog(); defer { cleanup(url) }
+        let other = LocalLLMLog(url: url)   // stands for the CLI process
+        let now = 20_000_000.0
+        let old1 = LocalLLMEvent(id: "o1", t: now - 5 * 86400, backend: "ollama", via: "proxy", model: "m", requests: 1, prompt: 10, completion: 5)
+        let old2 = LocalLLMEvent(id: "o2", t: now - 5 * 86400 + 30, backend: "ollama", via: "proxy", model: "m", requests: 1, prompt: 20, completion: 5)
+        let recent1 = LocalLLMEvent(id: "r1", t: now - 100, backend: "ollama", via: "proxy", model: "m", prompt: 1, completion: 1)
+        log.append([old1, old2, recent1])
+        let ingestor = LocalLLMIngestor()
+        let first = ingestor.poll(log, now: now, bookSince: 0)
+        XCTAssertEqual(Set(first.bookable.map(\.id)), ["o1", "o2", "r1"])
+        other.compact(now: now)                       // shrinks the file: o1 and o2 become one hour|… event
+        let recent2 = LocalLLMEvent(id: "r2", t: now - 50, backend: "ollama", via: "proxy", model: "m", prompt: 2, completion: 2)
+        other.append([recent2])
+        let second = ingestor.poll(log, now: now, bookSince: 0)
+        XCTAssertEqual(second.bookable.map(\.id), ["r2"], "only the new event is booked; merged and already booked ones are not")
+        XCTAssertEqual(ingestor.events.count, Set(ingestor.events.map(\.id)).count, "no duplicates in the kept list")
+        XCTAssertEqual(ingestor.events.reduce(0) { $0 + $1.prompt }, 10 + 20 + 1 + 2, "the list was rebuilt from the new file, totals unchanged")
+        XCTAssertEqual(ingestor.poll(log, now: now, bookSince: 0).bookable.count, 0)
+    }
+
+    func testRewriteIsDetectedEvenWhenTheNewFileIsNotSmaller() throws {
+        let (log, url) = tempLog(); defer { cleanup(url) }
+        let now = 20_000_000.0
+        log.append([LocalLLMEvent(id: "a", t: now - 5 * 86400, backend: "ollama", via: "proxy", model: "m", prompt: 1),
+                    LocalLLMEvent(id: "b", t: now - 5 * 86400 + 1, backend: "ollama", via: "proxy", model: "m", prompt: 1)])
+        let cursor = log.readNew(from: LocalLLMLog.Cursor()).cursor
+        log.compact(now: now)
+        // Append enough that the file is larger than before the rewrite.
+        log.append((0..<10).map { LocalLLMEvent(id: "n\($0)", t: now - 10, backend: "ollama", via: "proxy", model: "m", prompt: 1) })
+        let read = log.readNew(from: cursor)
+        XCTAssertTrue(read.rewritten, "detected by file identity, not by size")
+        XCTAssertEqual(read.events.count, 11)
+    }
+
+    func testCompactionNeverLosesConcurrentAppends() {
+        let (log, url) = tempLog(); defer { cleanup(url) }
+        let now = 30_000_000.0
+        log.append((0..<200).map { LocalLLMEvent(id: "old\($0)", t: now - 6 * 86400 + Double($0), backend: "ollama", via: "proxy", model: "m", prompt: 1) })
+        let group = DispatchGroup()
+        for writer in 0..<4 {
+            group.enter()
+            Thread.detachNewThread {
+                let mine = LocalLLMLog(url: url)
+                for i in 0..<50 { mine.append([LocalLLMEvent(id: "w\(writer)-\(i)", t: now - 10, backend: "ollama", via: "proxy", model: "m", prompt: 1)]) }
+                group.leave()
+            }
+        }
+        group.enter()
+        Thread.detachNewThread {
+            let compactor = LocalLLMLog(url: url)
+            for _ in 0..<10 { compactor.compact(now: now); Thread.sleep(forTimeInterval: 0.005) }
+            group.leave()
+        }
+        group.wait()
+        let ids = Set(log.events().map(\.id))
+        for writer in 0..<4 { for i in 0..<50 { XCTAssertTrue(ids.contains("w\(writer)-\(i)"), "w\(writer)-\(i) was lost") } }
+        XCTAssertEqual(log.events().reduce(0) { $0 + $1.prompt }, 200 + 200, "old events merged, none lost or doubled")
+    }
+
+    func testReadingHasNoSizeLimitAndHandlesLinesAcrossChunks() {
+        let (log, url) = tempLog(); defer { cleanup(url) }
+        let saved = LocalLLMLog.chunkSize
+        LocalLLMLog.chunkSize = 777
+        defer { LocalLLMLog.chunkSize = saved }
+        log.append((0..<500).map { LocalLLMEvent(id: "e\($0)", t: Double($0), backend: "ollama", via: "proxy", model: "model-\($0)", prompt: 1) })
+        let read = log.readNew(from: LocalLLMLog.Cursor())
+        XCTAssertEqual(read.events.count, 500)
+        XCTAssertEqual(read.cursor.offset, UInt64((try? FileManager.default.attributesOfItem(atPath: url.path)[.size] as? NSNumber)??.uint64Value ?? 0))
+        log.append([LocalLLMEvent(id: "tail", t: 999, backend: "ollama", via: "proxy", prompt: 1)])
+        XCTAssertEqual(log.readNew(from: read.cursor).events.map(\.id), ["tail"])
+    }
+
+    func testIngestorTrimsToThirtyDays() {
+        let (log, url) = tempLog(); defer { cleanup(url) }
+        let now = 40_000_000.0
+        log.append([LocalLLMEvent(id: "x", t: now - 31 * 86400, backend: "ollama", via: "proxy", prompt: 1), LocalLLMEvent(id: "y", t: now - 86400, backend: "ollama", via: "proxy", prompt: 1)])
+        let ingestor = LocalLLMIngestor()
+        _ = ingestor.poll(log, now: now, bookSince: 0)
+        XCTAssertEqual(ingestor.events.map(\.id), ["y"])
+    }
+
+    func testProcessLockIsExclusiveAndSharedLocksCoexist() {
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".lock")
+        defer { try? FileManager.default.removeItem(at: url) }
+        let a = ProcessLock(url: url), b = ProcessLock(url: url), c = ProcessLock(url: url)
+        XCTAssertTrue(a.tryAcquire(shared: true)); XCTAssertTrue(b.tryAcquire(shared: true))
+        XCTAssertTrue(ProcessLock.isHeldElsewhere(url), "an exclusive taker is refused while shared holders exist")
+        a.release(); b.release()
+        XCTAssertFalse(ProcessLock.isHeldElsewhere(url))
+        XCTAssertTrue(c.tryAcquire())
+        XCTAssertFalse(ProcessLock(url: url).tryAcquire())
+        c.release()
+    }
+
+    func testPollingStepsAsideForAProxyOrPollerInAnotherProcess() throws {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let (log, url) = tempLog(); defer { cleanup(url) }
+        let server = try FakeServer { _, _ in .init(slices: [Data("HTTP/1.1 200 OK\r\nContent-Length: 0\r\nConnection: close\r\n\r\n".utf8)], closeAfter: true) }
+        defer { server.shutdown() }
+        var settings = LocalLLMSettings(); settings.enabled = true
+        // Another process runs a proxy for llama.cpp.
+        let proxyMarker = ProcessLock(url: dir.appendingPathComponent("local-llm-proxy-llamacpp.lock"))
+        XCTAssertTrue(proxyMarker.tryAcquire(shared: true))
+        let app = LocalLLMService(log: log, llamaPorts: [server.port], omlxPort: server.port, lockDirectory: dir)
+        app.apply(settings)
+        app.pollOnce(now: 1)
+        XCTAssertEqual(app.pollState(.llamacpp), .proxiedElsewhere)
+        proxyMarker.release()
+        app.stop()
+        // Another process polls: the second one refuses.
+        let cli = LocalLLMService(log: log, lockDirectory: dir)
+        XCTAssertTrue(cli.acquirePollLock())
+        let second = LocalLLMService(log: log, llamaPorts: [server.port], lockDirectory: dir)
+        XCTAssertFalse(second.acquirePollLock())
+        second.apply(settings)
+        second.pollOnce(now: 2)
+        XCTAssertEqual(second.pollState(.llamacpp), .otherProcess)
+        cli.stop()
+    }
+
+    func testProbeStartsNoProxyAndTakesNoLock() throws {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let (log, url) = tempLog(); defer { cleanup(url) }
+        let service = LocalLLMService(log: log, llamaPorts: [1], omlxPort: 1, lockDirectory: dir)
+        XCTAssertEqual(service.probe()[.llamacpp], .notRunning)
+        XCTAssertFalse(service.proxyRunning(.ollama))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: dir.path), "no lock file was created")
+    }
+
+    #if canImport(Darwin) || canImport(Glibc) || canImport(Musl)
+
+    func testHeadResponseWithContentLengthDoesNotSwallowTheNextExchange() throws {
+        let body = #"{"model":"m","usage":{"prompt_tokens":6,"completion_tokens":2}}"#
+        let head = Data("HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: 4096\r\n\r\n".utf8)   // HEAD: no body follows
+        let chat = Data("HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: \(body.utf8.count)\r\n\r\n\(body)".utf8)
+        let server = try FakeServer { method, _ in .init(slices: [method == "HEAD" ? head : chat]) }
+        defer { server.shutdown() }
+        let (proxy, collector) = try startProxy(upstream: server)
+        defer { proxy.stop() }
+        let headRequest = Data("HEAD /v1/models HTTP/1.1\r\nHost: x\r\n\r\n".utf8)
+        let received = exchange(port: proxy.port, steps: [(headRequest, head.count), (post("/v1/chat/completions"), chat.count)])
+        XCTAssertEqual(received, head + chat)
+        let events = collector.wait(count: 1)
+        XCTAssertEqual(events.count, 1, "the POST after the HEAD is metered")
+        XCTAssertEqual(events.first?.prompt, 6)
+        // The same at parser level: the owner's answer is asked before the head is reported.
+        let parser = HTTPStreamParser(role: .response)
+        var queue = ["HEAD", "POST"], ends = 0, heads = 0
+        parser.nextResponseHasNoBody = { queue.first == "HEAD" }
+        parser.onHead = { _ in queue.removeFirst(); heads += 1 }
+        parser.onMessageEnd = { ends += 1 }
+        parser.feed(head + chat)
+        XCTAssertEqual(heads, 2); XCTAssertEqual(ends, 2); XCTAssertFalse(parser.failed)
+    }
+
+    func testNonInferenceJSONIsNotMetered() throws {
+        let body = #"{"model":"m","usage":{"prompt_tokens":6,"completion_tokens":2}}"#
+        let response = Data("HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: \(body.utf8.count)\r\n\r\n\(body)".utf8)
+        let server = try FakeServer { _, _ in .init(slices: [response]) }
+        defer { server.shutdown() }
+        let (proxy, collector) = try startProxy(upstream: server)
+        defer { proxy.stop() }
+        _ = exchange(port: proxy.port, request: Data("GET /v1/models HTTP/1.1\r\nHost: x\r\n\r\n".utf8), expected: response.count)
+        Thread.sleep(forTimeInterval: 0.2)
+        XCTAssertTrue(collector.events.isEmpty)
+    }
+
+    func testProxyCanRestartOnTheSamePortRightAfterStop() throws {
+        let body = #"{"model":"m","usage":{"prompt_tokens":1,"completion_tokens":1}}"#
+        let response = Data("HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: \(body.utf8.count)\r\n\r\n\(body)".utf8)
+        let server = try FakeServer { _, _ in .init(slices: [response]) }
+        defer { server.shutdown() }
+        let probe = try LocalSockets.listenLoopback(port: 0)
+        let port = LocalSockets.boundPort(probe)
+        LocalSockets.closeSocket(probe)
+        for round in 0..<3 {
+            let proxy = LocalMeteringProxy(backend: .ollama, listenPort: port, upstreamPort: server.port) { _ in }
+            XCTAssertNoThrow(try proxy.start(), "round \(round): the port is free again after stop()")
+            XCTAssertEqual(exchange(port: port, request: post("/v1/chat/completions"), expected: response.count), response)
+            proxy.stop()
+            XCTAssertFalse(proxy.isRunning)
+            if let fd = LocalSockets.connect(host: "127.0.0.1", port: port, timeoutMilliseconds: 200) { LocalSockets.closeSocket(fd); XCTFail("still listening after stop()") }
+        }
+    }
+
+    func testServiceApplyRestartsProxyOnTheSamePort() throws {
+        let probe = try LocalSockets.listenLoopback(port: 0)
+        let port = LocalSockets.boundPort(probe)
+        LocalSockets.closeSocket(probe)
+        let (log, url) = tempLog(); defer { cleanup(url) }
+        let service = LocalLLMService(log: log)
+        var settings = LocalLLMSettings(); settings.enabled = true
+        settings.update(.ollama) { $0.proxy = true; $0.listenPort = port }
+        service.apply(settings)
+        XCTAssertTrue(service.proxyRunning(.ollama), service.proxyError(.ollama) ?? "")
+        settings.update(.ollama) { $0.upstreamPort = 12345 }   // a change restarts it on the same listen port
+        service.apply(settings)
+        XCTAssertTrue(service.proxyRunning(.ollama), service.proxyError(.ollama) ?? "")
+        service.stop()
+    }
+
+    #endif
 
     #if canImport(Darwin) || canImport(Glibc) || canImport(Musl)
 

@@ -120,8 +120,11 @@ public final class HTTPStreamParser {
             let status = head.status
             if status == 101 { onHead?(head); fail(); return }          // protocol switch: not HTTP any more
             if (100..<200).contains(status) { return }                   // informational, a final response follows
+            // Decided before the head is reported: the owner may take the exchange off its queue when it sees the head,
+            // and the question is about the request this response answers (HEAD has no body whatever Content-Length says).
+            let noBody = status == 204 || status == 304 || nextResponseHasNoBody()
             onHead?(head)
-            if status == 204 || status == 304 || nextResponseHasNoBody() { onMessageEnd?(); state = .head; return }
+            if noBody { onMessageEnd?(); state = .head; return }
             if chunked { state = .chunkSize }
             else if let length { state = length > 0 ? .fixed(length) : .head; if length == 0 { onMessageEnd?() } }
             else { state = .untilClose }
@@ -228,14 +231,18 @@ public enum LocalSockets {
         var descriptor = pollfd(fd: listener, events: Int16(POLLIN), revents: 0)
         guard poll(&descriptor, 1, waitMilliseconds) > 0 else { return nil }
         let client = accept(listener, nil, nil)
-        guard client >= 0 else { return nil }
+        guard client >= 0 else {
+            // Out of file descriptors: the pending connection stays queued, so back off instead of spinning.
+            if errno == EMFILE || errno == ENFILE { usleep(100_000) }
+            return nil
+        }
         prepare(client)
         return client
     }
 
     private static func prepare(_ fd: Int32) {
         var one: Int32 = 1
-        setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, &one, socklen_t(MemoryLayout<Int32>.size))
+        setsockopt(fd, Int32(IPPROTO_TCP), Int32(TCP_NODELAY), &one, socklen_t(MemoryLayout<Int32>.size))
         #if canImport(Darwin)
         setsockopt(fd, SOL_SOCKET, SO_NOSIGPIPE, &one, socklen_t(MemoryLayout<Int32>.size))
         #endif

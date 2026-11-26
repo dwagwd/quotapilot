@@ -100,12 +100,23 @@ oMLX's own older history is not back-filled (the daily/hourly shape is undocumen
 
 ### 2.4 Avoiding double counting
 
-1. **Proxy and poller**: a backend that has its proxy enabled is not polled (the proxy sees every request that goes through it). Point every client
+1. **Proxy and poller, in one process**: a backend that has its proxy enabled is not polled (the proxy sees every request that goes through it). Point every client
    at the proxy, or turn the proxy off again: direct traffic to a proxied backend is not counted.
-2. **Agent logs**: Codex and Claude Code logs already book local-model calls (provider `codex`/`claude`, model labelled local). While Local models is on,
-   those events are not added to the totals, because the same calls reach the meter when the agent talks to a metered backend. Turn the switch off to
-   count them from the logs. A call to a local server that is not metered by any source is then missed: enable the proxy for it.
-3. **Events**: every event has a unique id (proxy: random; poller: backend, model, poll time), so replaying the event file adds nothing twice.
+2. **Proxy and poller, across processes**: a process that runs a proxy (the app, or `quotapilot local proxy --backend X`) holds a shared lock file
+   `local-llm-proxy-<backend>.lock` in the state folder; a poller in another process that finds it held skips that backend ("metered by a proxy in another process").
+   Pollers hold `local-llm-poll.lock`: the app and `quotapilot local poll` never poll together, and `local poll` refuses while the app polls. `quotapilot local status`
+   only reports: it starts no proxy and takes no lock.
+3. **Agent logs**: Codex and Claude Code logs already book local-model calls (provider `codex`/`claude`, model labelled local). Such an event is not booked when the
+   same traffic reaches the meter: if its model id names a backend (`ollama/…`), only when that backend is metered (proxy on, or its poller running); if it names none, when any
+   backend is metered. Local models off: nothing is skipped. A call to a backend that nothing meters stays in the agent logs.
+4. **Events**: every event has a unique id (proxy: random; poller: backend, model, poll time). The app's reader keeps a list by id, books each id once, never books the
+   merged `hour|…` events a compaction writes (their parts were booked when new), and rebuilds its list when the file was replaced.
+
+### 2.5 The event file
+
+Appends and compaction hold a lock file (`local-llm-events.jsonl.lock`, flock) across the whole read and rewrite, so lines appended by another process meanwhile are not lost.
+The rewrite goes to a private temporary file (mode 0600 from creation) and replaces the old one by rename; readers notice a rewrite by the file's inode, not by its size,
+and read in chunks with no size limit. The app compacts at start and hourly; the CLI proxy and poller compact at start. The app keeps the last 30 days in memory.
 
 ## 3. Design
 
@@ -136,16 +147,21 @@ oMLX's own older history is not back-filled (the daily/hourly shape is undocumen
 
 ## 5. Test plan
 
-Fixtures and a fake local HTTP server; none of the four tools is needed.
+Fixtures and a fake local HTTP server on real loopback sockets; none of the five tools is needed (`Tests/UsageCoreTests/LocalLLMTests.swift`).
 
-- Parsing: OpenAI JSON, SSE with and without the final usage chunk, Anthropic SSE, Responses API, Ollama JSON and NDJSON, llama.cpp `timings`, LM Studio `stats`,
-  Prometheus text (labels, comments, NaN), oMLX usage JSON (list and object shapes).
-- Proxy: byte-for-byte equality for a content-length response, chunked response and SSE (incl. one byte at a time delivery), keep-alive with two
-  requests, metered events from each; unmetered stream; refusal to listen on non-loopback.
-- Pollers: counter diff, restart (counter reset), first-reading baseline, skipped when proxied.
-- Dedupe: replayed event file, agent-log rule, proxy/poller rule.
-- Cost on the reference model including cache read price and fallback to the default.
-- Localization completeness for all ten languages; Linux and Windows builds keep compiling (socket code is guarded).
+- Parsing: OpenAI JSON, SSE with and without the final usage chunk, Anthropic SSE (also through the proxy), Responses API, Ollama JSON and NDJSON, llama.cpp `timings`,
+  LM Studio `stats`, embeddings, Prometheus text (labels, comments, NaN), oMLX usage JSON (list, object and totals-only shapes).
+- Framing: chunked one byte at a time, request bodies, garbage, HEAD with Content-Length followed by a POST on the same connection.
+- Proxy: byte-for-byte equality for content-length, chunked, SSE (also delivered one byte at a time) and NDJSON; keep-alive with several requests; non-model paths ignored;
+  unmetered stream; engine and proxy-derived timings; 502 when the upstream is down; refusal of privileged ports; stop() frees the port at once (restart on the same port, also through the service).
+- Pollers: counter diff, restart (counter reset), first-reading baseline, off when the feature is off, 401 and missing `/metrics`, oMLX key header; skipped for a backend proxied by another
+  process, refused while another process polls; `status` probe starts nothing and takes no lock.
+- Event file: append, tail, compaction (merge, retention, mode 0600), reader surviving a compaction by another process without duplicates or double booking, rewrite detected
+  although the file is not smaller, no appends lost while compacting (four writer threads and a compactor), chunked reads across line boundaries, 30-day trim.
+- Dedupe: same event id once in the store and ledger, agent-log rule per backend, proxy/poller rule, process locks (exclusive and shared).
+- Cost on the reference model including cache read price and fallback to the default; settings round trip and validation.
+- Localization completeness for all ten languages. Linux and Windows builds: the socket code is guarded with `#if canImport(Darwin/Glibc/Musl)` (Glibc enum constants are converted
+  with `Int32(...)`) and the non-POSIX proxy stub mirrors the real class's properties; neither platform could be built in the development environment.
 
 ## 6. Checklist
 

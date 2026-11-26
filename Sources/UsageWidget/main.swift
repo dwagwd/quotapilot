@@ -120,10 +120,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
     private var statsWindow: StatsWindowController?
     // Local model usage (docs/local-llm.md)
     private lazy var localLog = LocalLLMLog(url: LocalLLMLog.defaultURL(stateDirectory: support))
-    private lazy var localService = LocalLLMService(log: localLog, omlxKey: { KeychainSecret.read("omlx-api-key") })
+    private lazy var localService = LocalLLMService(log: localLog, omlxKey: { KeychainSecret.read("omlx-api-key") }, lockDirectory: support)
     private let localModelsModel = LocalModelsModel()
     private var localModelsWindow: LocalModelsWindowController?
-    private var localOffset: UInt64?
+    private let localIngestor = LocalLLMIngestor()
     private var localPollTick: Timer?
     private var localIngestTick: Timer?
     private let localQueue = DispatchQueue(label: "quotapilot.local-models", qos: .utility)
@@ -424,6 +424,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
         // Update checks and the opt-in daily share run at most once a day; the hourly tick only decides whether it is time.
         let daily = Timer(fire: Date().addingTimeInterval(90), interval: 3600, repeats: true) { [weak self] _ in
             self?.checkForUpdates(manual: false); self?.autoShareIfDue()
+            self?.localQueue.async { [log = self?.localLog] in log?.compact(now: Date().timeIntervalSince1970) }
         }
         RunLoop.main.add(daily, forMode: .common); dailyTick = daily
         requestAlertAuthorizationIfNeeded()
@@ -1109,20 +1110,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
             if !localModelsModel.events.isEmpty { localModelsModel.events = [] }
             updateLocalToday(now: now); return
         }
-        let first = localOffset == nil
-        let result = localLog.readNew(from: localOffset ?? 0)
-        localOffset = result.offset
-        var fresh = result.events
-        if first {
-            fresh = fresh.filter { $0.t >= statsStore.scanStart(now: now) }
-            localModelsModel.events = localLog.events(since: now - 30 * 86400)
-        } else if !fresh.isEmpty {
-            localModelsModel.events.append(contentsOf: fresh)
-        }
+        // The ingestor follows the file, rebuilds its list when another process compacts it, and never offers an event twice.
+        let update = localIngestor.poll(localLog, now: now, bookSince: statsStore.scanStart(now: now))
+        if update.changed { localModelsModel.events = localIngestor.events }
         var booked = false
-        for event in fresh where agentLedger.add(event.tokenEvent) { statsStore.add(event.tokenEvent); booked = true }
+        for event in update.bookable where agentLedger.add(event.tokenEvent) { statsStore.add(event.tokenEvent); booked = true }
         if booked { saveStats(now: now); render() }
-        if !fresh.isEmpty { updateLocalToday(now: now) }
+        if update.changed { updateLocalToday(now: now) }
         if statsWindow?.window?.isVisible == true { syncLocalStatsModel() }
     }
 
@@ -1703,6 +1697,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
         if let window = settingsWindow, window.window?.isVisible == true { window.present(); return }
         settingsWindow = SettingsWindowController(settings: settings, windows: items.map { ($0.id, title(for: $0)) }) { [weak self] next in
             guard let self else { return }
+            // The Local models window may have changed these since the Settings window was opened.
+            var next = next
+            next.localLLM = self.settings.localLLM
             self.settings = next
             self.ratesDirty = true
             self.requestAlertAuthorizationIfNeeded()

@@ -91,6 +91,11 @@ public struct LocalLLMSettings: Codable, Equatable {
         let listens = LocalLLMBackend.allCases.filter(proxyEnabled).map(listenPort)
         return Set(listens).count == listens.count ? nil : "two proxies use the same port"
     }
+    /// Backends whose usage reaches the meter: proxy on, or a poller that runs.
+    public var meteredBackends: [LocalLLMBackend] {
+        guard isEnabled else { return [] }
+        return LocalLLMBackend.allCases.filter { proxyEnabled($0) || polls($0) }
+    }
     /// Price-table id used for the equivalent cost.
     public var reference: String { LocalLLMReference.resolve(referenceModel).id }
 }
@@ -151,81 +156,186 @@ public struct LocalLLMEvent: Codable, Equatable {
     }
 }
 
+/// Advisory lock on a file shared between processes (flock). Where there is no flock it always succeeds.
+public final class ProcessLock {
+    public let url: URL
+    private var fd: Int32 = -1
+    public init(url: URL) { self.url = url }
+    deinit { release() }
+
+    /// Takes the lock without waiting. `shared` locks can be held by many processes; an exclusive one by one, and not together with shared ones.
+    public func tryAcquire(shared: Bool = false) -> Bool {
+        #if canImport(Darwin) || canImport(Glibc) || canImport(Musl)
+        if fd >= 0 { return true }
+        try? FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+        let descriptor = open(url.path, O_RDWR | O_CREAT, 0o600)
+        guard descriptor >= 0 else { return false }
+        guard flock(descriptor, (shared ? LOCK_SH : LOCK_EX) | LOCK_NB) == 0 else { _ = close(descriptor); return false }
+        fd = descriptor
+        return true
+        #else
+        return true
+        #endif
+    }
+
+    /// Blocks until the lock is free (exclusive).
+    func acquireBlocking() -> Bool {
+        #if canImport(Darwin) || canImport(Glibc) || canImport(Musl)
+        try? FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+        let descriptor = open(url.path, O_RDWR | O_CREAT, 0o600)
+        guard descriptor >= 0 else { return false }
+        guard flock(descriptor, LOCK_EX) == 0 else { _ = close(descriptor); return false }
+        fd = descriptor
+        return true
+        #else
+        return true
+        #endif
+    }
+
+    public func release() {
+        #if canImport(Darwin) || canImport(Glibc) || canImport(Musl)
+        if fd >= 0 { _ = flock(fd, LOCK_UN); _ = close(fd); fd = -1 }
+        #endif
+    }
+
+    /// True when another holder keeps a lock that conflicts with an exclusive one (checked and released at once).
+    public static func isHeldElsewhere(_ url: URL) -> Bool {
+        let probe = ProcessLock(url: url)
+        guard probe.tryAcquire() else { return true }
+        probe.release()
+        return false
+    }
+}
+
 /// Append-only event file shared by the app, `quotapilot local proxy` and `quotapilot stats`. One JSON object per line.
+/// Every append and every compaction holds a lock file next to it (`.lock`, flock), so processes cannot lose each other's lines.
+/// A compaction replaces the file by rename; readers notice that by the file's identity, not by its size.
 public final class LocalLLMLog {
     public static let retention: Double = 35 * 86400
     /// Events older than this are merged per hour, backend, model and source.
     public static let detailSeconds: Double = 2 * 86400
+    /// Bytes read at a time; tests make it small.
+    static var chunkSize = 4 * 1_048_576
     public let url: URL
     private let lock = NSLock()
+    private var lockURL: URL { URL(fileURLWithPath: url.path + ".lock") }
+
+    /// Where a reader stopped: a byte offset in a particular file (identified by inode).
+    public struct Cursor: Equatable {
+        public var offset: UInt64 = 0
+        public var identity: UInt64? = nil
+        public init() {}
+    }
 
     public init(url: URL) { self.url = url }
     public static func defaultURL(stateDirectory: URL = Portable.stateDirectory()) -> URL {
         stateDirectory.appendingPathComponent("local-llm-events.jsonl")
     }
 
-    public func append(_ events: [LocalLLMEvent]) {
-        guard !events.isEmpty else { return }
+    private func withFileLock<T>(_ body: () -> T) -> T {
+        lock.lock(); defer { lock.unlock() }
+        let file = ProcessLock(url: lockURL)
+        let held = file.acquireBlocking()
+        defer { if held { file.release() } }
+        return body()
+    }
+
+    private static func encode(_ events: [LocalLLMEvent]) -> Data {
         var data = Data()
         let encoder = JSONEncoder()
         for event in events { if let line = try? encoder.encode(event) { data.append(line); data.append(0x0A) } }
-        lock.lock(); defer { lock.unlock() }
-        try? FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
-        #if canImport(Darwin) || canImport(Glibc) || canImport(Musl)
-        // O_APPEND: lines from the app and a CLI proxy running at the same time do not interleave.
-        let fd = open(url.path, O_WRONLY | O_APPEND | O_CREAT, 0o600)
-        guard fd >= 0 else { return }
-        data.withUnsafeBytes { raw in
-            var offset = 0
-            while offset < raw.count {
-                let written = write(fd, raw.baseAddress!.advanced(by: offset), raw.count - offset)
-                if written <= 0 { break }
-                offset += written
+        return data
+    }
+
+    public func append(_ events: [LocalLLMEvent]) {
+        guard !events.isEmpty else { return }
+        let data = Self.encode(events)
+        withFileLock {
+            try? FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+            #if canImport(Darwin) || canImport(Glibc) || canImport(Musl)
+            // O_APPEND as well: a writer that does not know about the lock file still cannot overwrite.
+            let fd = open(url.path, O_WRONLY | O_APPEND | O_CREAT, 0o600)
+            guard fd >= 0 else { return }
+            data.withUnsafeBytes { raw in
+                var offset = 0
+                while offset < raw.count {
+                    let written = write(fd, raw.baseAddress!.advanced(by: offset), raw.count - offset)
+                    if written <= 0 { break }
+                    offset += written
+                }
             }
+            _ = close(fd)
+            #else
+            if !FileManager.default.fileExists(atPath: url.path) { FileManager.default.createFile(atPath: url.path, contents: nil) }
+            if let handle = try? FileHandle(forWritingTo: url) { handle.seekToEndOfFile(); handle.write(data); try? handle.close() }
+            #endif
         }
-        _ = close(fd)
-        #else
-        if !FileManager.default.fileExists(atPath: url.path) { FileManager.default.createFile(atPath: url.path, contents: nil) }
-        if let handle = try? FileHandle(forWritingTo: url) { handle.seekToEndOfFile(); handle.write(data); try? handle.close() }
-        #endif
     }
 
     /// Events with `t >= since`, oldest first.
     public func events(since: Double = 0) -> [LocalLLMEvent] {
-        readNew(from: 0).events.filter { $0.t >= since }
+        readNew(from: Cursor()).events.filter { $0.t >= since }
     }
 
-    /// Events appended after byte `offset` and the offset to continue from. A shrunken file (compaction) restarts at 0.
-    public func readNew(from offset: UInt64) -> (events: [LocalLLMEvent], offset: UInt64) {
-        lock.lock(); defer { lock.unlock() }
-        guard let status = Portable.status(url.path), status.isRegular else { return ([], 0) }
-        let start = status.size < offset ? 0 : offset
-        guard status.size > start, let handle = try? FileHandle(forReadingFrom: url) else { return ([], status.size) }
+    /// Events appended after the cursor and the cursor to continue from. When the file was replaced (compaction) the whole new file is
+    /// read and `rewritten` is true: the caller must discard what it kept from the old one. Reads in chunks; there is no size limit.
+    public func readNew(from cursor: Cursor) -> (events: [LocalLLMEvent], cursor: Cursor, rewritten: Bool) {
+        guard let handle = try? FileHandle(forReadingFrom: url) else { return ([], Cursor(), cursor.identity != nil || cursor.offset > 0) }
         defer { try? handle.close() }
+        var identity: UInt64?
+        var size: UInt64 = 0
+        #if canImport(Darwin) || canImport(Glibc) || canImport(Musl)
+        var info = stat()
+        if fstat(handle.fileDescriptor, &info) == 0 { identity = UInt64(truncatingIfNeeded: info.st_ino) ^ (UInt64(truncatingIfNeeded: info.st_dev) << 40); size = UInt64(info.st_size) }
+        #else
+        size = Portable.status(url.path)?.size ?? 0
+        #endif
+        let rewritten = (cursor.identity != nil && identity != cursor.identity) || size < cursor.offset
+        let start = rewritten ? 0 : cursor.offset
+        var result = Cursor()
+        result.identity = identity
+        result.offset = start
+        guard size > start else { return ([], result, rewritten) }
         handle.seek(toFileOffset: start)
-        let data = handle.readData(ofLength: Int(min(status.size - start, 64 * 1_048_576)))
-        // Stop at the last complete line so a half-written one is read next time.
-        guard let last = data.lastIndex(of: 0x0A) else { return ([], start) }
-        let complete = data.prefix(through: last)
+        var events: [LocalLLMEvent] = []
+        var carry = Data()
         let decoder = JSONDecoder()
-        let events = complete.split(separator: 0x0A).compactMap { try? decoder.decode(LocalLLMEvent.self, from: Data($0)) }
-        return (events, start + UInt64(complete.count))
+        var consumed: UInt64 = 0
+        while true {
+            let chunk = handle.readData(ofLength: Self.chunkSize)
+            if chunk.isEmpty { break }
+            carry.append(chunk)
+            guard let last = carry.lastIndex(of: 0x0A) else { continue }
+            let complete = carry.prefix(through: last)
+            for line in complete.split(separator: 0x0A) { if let event = try? decoder.decode(LocalLLMEvent.self, from: Data(line)) { events.append(event) } }
+            consumed += UInt64(complete.count)
+            carry = Data(carry.suffix(from: last + 1))
+        }
+        result.offset = start + consumed
+        return (events, result, rewritten)
     }
 
-    /// Drops events past retention and merges older ones per hour. Rewrites the file only when something changed.
+    /// Drops events past retention and merges older ones per hour. The read and the replacement happen under the file lock,
+    /// so a line appended meanwhile by another process is never lost. Rewrites only when something changed.
     public func compact(now: Double) {
-        let all = readNew(from: 0).events
-        guard !all.isEmpty else { return }
-        let merged = Self.compacted(all, now: now)
-        guard merged.count != all.count else { return }
-        lock.lock(); defer { lock.unlock() }
-        var data = Data()
-        let encoder = JSONEncoder()
-        for event in merged { if let line = try? encoder.encode(event) { data.append(line); data.append(0x0A) } }
-        try? data.write(to: url, options: .atomic)
-        #if canImport(Darwin) || canImport(Glibc) || canImport(Musl)
-        _ = chmod(url.path, 0o600)
-        #endif
+        withFileLock {
+            let all = readNew(from: Cursor()).events
+            guard !all.isEmpty else { return }
+            let merged = Self.compacted(all, now: now)
+            guard merged.count != all.count else { return }
+            let temporary = URL(fileURLWithPath: url.path + ".tmp")
+            try? FileManager.default.removeItem(at: temporary)
+            // Private from the first byte: permissions are set before the data is written, and the rename keeps them.
+            guard FileManager.default.createFile(atPath: temporary.path, contents: nil, attributes: [.posixPermissions: 0o600]),
+                  let handle = try? FileHandle(forWritingTo: temporary) else { return }
+            handle.write(Self.encode(merged))
+            try? handle.close()
+            #if canImport(Darwin) || canImport(Glibc) || canImport(Musl)
+            if rename(temporary.path, url.path) != 0 { try? FileManager.default.removeItem(at: temporary) }
+            #else
+            _ = try? FileManager.default.replaceItemAt(url, withItemAt: temporary)
+            #endif
+        }
     }
 
     static func compacted(_ events: [LocalLLMEvent], now: Double) -> [LocalLLMEvent] {
@@ -254,6 +364,44 @@ public final class LocalLLMLog {
         return (groups.values.sorted { $0.t < $1.t }) + keep
     }
     private static func sum(_ a: Double?, _ b: Double?) -> Double? { a == nil && b == nil ? nil : (a ?? 0) + (b ?? 0) }
+}
+
+/// Follows the event file for one reader (the app): keeps the events of the last 30 days without duplicates, and says which
+/// events are new to book into the statistics. A compaction by another process makes it rebuild its list from the new file;
+/// nothing is booked twice (by id), and merged `hour|…` events are never booked, since the events they merge were booked when new.
+public final class LocalLLMIngestor {
+    public private(set) var events: [LocalLLMEvent] = []
+    private var ids = Set<String>()
+    private var booked: [String: Double] = [:]
+    private var cursor = LocalLLMLog.Cursor()
+    public static let keep: Double = 30 * 86400
+    public init() {}
+
+    public struct Update {
+        public var bookable: [LocalLLMEvent]
+        public var changed: Bool
+    }
+
+    /// - Parameter bookSince: events older than this are shown but not booked (the statistics already cover them).
+    public func poll(_ log: LocalLLMLog, now: Double, bookSince: Double) -> Update {
+        let read = log.readNew(from: cursor)
+        cursor = read.cursor
+        var changed = read.rewritten
+        if read.rewritten { events = []; ids = [] }
+        var bookable: [LocalLLMEvent] = []
+        for event in read.events where ids.insert(event.id).inserted {
+            events.append(event); changed = true
+            if !event.id.hasPrefix("hour|"), event.t >= bookSince, booked[event.id] == nil {
+                booked[event.id] = event.t; bookable.append(event)
+            }
+        }
+        let cutoff = now - Self.keep
+        if let first = events.first, first.t < cutoff || events.contains(where: { $0.t < cutoff }) {
+            events = events.filter { $0.t >= cutoff }; ids = Set(events.map(\.id)); changed = true
+        }
+        booked = booked.filter { $0.value > now - 3 * 86400 }
+        return Update(bookable: bookable, changed: changed)
+    }
 }
 
 /// Per backend and model totals with speeds and the hypothetical cost on the reference cloud model.
@@ -350,9 +498,19 @@ public struct LocalLLMReport: Equatable {
 }
 
 public enum LocalLLMIntegration {
-    /// While Local models is on, calls that Codex or Claude Code made to a local model are not booked from the agent logs:
-    /// the same traffic reaches the meter, so booking both would count it twice (docs/local-llm.md, rule 2).
+    private static let markers: [(LocalLLMBackend, [String])] = [
+        (.ollama, ["ollama"]), (.lmstudio, ["lmstudio", "lm-studio"]), (.llamacpp, ["llama.cpp", "llamacpp"]),
+        (.omlx, ["omlx"]), (.strata, ["strata"])]
+
+    /// A call that Codex or Claude Code made to a local model is not booked from the agent logs when the same traffic reaches the meter,
+    /// since booking both would count it twice (docs/local-llm.md, rule 2). A model id that names its backend is skipped only when that
+    /// backend is metered (proxy on, or its poller running); an id that names none is skipped when any backend is metered.
     public static func skipsAgentEvent(_ event: AgentTokenEvent, settings: LocalLLMSettings?) -> Bool {
-        (settings?.isEnabled ?? false) && event.provider != "local" && ModelIdentity.isLocal(event.model)
+        guard let settings, event.provider != "local", ModelIdentity.isLocal(event.model) else { return false }
+        let metered = settings.meteredBackends
+        guard !metered.isEmpty else { return false }
+        let id = ModelIdentity.normalize(event.model) ?? ""
+        if let named = markers.first(where: { $0.1.contains { id.contains($0) } })?.0 { return metered.contains(named) }
+        return true
     }
 }

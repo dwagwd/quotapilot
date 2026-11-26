@@ -85,7 +85,7 @@ struct LocalModelsView: View {
                 HStack {
                     Text(l.text("localKeyLabel")).font(.caption)
                     SecureField("", text: $key).frame(maxWidth: 200)
-                    Button("OK") { model.onSaveKey?(key); key = ""; model.keySaved = true }.disabled(key.isEmpty)
+                    Button(l.text("localSave")) { model.onSaveKey?(key); key = ""; model.keySaved = true }.disabled(key.isEmpty)
                     if model.keySaved { Image(systemName: "checkmark.circle").foregroundStyle(.green) }
                 }
                 Divider()

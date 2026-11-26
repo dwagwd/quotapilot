@@ -510,6 +510,8 @@ func pollStateText(_ state: LocalPollState) -> String {
     case .metricsUnavailable: return "answers, but /metrics is unavailable (start llama-server with --metrics)"
     case .needsKey: return "needs the API key (QUOTAPILOT_OMLX_API_KEY)"
     case .unsupported: return "answers, but not with usage data"
+    case .proxiedElsewhere: return "metered by a proxy running in another QuotaPilot process"
+    case .otherProcess: return "polled by another QuotaPilot process (the app or `quotapilot local poll`)"
     case .ok(let port): return "reading usage from port \(port)"
     }
 }
@@ -545,20 +547,21 @@ func runLocalCommand(_ rest: [String]) -> Never {
     switch rest.first ?? "status" {
     case "status":
         let local = settings.localModels
+        // Report only: no proxy is started and no lock is taken.
         let service = LocalLLMService(log: localLog)
-        service.apply(local)
-        service.pollOnce()
+        let probed = service.probe()
+        func pollText(_ b: LocalLLMBackend) -> String { local.isEnabled && b.hasPoller && !local.proxyEnabled(b) ? pollStateText(probed[b] ?? .off) : "off" }
         if wantsJSON {
             var backends: [String: Any] = [:]
             for b in LocalLLMBackend.allCases {
-                backends[b.rawValue] = ["proxy": local.proxyEnabled(b), "proxyURL": local.proxyURL(b), "poll": pollStateText(service.pollState(b))]
+                backends[b.rawValue] = ["proxy": local.proxyEnabled(b), "proxyURL": local.proxyURL(b), "poll": pollText(b)]
             }
             printJSON(["enabled": local.isEnabled, "referenceModel": local.reference, "backends": backends])
         } else {
             print("Local models: " + (local.isEnabled ? "on" : "off (quotapilot local config on)") + " · reference cloud model: \(local.reference) (hypothetical cost)")
             for b in LocalLLMBackend.allCases {
                 var text = b.displayName.padding(toLength: 10, withPad: " ", startingAt: 0)
-                if b.hasPoller { text += "poll: " + pollStateText(service.pollState(b)) + " · " }
+                if b.hasPoller { text += "poll: " + pollText(b) + " · " }
                 else { text += "needs the proxy · " }
                 text += "proxy " + (local.proxyEnabled(b) ? "on \(local.proxyURL(b)) → \(local.upstreamHost(b)):\(local.upstreamPort(b))" : "off")
                 print(text)
@@ -601,7 +604,8 @@ func runLocalCommand(_ rest: [String]) -> Never {
         }
         exit(0)
     case "poll":
-        let service = LocalLLMService(log: localLog)
+        let service = LocalLLMService(log: localLog, lockDirectory: stateDirectory)
+        guard service.acquirePollLock() else { fail("Another QuotaPilot process (the app or another `quotapilot local poll`) is already polling.") }
         var local = settings.localModels
         local.enabled = true   // the command is the opt-in
         for b in LocalLLMBackend.allCases where local.proxyEnabled(b) { local.update(b) { $0.proxy = false } }
@@ -637,7 +641,7 @@ func runLocalCommand(_ rest: [String]) -> Never {
         guard !wanted.isEmpty else { fail("No proxy is configured. Use `quotapilot local proxy --backend ollama` or `quotapilot local config proxy ollama on`.", code: 2) }
         if let problem = local.validate() { fail(problem) }
         local.enabled = true   // running the proxy is the opt-in; polling stays off because every backend named here is proxied
-        let service = LocalLLMService(log: localLog)
+        let service = LocalLLMService(log: localLog, lockDirectory: stateDirectory)
         localLog.compact(now: Date().timeIntervalSince1970)
         service.apply(local)
         for b in wanted {

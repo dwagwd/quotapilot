@@ -11,6 +11,10 @@ public enum LocalPollState: Equatable {
     case needsKey
     /// oMLX answered but not with usage data.
     case unsupported
+    /// Another QuotaPilot process (for example `quotapilot local proxy`) already meters this backend through its proxy.
+    case proxiedElsewhere
+    /// Another QuotaPilot process (the app or `quotapilot local poll`) is polling.
+    case otherProcess
     case ok(port: Int)
 }
 
@@ -30,15 +34,25 @@ public final class LocalLLMService {
     private let omlxKey: () -> String?
     private let llamaPorts: [Int]
     private let omlxPort: Int
+    /// Folder for the lock files that keep several QuotaPilot processes (app and CLI) from metering the same backend twice; nil: none.
+    private let lockDirectory: URL?
+    private var proxyLocks: [LocalLLMBackend: ProcessLock] = [:]
+    private lazy var pollLock: ProcessLock? = lockDirectory.map { ProcessLock(url: $0.appendingPathComponent("local-llm-poll.lock")) }
 
     /// - Parameter omlxKey: supplies the oMLX API key (Keychain in the app, an environment variable in the CLI); read on each poll.
     /// - Parameters:
     ///   - llamaPorts: ports probed for llama.cpp (default: its documented ports)
     ///   - omlxPort: oMLX's port (default 8000)
     public init(log: LocalLLMLog, omlxKey: @escaping () -> String? = { ProcessInfo.processInfo.environment["QUOTAPILOT_OMLX_API_KEY"] },
-                llamaPorts: [Int] = LocalLLMBackend.llamacpp.pollPorts, omlxPort: Int = LocalLLMBackend.omlx.defaultUpstreamPort) {
-        self.log = log; self.omlxKey = omlxKey; self.llamaPorts = llamaPorts; self.omlxPort = omlxPort
+                llamaPorts: [Int] = LocalLLMBackend.llamacpp.pollPorts, omlxPort: Int = LocalLLMBackend.omlx.defaultUpstreamPort,
+                lockDirectory: URL? = nil) {
+        self.log = log; self.omlxKey = omlxKey; self.llamaPorts = llamaPorts; self.omlxPort = omlxPort; self.lockDirectory = lockDirectory
     }
+
+    private func proxyLockURL(_ backend: LocalLLMBackend) -> URL? { lockDirectory?.appendingPathComponent("local-llm-proxy-\(backend.rawValue).lock") }
+
+    /// Takes the poll lock (once per process). False when another QuotaPilot process polls.
+    public func acquirePollLock() -> Bool { pollLock?.tryAcquire() ?? true }
 
     public func pollState(_ backend: LocalLLMBackend) -> LocalPollState { lock.lock(); defer { lock.unlock() }; return pollStates[backend] ?? .off }
     public func proxyError(_ backend: LocalLLMBackend) -> String? { lock.lock(); defer { lock.unlock() }; return proxyErrors[backend] }
@@ -55,23 +69,32 @@ public final class LocalLLMService {
                     && existing.upstreamHost == settings.upstreamHost(backend)
                 if wanted && same && existing.isRunning { continue }
                 existing.stop()
-                lock.lock(); proxies[backend] = nil; lock.unlock()
+                lock.lock(); proxies[backend] = nil; proxyLocks[backend]?.release(); proxyLocks[backend] = nil; lock.unlock()
             }
             lock.lock(); proxyErrors[backend] = nil; lock.unlock()
             if !settings.polls(backend) { lock.lock(); pollStates[backend] = .off; lock.unlock() }
             guard wanted else { continue }
             let proxy = LocalMeteringProxy(backend: backend, listenPort: settings.listenPort(backend), upstreamHost: settings.upstreamHost(backend),
                                            upstreamPort: settings.upstreamPort(backend)) { [weak self] event in self?.record([event]) }
-            do { try proxy.start(); lock.lock(); proxies[backend] = proxy; lock.unlock() }
+            do {
+                try proxy.start()
+                // Shared: any number of proxies may hold it; a poller elsewhere sees that this backend is metered by a proxy.
+                let marker = proxyLockURL(backend).map { ProcessLock(url: $0) }
+                _ = marker?.tryAcquire(shared: true)
+                lock.lock(); proxies[backend] = proxy; proxyLocks[backend] = marker; lock.unlock()
+            }
             catch { lock.lock(); proxyErrors[backend] = "\(error)"; lock.unlock() }
         }
         if !settings.polls(.llamacpp) { llamaDiffer = LlamaMetricsDiffer(); llamaPort = nil }
         if !settings.polls(.omlx) { omlxDiffer = OMLXUsageDiffer() }
+        if !LocalLLMBackend.allCases.contains(where: settings.polls) { pollLock?.release() }
     }
 
     public func stop() {
-        lock.lock(); let all = Array(proxies.values); proxies = [:]; lock.unlock()
+        lock.lock(); let all = Array(proxies.values); proxies = [:]; let locks = Array(proxyLocks.values); proxyLocks = [:]; lock.unlock()
         all.forEach { $0.stop() }
+        locks.forEach { $0.release() }
+        pollLock?.release()
     }
 
     private func record(_ events: [LocalLLMEvent]) {
@@ -84,10 +107,24 @@ public final class LocalLLMService {
     public func pollOnce(now: Double = Date().timeIntervalSince1970) -> [LocalLLMEvent] {
         lock.lock(); let settings = self.settings; lock.unlock()
         var events: [LocalLLMEvent] = []
-        if settings.polls(.llamacpp) { events += pollLlama(now: now) }
-        if settings.polls(.omlx) { events += pollOMLX(now: now) }
+        let wanted = [LocalLLMBackend.llamacpp, .omlx].filter(settings.polls)
+        if !wanted.isEmpty, !acquirePollLock() {
+            for backend in wanted { setState(backend, .otherProcess) }
+            return []
+        }
+        for backend in wanted {
+            if let url = proxyLockURL(backend), ProcessLock.isHeldElsewhere(url) { setState(backend, .proxiedElsewhere); continue }
+            events += backend == .llamacpp ? pollLlama(now: now) : pollOMLX(now: now)
+        }
         if !events.isEmpty { record(events) }
         return events
+    }
+
+    /// One look at what the pollers would see, for `quotapilot local status`: no proxy is started, no lock taken, nothing recorded.
+    public func probe() -> [LocalLLMBackend: LocalPollState] {
+        _ = pollLlama(now: Date().timeIntervalSince1970)
+        _ = pollOMLX(now: Date().timeIntervalSince1970)
+        return [.llamacpp: pollState(.llamacpp), .omlx: pollState(.omlx)]
     }
 
     private func setState(_ backend: LocalLLMBackend, _ state: LocalPollState) { lock.lock(); pollStates[backend] = state; lock.unlock() }

@@ -76,6 +76,8 @@ final class MeterTap {
         else if type.contains("ndjson") || type.contains("jsonl") || type.contains("x-json-stream") { mode = .ndjson; lines = LocalLineScanner(kind: .ndjson) }
         else if type.contains("json") { mode = .json }
         else { mode = .skip }
+        // Only model calls are read: other JSON (model lists, downloads) is neither buffered nor parsed.
+        if let exchange = current, !LocalLLMPaths.isInference(method: exchange.method, target: exchange.target) { mode = .skip }
     }
 
     private func responseBody(_ data: Data) {
@@ -143,6 +145,8 @@ public final class LocalMeteringProxy {
     private let lock = NSLock()
     private var stopped = true
     private var connections: Set<Int32> = []
+    private let loopExited = DispatchSemaphore(value: 0)
+    private var loopRunning = false
     private static let maxConnections = 256
 
     /// - Parameter listenPort: 0 picks a free port (tests); otherwise 1024...65535.
@@ -155,17 +159,22 @@ public final class LocalMeteringProxy {
     public func start() throws {
         guard port == 0 || (1024...65535).contains(port) else { throw LocalSockets.SocketError(description: "port \(port) is not allowed") }
         let fd = try LocalSockets.listenLoopback(port: port)
-        lock.lock(); listener = fd; stopped = false; lock.unlock()
+        lock.lock(); listener = fd; stopped = false; loopRunning = true; lock.unlock()
         port = LocalSockets.boundPort(fd)
         Thread.detachNewThread { [weak self] in self?.acceptLoop(fd) }
     }
 
+    /// Closes the listening socket (the port is free again when this returns) and ends the open connections.
     public func stop() {
         lock.lock()
         stopped = true
         let open = connections
+        let waiting = loopRunning
         lock.unlock()
         for fd in open { LocalSockets.shutdownBoth(fd) }
+        // The accept loop closes the listener when it sees the flag (within one poll interval); wait for that.
+        if waiting { loopExited.wait() }
+        lock.lock(); loopRunning = false; lock.unlock()
     }
 
     private var shouldStop: Bool { lock.lock(); defer { lock.unlock() }; return stopped }
@@ -181,6 +190,7 @@ public final class LocalMeteringProxy {
             Thread.detachNewThread { [weak self] in self?.serve(client) }
         }
         LocalSockets.closeSocket(fd)
+        loopExited.signal()
     }
 
     private func serve(_ client: Int32) {
@@ -227,9 +237,11 @@ public final class LocalMeteringProxy {
 
 public final class LocalMeteringProxy {
     public let backend: LocalLLMBackend
+    public let upstreamHost: String
+    public let upstreamPort: Int
     public private(set) var port: Int
     public init(backend: LocalLLMBackend, listenPort: Int, upstreamHost: String = "127.0.0.1", upstreamPort: Int, onEvent: @escaping (LocalLLMEvent) -> Void) {
-        self.backend = backend; self.port = listenPort
+        self.backend = backend; self.port = listenPort; self.upstreamHost = upstreamHost; self.upstreamPort = upstreamPort
     }
     public var isRunning: Bool { false }
     public func start() throws { throw NSError(domain: "QuotaPilot", code: 1, userInfo: [NSLocalizedDescriptionKey: "The metering proxy is not available on this platform"]) }

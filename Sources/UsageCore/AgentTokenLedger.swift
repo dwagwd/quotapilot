@@ -63,8 +63,11 @@ public struct AgentTokenEvent: Equatable {
     /// Normalized (lowercase) model id as found in the log; nil when the log does not name one (Grok) or it could
     /// not be attributed (Codex lines before any `turn_context`).
     public var model: String?
-    public init(provider: String, timestamp: Double, usage: TokenBreakdown, dedupeKey: String, model: String? = nil) {
+    /// Model calls this event stands for (1 for a log line; more for a summarized local-model event).
+    public var calls: Int = 1
+    public init(provider: String, timestamp: Double, usage: TokenBreakdown, dedupeKey: String, model: String? = nil, calls: Int = 1) {
         self.provider = provider; self.timestamp = timestamp; self.usage = usage; self.dedupeKey = dedupeKey; self.model = model
+        self.calls = max(0, calls)
     }
 }
 
@@ -186,7 +189,7 @@ public struct AgentTokenLedger {
         let start = (timestamp / Self.bucketSeconds).rounded(.down) * Self.bucketSeconds
         buckets[event.provider, default: [:]][start, default: TokenBreakdown()].add(usage)
         let key = ModelKey.key(provider: event.provider, model: event.model, existing: modelBuckets)
-        modelBuckets[key, default: [:]][start, default: ModelSlice()].add(usage, calls: isNew ? 1 : 0)
+        modelBuckets[key, default: [:]][start, default: ModelSlice()].add(usage, calls: isNew ? event.calls : 0)
         return true
     }
 

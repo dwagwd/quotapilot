@@ -32,3 +32,7 @@
 - 省電模式：每 120 秒讀取 Codex，每 15 秒更新畫面；一般模式為 60 秒／1 秒。隱藏時停止畫面計時，有新資料才重算速度。
 - Claude Code 與 Antigravity CLI 官方 status-line 橋接。Cursor Teams 支援額外付費支出上限，並非個人方案額度。接入前請看[連接指南](docs/providers.md)。
 - 新增 Codex 與橋接來源診斷、長期帳號用量事件帳本（資料缺口、帳號切換、額度重置與來源更正），以及本機任務起訖、專案／issue、模型／推理強度、重試次數和驗收結果紀錄。沒有 session 直接歸因來源時，任務 Token 用量保持未提供。
+
+## 本機模型
+
+預設關閉（選單的「本機模型…」，或 `quotapilot local config on`）。統計 Ollama、LM Studio、llama.cpp、oMLX 與 Strata 的用量：請求數、輸入與輸出 token、提示處理與生成的 tok/s、活躍時間，以及以參考雲端模型（預設 `claude-sonnet-5-5`，可更換）計算的「假設等值費用」。llama.cpp（需 `--metrics`）與 oMLX 會自動讀取；其他工具請開啟各自的計量代理並讓用戶端連到代理位址（`quotapilot local proxy` 可在 macOS 與 Linux 不開 App 直接執行）。只保存數量、模型名稱與時間，不保存提示詞或輸出。細節、來源與限制見 [local-llm.md](local-llm.md)。

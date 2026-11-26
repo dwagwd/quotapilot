@@ -67,7 +67,7 @@ public struct UsageStatsStore: Codable {
         var models = modelHours ?? [:]
         modelHours = nil  // avoid a copy of the table while mutating it
         let key = ModelKey.key(provider: event.provider, model: event.model, existing: models)
-        models[key, default: [:]][hour, default: ModelSlice()].add(usage, calls: isNew ? 1 : 0)
+        models[key, default: [:]][hour, default: ModelSlice()].add(usage, calls: isNew ? event.calls : 0)
         modelHours = models
         let slot = min(11, max(0, Int((booked - (Double(hour) ?? 0)) / AgentTokenLedger.bucketSeconds)))
         if activityHours == nil { activityHours = [:] }

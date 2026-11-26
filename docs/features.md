@@ -37,3 +37,7 @@ The [README](../README.md) has the short version. This is the full list.
 - Actual backend quota windows and plan names, including distinct model buckets when available.
 - Local sample history, saved position/settings, stale-data indicators, automatic reconnection, and manual startup.
 - Source diagnostics for Codex and optional bridges; a long-term account usage event ledger for gaps, account switches, resets, and source corrections; and local task records with verification outcomes. Task-specific token attribution stays unavailable unless a source can directly identify a session.
+
+## Local models
+
+Off by default (Local models… in the menu, or `quotapilot local config on`). Counts Ollama, LM Studio, llama.cpp, oMLX and Strata usage: requests, input and output tokens, prompt and generation tokens per second, active time, and a hypothetical equivalent cost on a reference cloud model (default `claude-sonnet-5-5`, changeable). llama.cpp (`--metrics`) and oMLX are read automatically; for everything else turn on the per-backend metering proxy and point the client at it (`quotapilot local proxy` runs it without the app on macOS and Linux). Only counts, model ids and timings are kept. Details, sources and limits: [local-llm.md](local-llm.md).

@@ -118,6 +118,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
     private var dailyTick: Timer?
     private let statsModel = StatsModel()
     private var statsWindow: StatsWindowController?
+    // Local model usage (docs/local-llm.md)
+    private lazy var localLog = LocalLLMLog(url: LocalLLMLog.defaultURL(stateDirectory: support))
+    private lazy var localService = LocalLLMService(log: localLog, omlxKey: { KeychainSecret.read("omlx-api-key") })
+    private let localModelsModel = LocalModelsModel()
+    private var localModelsWindow: LocalModelsWindowController?
+    private var localOffset: UInt64?
+    private var localPollTick: Timer?
+    private var localIngestTick: Timer?
+    private let localQueue = DispatchQueue(label: "quotapilot.local-models", qos: .utility)
+    private var localTodayItem: NSMenuItem?
     private var claudePlanError: String?
     private var claudePlanFetching = false
     private var claudeLogin: (token: String, plan: String?, expiresAt: Double?)?
@@ -462,6 +472,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
         RunLoop.main.add(agentTick!, forMode: .common)
         backfillStats()
         scanAgentLogs()
+        startLocalModels()
         // Nothing below reads Claude Code's saved login or edits another tool's settings before this choice is made.
         askConnectionConsentIfNeeded()
         deepSeekTick = Timer(timeInterval: 600, repeats: true) { [weak self] _ in
@@ -684,7 +695,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
         // 2. What people open most.
         let todayItem = NSMenuItem(title: "", action: nil, keyEquivalent: ""); todayItem.isEnabled = false; todayItem.isHidden = true
         menu.addItem(todayItem); todayCostItem = todayItem
+        let localItem = NSMenuItem(title: "", action: nil, keyEquivalent: ""); localItem.isEnabled = false; localItem.isHidden = true
+        menu.addItem(localItem); localTodayItem = localItem
         add(l.text("usageStats"), #selector(showStats))
+        add(l.text("localModels"), #selector(showLocalModels))
         add(l.text("connectAgents"), #selector(connectAgents))
         add(l.text("consentMenu"), #selector(reviewConnectionConsent))
         add(l.text("agentCollaboration") + "…", #selector(configureCollaboration))
@@ -992,7 +1006,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
                     self.defaults.set(latest, forKey: "rerouteNotifiedUntil")
                 }
                 guard self.settings.agentLogsEnabled else { return }
-                for event in events where self.agentLedger.add(event) { self.statsStore.add(event) }
+                for event in events where !LocalLLMIntegration.skipsAgentEvent(event, settings: self.settings.localLLM) && self.agentLedger.add(event) {
+                    self.statsStore.add(event)
+                }
                 self.statsStore.completeScan(at: now)
                 self.saveStats(now: now)
                 self.agentLedger.prune(now: now)
@@ -1031,6 +1047,118 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
         todayCostItem?.title = text ?? ""
         todayCostItem?.isHidden = text == nil
         todayCostItem?.toolTip = l.text("statsApiNote")
+        updateLocalToday(now: now)
+    }
+
+    // MARK: Local models
+
+    /// Menu line with today's local usage and its hypothetical cloud cost.
+    private func updateLocalToday(now: Double) {
+        guard settings.localModels.isEnabled else { localTodayItem?.isHidden = true; return }
+        let start = Calendar.current.startOfDay(for: Date(timeIntervalSince1970: now)).timeIntervalSince1970
+        let report = LocalLLMReport(events: localModelsModel.events.filter { $0.t >= start }, reference: settings.localModels.referenceModel)
+        guard !report.isEmpty else { localTodayItem?.isHidden = true; return }
+        let requests = report.requestsKnown ? l.compact(Double(report.requests)) : "—"
+        localTodayItem?.title = String(format: l.text("menuLocalToday"), requests, l.compact(report.totalTokens), l.usd(report.costUSD))
+        localTodayItem?.toolTip = l.text("localReferenceHelp")
+        localTodayItem?.isHidden = false
+    }
+
+    private func startLocalModels() {
+        localService.onEvents = nil
+        let model = localModelsModel
+        model.onChange = { [weak self] next in self?.changeLocalSettings(next) }
+        model.onSaveKey = { key in KeychainSecret.write("omlx-api-key", value: key) }
+        localPollTick = Timer(timeInterval: 60, repeats: true) { [weak self] _ in
+            guard let self, !self.sleeping, self.settings.localModels.isEnabled else { return }
+            self.localQueue.async { [service = self.localService] in service.pollOnce() }
+        }
+        localPollTick?.tolerance = 10
+        RunLoop.main.add(localPollTick!, forMode: .common)
+        localIngestTick = Timer(timeInterval: 10, repeats: true) { [weak self] _ in self?.ingestLocalEvents() }
+        localIngestTick?.tolerance = 3
+        RunLoop.main.add(localIngestTick!, forMode: .common)
+        localQueue.async { [weak self] in
+            guard let self else { return }
+            self.localLog.compact(now: Date().timeIntervalSince1970)
+            DispatchQueue.main.async { self.applyLocalSettings(); self.ingestLocalEvents() }
+        }
+    }
+
+    private func applyLocalSettings() {
+        let local = settings.localModels
+        localQueue.async { [service = localService] in
+            service.apply(local)
+            if local.isEnabled { service.pollOnce() }
+        }
+    }
+
+    private func changeLocalSettings(_ next: LocalLLMSettings) {
+        guard next.validate() == nil else { return }
+        settings.localModels = next
+        defaults.set(try? JSONEncoder().encode(settings), forKey: "settings")
+        applyLocalSettings()
+        scanAgentLogs()
+        localQueue.asyncAfter(deadline: .now() + 1) { [weak self] in DispatchQueue.main.async { self?.refreshLocalStatus(); self?.ingestLocalEvents() } }
+    }
+
+    /// Books events written to the shared event file (by this app's proxy and pollers or by `quotapilot local proxy`) once.
+    private func ingestLocalEvents() {
+        let now = Date().timeIntervalSince1970
+        guard settings.localModels.isEnabled else {
+            if !localModelsModel.events.isEmpty { localModelsModel.events = [] }
+            updateLocalToday(now: now); return
+        }
+        let first = localOffset == nil
+        let result = localLog.readNew(from: localOffset ?? 0)
+        localOffset = result.offset
+        var fresh = result.events
+        if first {
+            fresh = fresh.filter { $0.t >= statsStore.scanStart(now: now) }
+            localModelsModel.events = localLog.events(since: now - 30 * 86400)
+        } else if !fresh.isEmpty {
+            localModelsModel.events.append(contentsOf: fresh)
+        }
+        var booked = false
+        for event in fresh where agentLedger.add(event.tokenEvent) { statsStore.add(event.tokenEvent); booked = true }
+        if booked { saveStats(now: now); render() }
+        if !fresh.isEmpty { updateLocalToday(now: now) }
+        if statsWindow?.window?.isVisible == true { syncLocalStatsModel() }
+    }
+
+    private func syncLocalStatsModel() {
+        statsModel.localEnabled = settings.localModels.isEnabled
+        statsModel.localReference = settings.localModels.referenceModel
+        statsModel.localEvents = localModelsModel.events
+    }
+
+    private func refreshLocalStatus() {
+        let local = settings.localModels
+        localQueue.async { [weak self] in
+            guard let self else { return }
+            var ports: [String: Int] = [:], states: [String: LocalPollState] = [:], errors: [String: String] = [:]
+            for backend in LocalLLMBackend.allCases {
+                let candidates = backend.pollPorts + (local.proxyEnabled(backend) ? [local.upstreamPort(backend)] : [])
+                if let port = candidates.first(where: { LocalHTTP.portAnswers(host: local.upstreamHost(backend), port: $0) }) { ports[backend.rawValue] = port }
+                states[backend.rawValue] = self.localService.pollState(backend)
+                if let error = self.localService.proxyError(backend) { errors[backend.rawValue] = error }
+            }
+            DispatchQueue.main.async {
+                self.localModelsModel.detectedPort = ports; self.localModelsModel.pollStates = states; self.localModelsModel.proxyErrors = errors
+            }
+        }
+    }
+
+    @objc private func showLocalModels() {
+        localModelsModel.settings = settings.localModels
+        localModelsModel.language = settings.language
+        localModelsModel.keySaved = KeychainSecret.read("omlx-api-key") != nil
+        ingestLocalEvents()
+        refreshLocalStatus()
+        if localModelsWindow == nil {
+            localModelsWindow = LocalModelsWindowController(model: localModelsModel, title: "QuotaPilot · " + l.text("localModelsTitle"))
+        }
+        localModelsWindow?.present()
     }
 
     private func renderAgentTokens(now: Double) {
@@ -1153,6 +1281,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
         statsModel.store = statsStore
         statsModel.language = settings.language
         statsModel.sharing = settings.autoShareEnabled
+        syncLocalStatsModel()
         refreshCommunityComparison()
         if statsWindow == nil { statsWindow = StatsWindowController(model: statsModel, title: "QuotaPilot · " + l.text("usageStats").replacingOccurrences(of: "…", with: "")) }
         statsWindow?.present()
@@ -1578,6 +1707,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
             self.ratesDirty = true
             self.requestAlertAuthorizationIfNeeded()
             if !next.claudePlanEnabled { self.claudeLogin = nil; self.claudePlanError = nil }
+            self.applyLocalSettings(); self.ingestLocalEvents()
             self.scanAgentLogs(); self.backfillStats(); self.autoConnectAgents(); self.refreshClaudePlan(); self.restartSystemTimer()
             self.client.pollInterval = next.options.energySaver ? 120 : 60
             self.startUITimer(); self.reloadBridges(); self.rebuildItems()
@@ -1593,6 +1723,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
             switch tool {
             case "agentCollaboration": self?.configureCollaboration()
             case "connectAgents": self?.connectAgents()
+            case "localModels": self?.showLocalModels()
             default: self?.showStats()
             }
         }
@@ -2639,6 +2770,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool { showPanel(); return false }
     func applicationWillTerminate(_ notification: Notification) {
         tick?.invalidate(); bridgeTick?.invalidate(); systemTick?.invalidate(); statsBackfill?.cancel()
+        localService.stop()
         saveStats(now: Date().timeIntervalSince1970)
         persistUsageEventChanges([], now: Date().timeIntervalSince1970)
         client.stop(); flock(lockFD, LOCK_UN); close(lockFD)

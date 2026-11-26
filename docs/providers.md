@@ -56,3 +56,15 @@ Snapshots are restricted to `claude.json`, `antigravity.json`, and `cursor.json`
 - [Cursor Team Admin API](https://prod.cursor.com/docs/account/teams/admin-api)
 
 Adapters are covered by sanitized contract fixtures. Live account verification has been completed for Codex; Claude, Antigravity, and Cursor require an actual configured account for live acceptance testing. Documentation and API schemas can change independently of this project.
+
+## Local models (Ollama, LM Studio, llama.cpp, oMLX, Strata)
+
+These have no quota, so they appear as usage only (provider `local`, $0, plus a hypothetical cost on a reference cloud model). Off by default.
+
+| Tool | How it is counted | Setup |
+|---|---|---|
+| llama.cpp | `GET /metrics` counters every 60 s (tokens and seconds; no request count) | start `llama-server` with `--metrics` |
+| oMLX | `GET /admin/api/usage?range=today` every 60 s | none; API key in the Keychain (or `QUOTAPILOT_OMLX_API_KEY` for the CLI) only if the server has one |
+| Ollama, LM Studio, Strata, other OpenAI/Anthropic-compatible servers | metering proxy on 127.0.0.1 (Ollama 11434 gives 11435, Strata 8080 gives 8081) | turn the proxy on for the backend and point the client at the proxy URL |
+
+The proxy copies bytes unchanged and reads only usage and timing fields. A streamed OpenAI-style request without `stream_options.include_usage` is counted as a request without token counts. See [local-llm.md](local-llm.md).

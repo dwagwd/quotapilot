@@ -14,6 +14,10 @@ final class StatsModel: ObservableObject {
     @Published var communityPeople = 0
     @Published var communityMinPeople = 3
     @Published var sharing = false
+    /// Local model events (Ollama, LM Studio, llama.cpp, oMLX, Strata); empty while the feature is off.
+    @Published var localEvents: [LocalLLMEvent] = []
+    @Published var localReference: String?
+    @Published var localEnabled = false
 }
 
 enum StatsRange: String, CaseIterable, Identifiable {
@@ -41,11 +45,22 @@ struct StatsView: View {
                 header
                 tokenSection(since: since, now: now)
                 speedSection(since: since, now: now)
+                localSection(since: since)
                 quotaSection(since: since)
                 communitySection
             }.padding(14)
         }
         .frame(minWidth: 560, minHeight: 620)
+    }
+
+    @ViewBuilder
+    private func localSection(since: Double) -> some View {
+        if model.localEnabled {
+            GroupBox(l.text("localModelsTitle")) {
+                LocalUsageLines(events: model.localEvents.filter { $0.t >= since }, reference: model.localReference, l: l)
+                    .padding(4).frame(maxWidth: .infinity, alignment: .leading)
+            }
+        }
     }
 
     // Split into sections: one large body expression exceeds the type checker's time limit on older compilers.

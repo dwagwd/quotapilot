@@ -198,11 +198,12 @@ final class SettingsWindowController: NSWindowController {
         temperatureMenu.selectItem(at: settings.usesFahrenheit ? 1 : 0)
         temperatureMenu.frame = NSRect(x: 360, y: 148, width: 64, height: 26)
         view.addSubview(temperatureMenu)
-        for (index, tool) in ["agentCollaboration", "connectAgents", "usageStats"].enumerated() {
+        for (index, tool) in ["agentCollaboration", "connectAgents", "usageStats", "localModels"].enumerated() {
             let button = NSButton(title: l.text(tool).replacingOccurrences(of: "…", with: "") + "…", target: self, action: #selector(openToolButton(_:)))
             button.identifier = NSUserInterfaceItemIdentifier(tool)
             button.bezelStyle = .rounded
-            button.frame = NSRect(x: 18 + CGFloat(index) * 136, y: 50, width: 132, height: 30)
+            button.controlSize = .small
+            button.frame = NSRect(x: 14 + CGFloat(index) * 104, y: 50, width: 102, height: 30)
             view.addSubview(button)
         }
         // Keep saved-login access visible alongside the other collection choices.

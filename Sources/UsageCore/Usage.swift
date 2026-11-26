@@ -193,6 +193,12 @@ public struct WidgetSettings: Codable, Equatable {
     public var shareCategories: [String]? = nil
     public var autoContinue: Bool? = nil
     public var agentLogs: Bool? = nil
+    /// Local model usage (Ollama, LM Studio, llama.cpp, oMLX); off unless turned on. See docs/local-llm.md.
+    public var localLLM: LocalLLMSettings? = nil
+    public var localModels: LocalLLMSettings {
+        get { localLLM ?? LocalLLMSettings() }
+        set { localLLM = newValue }
+    }
     public var autoConnect: Bool? = nil
     public var claudePlan: Bool? = nil
     public var routerMode: RouterMode? = nil

@@ -92,7 +92,7 @@ public enum ModelIdentity {
     /// Local families written without a tag (`llama-3-8b`) are not detected.
     public static func isLocal(_ raw: String?) -> Bool {
         guard let id = normalize(raw) else { return false }
-        for marker in ["ollama", "lmstudio", "lm-studio", "gguf", "llama.cpp", "llamacpp", "hf.co/", "huggingface.co/"] where id.contains(marker) {
+        for marker in ["ollama", "lmstudio", "lm-studio", "gguf", "llama.cpp", "llamacpp", "omlx", "strata", "local-server", "hf.co/", "huggingface.co/"] where id.contains(marker) {
             return true
         }
         // Cloud ids that also carry a colon: `vendor/claude-…:thinking`, fine-tunes `ft:…`, Ollama cloud tags

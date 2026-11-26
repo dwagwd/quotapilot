@@ -1,9 +1,9 @@
 # Local model usage
 
-Last updated 2026-11-26. Status: design, implemented in the same change series (see the checklist at the end).
+Last updated 2026-11-26. Status: implemented (see the checklist at the end).
 
 QuotaPilot already labels local models used through Codex or Claude Code as provider `local` at $0. This feature counts
-**all** local model usage, also when no coding agent is involved: Ollama, LM Studio, llama.cpp (`llama-server`) and oMLX.
+**all** local model usage, also when no coding agent is involved: Ollama, LM Studio, llama.cpp (`llama-server`), oMLX and Strata.
 
 What is shown per model: requests, input tokens, output tokens, prompt and generation tokens per second where the
 server reports them, active time, and an **equivalent cloud cost**: what the same tokens would cost on a reference
@@ -21,6 +21,7 @@ Researched on 2026-11-26 in the official documentation and repositories only.
 | llama.cpp `llama-server` | 9931 in the current README (8080 in older builds and in the Docker examples) | `GET /metrics` Prometheus counters, only when started with `--metrics`: `llamacpp:prompt_tokens_total`, `llamacpp:prompt_seconds_total`, `llamacpp:tokens_predicted_total`, `llamacpp:tokens_predicted_seconds_total` (plus gauges). No request counter and no model label. `GET /props` / `GET /v1/models` name the model. `GET /slots` (on by default) shows only the state of the running slots, not history. | Poll `/metrics`: tokens and seconds, no request count. Needs `--metrics`. |
 | Ollama | 11434 | None. `GET /api/ps` lists loaded models only. The usage fields (`prompt_eval_count`, `eval_count`, `*_duration` in nanoseconds, `prompt_eval_cached_count`) exist only in the final object of each `/api/generate` and `/api/chat` response. `server.log` (`~/.ollama/logs/server.log` on macOS, journald on Linux, `%LOCALAPPDATA%\Ollama` on Windows) is troubleshooting output and the documentation lists no token counts in it. There is no usage history endpoint. | Proxy only. |
 | LM Studio | 1234 | Per response: `usage` (`prompt_tokens`, `completion_tokens`, `total_tokens`) and, on the `/api/v0` endpoints, `stats` (`tokens_per_second`, `time_to_first_token`, `generation_time`); the native `/api/v1/chat` returns `stats` with `input_tokens`, `total_output_tokens`, `tokens_per_second`, `time_to_first_token_seconds`. No history endpoint. `lms log stream` shows the exact model input and output (prompts), and the documentation does not say where logs live on disk; QuotaPilot does not read it, because it holds prompts. | Proxy only. |
+| Strata (`mach10x/strata`, open-source engine for large MoE models across VRAM, RAM and SSD) | 8080 | OpenAI-compatible `POST /v1/chat/completions` and Anthropic `POST /v1/messages` (stream and non-stream). `GET /health`, `/status`, `/slots` (busy or idle only), `/props`. `GET /metrics` is a JSON page for its Monitor tab (engine, live state, last requests, hardware), not Prometheus counters; the documentation does not list its fields, and its optional API monitor keeps prompts in memory (off by default), so it is not read. The server log `strata-<model>.log` has per-request expert-tier lines in the documentation, no documented token counters. | Proxy only. Streaming usage follows the Anthropic and OpenAI shapes below. |
 | oMLX (`jundot/omlx`, MLX server for Apple Silicon) | 8000 | Real usage history: `GET /admin/api/usage?range=today\|yesterday\|7d\|30d\|90d\|month[&model=]` returns `totals`, `models`, `heatmap` with `requests`, `prompt_tokens`, `completion_tokens`, `cached_tokens`, `prefill_seconds`, `generation_seconds`, `generation_tps`, `prefill_tps` and more; `GET /admin/api/stats` has session and all-time counters. Uses the main API key as a Bearer token (when the server has one). Prompts are not stored. | Poll `/admin/api/usage`. |
 
 OpenAI-compatible responses (all four expose `/v1/chat/completions`):
@@ -33,6 +34,7 @@ OpenAI-compatible responses (all four expose `/v1/chat/completions`):
   `predicted_ms`, `predicted_per_second`.
 - Ollama's own API streams JSON objects (one per line); the object with `done: true` carries the counts and
   durations. Ollama's `/v1` compatibility layer lists `stream_options.include_usage` as supported.
+- Anthropic-style responses (oMLX and Strata `POST /v1/messages`): non-streaming `usage.input_tokens` / `output_tokens`; streaming `message_start` carries `message.usage` (input tokens) and `message_delta` carries the final `usage.output_tokens`. Both are merged (largest value per field); `cache_read_input_tokens` counts as cached prompt. No opt-in is needed.
 - oMLX documents `stream_options.include_usage` support and an Anthropic-style `/v1/messages` endpoint (usage there is
   `input_tokens` / `output_tokens`).
 
@@ -43,6 +45,7 @@ Sources:
 - Ollama logs: <https://github.com/ollama/ollama/blob/main/docs/troubleshooting.mdx>; port and `OLLAMA_HOST`: <https://github.com/ollama/ollama/blob/main/docs/faq.mdx>; OpenAI compatibility: <https://github.com/ollama/ollama/blob/main/docs/api/openai-compatibility.mdx>
 - LM Studio REST API: <https://lmstudio.ai/docs/developer/rest/endpoints>, <https://lmstudio.ai/docs/developer/rest/chat>; `lms log stream`: <https://lmstudio.ai/docs/cli/serve/log-stream>
 - oMLX: <https://github.com/jundot/omlx> (README), <https://github.com/jundot/omlx/blob/main/docs/usage-analytics.md>, <https://github.com/jundot/omlx/blob/main/docs/admin-api.md>
+- Strata: <https://github.com/mach10x/strata> (README, `docs/DETAILS.md` section "Using it", `docs/INSTALL.md`)
 - OpenAI streaming usage: <https://developers.openai.com/api/reference/resources/chat/subresources/completions/streaming-events>
 
 Not verified (stated as such in the code and the UI): the exact JSON shape of the `models` list in oMLX's usage
@@ -53,7 +56,7 @@ of LM Studio's log files (not documented, not used).
 
 | Source | Tools | Needs setup? |
 |---|---|---|
-| Metering proxy | any: Ollama, LM Studio, llama.cpp, oMLX, other OpenAI-compatible servers | Yes: turn on per backend, then point the client at the proxy URL |
+| Metering proxy | any: Ollama, LM Studio, llama.cpp, oMLX, Strata, other OpenAI-compatible servers | Yes: turn on per backend, then point the client at the proxy URL |
 | `/metrics` poller | llama.cpp | The server must run with `--metrics`; otherwise automatic |
 | `/admin/api/usage` poller | oMLX | Automatic; an API key (Keychain) only if the oMLX server has one |
 | Agent logs | Codex, Claude Code using a local model | Already existing; see the duplicate rule below |
@@ -62,7 +65,7 @@ Master switch **Local models** (off by default). When on, the pollers run; proxi
 
 ### 2.1 Metering proxy
 
-A relay on `127.0.0.1` only, one listener per configured backend (for example Ollama 11434 gives proxy 11435).
+A relay on `127.0.0.1` only, one listener per configured backend (for example Ollama 11434 gives proxy 11435; Strata 8080 gives 8081). Strata and the old llama.cpp default both use port 8080; the llama.cpp poller only accepts a page with `llamacpp:` metrics, so Strata is never misread, but it shows as "answers, but /metrics is unavailable".
 
 - **Pass-through is verbatim.** Each client connection is paired with one upstream connection and bytes are copied in both
   directions without being changed: SSE, chunked bodies, keep-alive, large uploads. Metering never sits in the forwarding
@@ -147,7 +150,7 @@ Fixtures and a fake local HTTP server; none of the four tools is needed.
 ## 6. Checklist
 
 - [x] research and this document
-- [ ] core: events, parsers, stats, proxy, pollers
-- [ ] app: Local models window, statistics window lines, menu line
-- [ ] CLI: `quotapilot local status|proxy|stats`, `quotapilot stats` includes local
-- [ ] tests, docs, changelog
+- [x] core: events, parsers, stats, proxy, pollers
+- [x] app: Local models window, statistics window lines, menu line
+- [x] CLI: `quotapilot local status|stats|poll|proxy|config`, `quotapilot stats` includes local
+- [x] tests, docs, changelog

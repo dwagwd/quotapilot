@@ -172,12 +172,20 @@ final class TokenState {
 var tokenState = TokenState()
 
 func tokenSummary(hours: Double) -> [String: TokenBreakdown] {
-    guard loadSettings().agentLogsEnabled else {
-        modelTracker = AgentModelTracker(); speedSamples = []; tokenState = TokenState()
-        return [:]
-    }
+    let settings = loadSettings()
     let now = Date().timeIntervalSince1970, since = now - hours * 3600
-    for event in tokenState.scanner.scan(windowStart: since, now: now) { tokenState.ledger.add(event) }
+    // Local model usage (Ollama, LM Studio, llama.cpp, oMLX) comes from the event file the meter writes; see docs/local-llm.md.
+    if settings.localModels.isEnabled {
+        for event in LocalLLMLog(url: LocalLLMLog.defaultURL(stateDirectory: stateDirectory)).events(since: since) { tokenState.ledger.add(event.tokenEvent) }
+    }
+    guard settings.agentLogsEnabled else {
+        modelTracker = AgentModelTracker(); speedSamples = []
+        let keep = tokenState.ledger
+        tokenState = TokenState(); tokenState.ledger = keep
+        return tokenState.ledger.summary(since: since, now: now)
+    }
+    let localRule = settings.localLLM
+    for event in tokenState.scanner.scan(windowStart: since, now: now) where !LocalLLMIntegration.skipsAgentEvent(event, settings: localRule) { tokenState.ledger.add(event) }
     tokenState.ledger.prune(now: now)
     for model in tokenState.scanner.lastModelEvents { modelTracker.observe(model) }
     tokenState.samples = (tokenState.samples + tokenState.scanner.lastSpeedSamples).filter { $0.timestamp >= since }
@@ -450,6 +458,200 @@ func openURL(_ url: String) -> Bool {
     return process.terminationStatus == 0
 }
 
+
+// MARK: Local models (docs/local-llm.md)
+
+let localLog = LocalLLMLog(url: LocalLLMLog.defaultURL(stateDirectory: stateDirectory))
+
+/// Local model usage for the last `hours`, or nil when the feature is off or nothing was recorded.
+func localReport(hours: Double) -> LocalLLMReport? {
+    let settings = loadSettings().localModels
+    guard settings.isEnabled else { return nil }
+    let report = LocalLLMReport(events: localLog.events(since: Date().timeIntervalSince1970 - hours * 3600), reference: settings.referenceModel)
+    return report.isEmpty ? nil : report
+}
+
+func localLineText(_ line: LocalLLMReport.Line) -> String {
+    var parts = [line.requestsKnown ? "\(line.requests) requests" : "requests not reported",
+                 "in \(l.compact(line.prompt)) · out \(l.compact(line.completion))"]
+    if line.cached > 0 { parts.append("\(l.compact(line.cached)) cached") }
+    if let speed = line.promptTokensPerSecond { parts.append("prompt \(l.number(speed, decimals: 0)) tok/s") }
+    if let speed = line.generationTokensPerSecond { parts.append("generation \(l.number(speed, decimals: 0)) tok/s" + (line.proxyMeasuredSpeed ? " (proxy-measured)" : "")) }
+    if line.activeSeconds >= 1 { parts.append("active " + l.activeTime(minutes: line.activeSeconds / 60)) }
+    if line.unmetered > 0 { parts.append("\(line.unmetered) requests without token counts") }
+    return "  " + (LocalLLMBackend(rawValue: line.backend)?.displayName ?? line.backend) + " · " + (line.model ?? "unknown model") + ": " + parts.joined(separator: " · ")
+}
+
+func localReportText(_ report: LocalLLMReport) -> [String] {
+    var lines = ["Local models: \(report.requestsKnown ? "\(report.requests) requests · " : "")in \(l.compact(report.prompt)) · out \(l.compact(report.completion))"
+                 + " · ≈ \(l.usd(report.costUSD)) if run on \(report.reference.id) (hypothetical: running locally costs nothing)"]
+    lines += report.lines.map(localLineText)
+    if report.unmetered > 0 { lines.append("  \(report.unmetered) requests had no token counts: enable stream_options.include_usage in the client.") }
+    return lines
+}
+
+func localReportJSON(_ report: LocalLLMReport) -> [String: Any] {
+    func line(_ x: LocalLLMReport.Line) -> [String: Any] {
+        ["backend": x.backend, "model": x.model ?? NSNull(), "requests": x.requestsKnown ? x.requests as Any : NSNull(), "requestsWithoutTokenCounts": x.unmetered,
+         "promptTokens": x.prompt, "cachedTokens": x.cached, "completionTokens": x.completion, "reasoningTokens": x.reasoning,
+         "promptTokensPerSecond": x.promptTokensPerSecond ?? NSNull(), "generationTokensPerSecond": x.generationTokensPerSecond ?? NSNull(),
+         "speedMeasuredByProxy": x.proxyMeasuredSpeed, "activeSeconds": x.activeSeconds, "hypotheticalCloudCostUSD": x.costUSD]
+    }
+    return ["referenceModel": report.reference.id, "hypotheticalCloudCostUSD": report.costUSD, "promptTokens": report.prompt, "cachedTokens": report.cached,
+            "completionTokens": report.completion, "requests": report.requestsKnown ? report.requests as Any : NSNull(), "requestsWithoutTokenCounts": report.unmetered,
+            "byModel": report.lines.map(line),
+            "note": "Hypothetical: what the same tokens would cost on the reference cloud model. Running locally costs nothing."]
+}
+
+func pollStateText(_ state: LocalPollState) -> String {
+    switch state {
+    case .off: return "off"
+    case .notRunning: return "not detected"
+    case .metricsUnavailable: return "answers, but /metrics is unavailable (start llama-server with --metrics)"
+    case .needsKey: return "needs the API key (QUOTAPILOT_OMLX_API_KEY)"
+    case .unsupported: return "answers, but not with usage data"
+    case .ok(let port): return "reading usage from port \(port)"
+    }
+}
+
+func runLocalCommand(_ rest: [String]) -> Never {
+    var settings = loadSettings()
+    func save(_ change: (inout LocalLLMSettings) -> Void) {
+        var local = settings.localModels
+        change(&local)
+        if let problem = local.validate() { fail(problem) }
+        settings.localModels = local
+        saveCLISettings(settings)
+    }
+    func backend(_ name: String?) -> LocalLLMBackend {
+        guard let name, let value = LocalLLMBackend(rawValue: name) else {
+            fail("backend must be one of: " + LocalLLMBackend.allCases.map(\.rawValue).joined(separator: ", "), code: 2)
+        }
+        return value
+    }
+    func runLoopForever(_ stop: @escaping () -> Void) -> Never {
+        #if !os(Windows)
+        let queue = DispatchQueue(label: "quotapilot.local.signals")
+        for number in [SIGINT, SIGTERM] {
+            signal(number, SIG_IGN)
+            let source = DispatchSource.makeSignalSource(signal: number, queue: queue)
+            source.setEventHandler { stop(); exit(0) }
+            source.resume()
+            watchSignalSources.append(source)
+        }
+        #endif
+        while true { RunLoop.main.run(until: Date().addingTimeInterval(3600)) }
+    }
+    switch rest.first ?? "status" {
+    case "status":
+        let local = settings.localModels
+        let service = LocalLLMService(log: localLog)
+        service.apply(local)
+        service.pollOnce()
+        if wantsJSON {
+            var backends: [String: Any] = [:]
+            for b in LocalLLMBackend.allCases {
+                backends[b.rawValue] = ["proxy": local.proxyEnabled(b), "proxyURL": local.proxyURL(b), "poll": pollStateText(service.pollState(b))]
+            }
+            printJSON(["enabled": local.isEnabled, "referenceModel": local.reference, "backends": backends])
+        } else {
+            print("Local models: " + (local.isEnabled ? "on" : "off (quotapilot local config on)") + " · reference cloud model: \(local.reference) (hypothetical cost)")
+            for b in LocalLLMBackend.allCases {
+                var text = b.displayName.padding(toLength: 10, withPad: " ", startingAt: 0)
+                if b.hasPoller { text += "poll: " + pollStateText(service.pollState(b)) + " · " }
+                else { text += "needs the proxy · " }
+                text += "proxy " + (local.proxyEnabled(b) ? "on \(local.proxyURL(b)) → \(local.upstreamHost(b)):\(local.upstreamPort(b))" : "off")
+                print(text)
+            }
+        }
+        exit(0)
+    case "stats":
+        let range = hours
+        let events = localLog.events(since: Date().timeIntervalSince1970 - range * 3600)
+        let report = LocalLLMReport(events: events, reference: settings.localModels.referenceModel)
+        if wantsJSON { printJSON(localReportJSON(report)) }
+        else if report.isEmpty { print("No local model usage recorded in the last \(hoursLabel(range)). " + (settings.localModels.isEnabled ? "" : "Turn it on with `quotapilot local config on`.")) }
+        else { for line in localReportText(report) { print(line) } }
+        exit(0)
+    case "config":
+        let args = Array(rest.dropFirst())
+        switch args.first ?? "show" {
+        case "on", "off": save { $0.enabled = args[0] == "on" }; print("local models = \(args[0])")
+        case "reference":
+            guard args.count == 2, ModelPrices.price(for: args[1]) != nil else {
+                fail("usage: quotapilot local config reference <model id from the price table, e.g. \(LocalLLMReference.defaultModel)>", code: 2)
+            }
+            save { $0.referenceModel = args[1] }; print("reference = \(args[1])")
+        case "proxy":
+            guard args.count == 3, ["on", "off"].contains(args[2]) else { fail("usage: quotapilot local config proxy <backend> <on|off> [--listen N] [--upstream N] [--upstream-host H]", code: 2) }
+            let b = backend(args[1])
+            save { local in
+                local.update(b) { config in
+                    config.proxy = args[2] == "on"
+                    if let text = option("--listen"), let port = Int(text) { config.listenPort = port }
+                    if let text = option("--upstream"), let port = Int(text) { config.upstreamPort = port }
+                    if let host = option("--upstream-host") { config.upstreamHost = host }
+                }
+            }
+            print("\(b.displayName) proxy = \(args[2]) (\(settings.localModels.proxyURL(b)))")
+        default:
+            print("local models: " + (settings.localModels.isEnabled ? "on" : "off"))
+            print("reference: " + settings.localModels.reference)
+            for b in LocalLLMBackend.allCases { print("\(b.rawValue) proxy: " + (settings.localModels.proxyEnabled(b) ? "on" : "off")) }
+        }
+        exit(0)
+    case "poll":
+        let service = LocalLLMService(log: localLog)
+        var local = settings.localModels
+        local.enabled = true   // the command is the opt-in
+        for b in LocalLLMBackend.allCases where local.proxyEnabled(b) { local.update(b) { $0.proxy = false } }
+        service.apply(local)
+        localLog.compact(now: Date().timeIntervalSince1970)
+        let once = arguments.contains("--once")
+        while true {
+            let events = service.pollOnce()
+            for event in events { print("\(event.backend) \(event.model ?? "?"): +\(l.compact(event.prompt)) in, +\(l.compact(event.completion)) out") }
+            if once {
+                for b in LocalLLMBackend.allCases where b.hasPoller { print("\(b.displayName): " + pollStateText(service.pollState(b))) }
+                exit(0)
+            }
+            fflush(stdout)
+            RunLoop.main.run(until: Date().addingTimeInterval(60))
+        }
+    case "proxy":
+        guard LocalSockets.isSupported else { fail("The metering proxy is not available on this platform (macOS and Linux only).") }
+        var local = settings.localModels
+        var wanted: [LocalLLMBackend] = []
+        if let name = option("--backend") {
+            let b = backend(name)
+            local.update(b) { config in
+                config.proxy = true
+                if let text = option("--listen"), let port = Int(text) { config.listenPort = port }
+                if let text = option("--upstream"), let port = Int(text) { config.upstreamPort = port }
+                if let host = option("--upstream-host") { config.upstreamHost = host }
+            }
+            wanted = [b]
+        } else {
+            wanted = LocalLLMBackend.allCases.filter(local.proxyEnabled)
+        }
+        guard !wanted.isEmpty else { fail("No proxy is configured. Use `quotapilot local proxy --backend ollama` or `quotapilot local config proxy ollama on`.", code: 2) }
+        if let problem = local.validate() { fail(problem) }
+        local.enabled = true   // running the proxy is the opt-in; polling stays off because every backend named here is proxied
+        let service = LocalLLMService(log: localLog)
+        localLog.compact(now: Date().timeIntervalSince1970)
+        service.apply(local)
+        for b in wanted {
+            if let error = service.proxyError(b) { fail("\(b.displayName): \(error)") }
+            print("\(b.displayName): point your client at \(local.proxyURL(b)) (forwarding to \(local.upstreamHost(b)):\(local.upstreamPort(b)))")
+        }
+        print("Only token counts, model ids and timings are recorded, in \(localLog.url.path). Ctrl-C to stop.")
+        fflush(stdout)
+        runLoopForever { service.stop() }
+    default:
+        fail("usage: quotapilot local <status|stats|poll|proxy|config>", code: 2)
+    }
+}
+
 // MARK: Commands
 
 let usage = """
@@ -461,6 +663,8 @@ USAGE
   quotapilot route <web|review|plan|implement> [--json]
                                              Print the agent for a kind of task (exit 3 if none)
   quotapilot stats [--hours N] [--json]      Token totals, equivalent API cost, cache hit rate and shares by agent and model from local logs
+  quotapilot local <status|stats|poll|proxy|config>
+                                             Local model usage (Ollama, LM Studio, llama.cpp, oMLX); see docs/local-llm.md
   quotapilot config [show]                   Show router mode and task rules
   quotapilot config <claude-plan|agent-logs> <on|off>
                                              Choose credential access and local log collection
@@ -581,8 +785,10 @@ case "stats":
             guard let s = OutputSpeedSummary(samples) else { return nil }
             return ["tokensPerSecond": s.tokensPerSecond, "medianTokensPerSecond": s.medianTokensPerSecond, "calls": s.calls, "outputTokens": s.outputTokens, "seconds": s.seconds]
         }
-        printJSON(["hours": hours, "total": breakdownJSON(total), "providers": summary.mapValues(breakdownJSON), "outputSpeed": speed,
-                   "usage": reportJSON(report)])
+        var object: [String: Any] = ["hours": hours, "total": breakdownJSON(total), "providers": summary.mapValues(breakdownJSON), "outputSpeed": speed,
+                                     "usage": reportJSON(report)]
+        if let local = localReport(hours: hours) { object["local"] = localReportJSON(local) }
+        printJSON(object)
     } else {
         print("Tokens in the last \(hoursLabel(hours)): \(l.compact(total.total)) · ≈\(l.compact(total.total / hours))/h · ≈\(l.compact(total.total / hours / 3600))/s")
         print("  " + breakdownText(total))
@@ -592,6 +798,7 @@ case "stats":
         for line in reportText(report) { print(line) }
         for line in speedText() { print("Output speed  " + line) }
         print("  Output speed = output tokens (incl. reasoning) ÷ model-call time. The time includes prefill and time to first token, so it is a lower bound on decode (TG) tok/s.")
+        if let local = localReport(hours: hours) { for line in localReportText(local) { print(line) } }
     }
 case "share":
     if arguments.contains("--forget") {
@@ -645,6 +852,8 @@ case "compare":
     else { printComparison(reports) }
     print("\nThe community numbers come only from people who share. `quotapilot share` previews what you would send.")
 
+case "local":
+    runLocalCommand(Array(words.dropFirst()))
 case "config":
     var settings = loadSettings()
     let rest = Array(arguments.drop { $0 != "config" }.dropFirst())

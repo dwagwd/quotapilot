@@ -1,13 +1,17 @@
 #!/bin/bash
 # Publish only site/data/ from HEAD to origin/main, without pushing any other local commit.
-# Usage: scripts/publish-site-data.sh [--dry-run] [commit message]
+# Usage: scripts/publish-site-data.sh [--dry-run] [--skip-validate] [commit message]
 set -euo pipefail
 
 DRY_RUN=0
+SKIP_VALIDATE=0
 MESSAGE=""
+usage() { echo "Usage: $0 [--dry-run] [--skip-validate] [commit message]" >&2; exit 2; }
 for arg in "$@"; do
   case "$arg" in
     --dry-run) DRY_RUN=1 ;;
+    --skip-validate) SKIP_VALIDATE=1 ;;
+    -*) echo "Unknown option: $arg" >&2; usage ;;
     *) MESSAGE="$arg" ;;
   esac
 done
@@ -48,19 +52,23 @@ if [ -z "$CHANGED" ]; then
   echo "site data already live"
   exit 0
 fi
-if printf '%s\n' "$CHANGED" | grep -qv '^site/data/'; then
+if grep -v '^site/data/' <<<"$CHANGED" | grep -q .; then
   echo "Refusing to publish: paths outside site/data/ would change:" >&2
-  printf '%s\n' "$CHANGED" | grep -v '^site/data/' >&2
+  grep -v '^site/data/' <<<"$CHANGED" >&2
   exit 1
 fi
 
-# Validation reads the working tree, so only run it when that matches HEAD.
-if [ -f site/scripts/validate-data.mjs ] && command -v node >/dev/null 2>&1; then
-  if git diff --quiet HEAD -- site/data; then
-    node site/scripts/validate-data.mjs
-  else
-    echo "site/data has uncommitted changes; skipping validation."
-  fi
+# Validation reads the working tree, so it only counts when that matches HEAD.
+if [ "$SKIP_VALIDATE" = 1 ]; then
+  echo "Skipping validation (--skip-validate)."
+elif ! command -v node >/dev/null 2>&1; then
+  echo "node not found, cannot validate site data; install Node.js or pass --skip-validate." >&2
+  exit 1
+elif ! git diff --quiet HEAD -- site/data; then
+  echo "site/data has uncommitted changes, cannot validate HEAD's data; commit or stash them, or pass --skip-validate." >&2
+  exit 1
+else
+  node site/scripts/validate-data.mjs
 fi
 
 echo "Changes to publish:"

@@ -34,7 +34,7 @@ npm test                         # all of the above plus aggregator tests
 
 ## Publish data
 
-Daily data commits go live with `scripts/publish-site-data.sh` (run from the repo root; `--dry-run` shows the diff only). It pushes a commit onto `origin/main` that changes only `site/data/`, so other local commits are never pushed. The site deploy is triggered by a push to main that touches `site/**`.
+Daily data commits go live with `scripts/publish-site-data.sh` (run from the repo root; `--dry-run` shows the diff only). It pushes a commit onto `origin/main` that changes only `site/data/`, so other local commits are never pushed. The site deploy is triggered by a push to main that touches `site/**`. Validation runs first and blocks the publish if it cannot run (no Node.js, or uncommitted changes in `site/data/`); `--skip-validate` overrides that. After a publish, `origin/main` holds a data commit that is not in your local history, so run `git fetch origin && git merge origin/main` before the next normal push of main.
 
 ## Community data
 

@@ -49,6 +49,22 @@ class PublishSiteDataTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("already live", result.stdout)
 
+    def test_unknown_option_is_rejected(self):
+        write(self.repo, "site/data/a.json", '{"v": 3}\n')
+        git(self.repo, "add", "-A")
+        git(self.repo, "commit", "-m", "data")
+        result = self.run_script("--dryrun")
+        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual(git(self.bare, "rev-list", "--count", "main"), "1")
+
+    def test_missing_validator_blocks_publish(self):
+        write(self.repo, "site/data/a.json", '{"v": 4}\n')
+        git(self.repo, "add", "-A")
+        git(self.repo, "commit", "-m", "data")
+        result = self.run_script()
+        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual(git(self.bare, "rev-list", "--count", "main"), "1")
+
     def test_publishes_only_site_data(self):
         write(self.repo, "site/data/a.json", '{"v": 2}\n')
         git(self.repo, "add", "-A")
@@ -57,12 +73,12 @@ class PublishSiteDataTests(unittest.TestCase):
         git(self.repo, "add", "-A")
         git(self.repo, "commit", "-m", "unrelated local work")
 
-        dry = self.run_script("--dry-run")
+        dry = self.run_script("--dry-run", "--skip-validate")
         self.assertEqual(dry.returncode, 0, dry.stderr)
         self.assertIn("site/data/a.json", dry.stdout)
         self.assertEqual(git(self.bare, "rev-list", "--count", "main"), "1")
 
-        result = self.run_script("Site data: test")
+        result = self.run_script("--skip-validate", "Site data: test")
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(git(self.bare, "rev-list", "--count", "main"), "2")
         self.assertEqual(git(self.bare, "log", "-1", "--format=%s", "main"), "Site data: test")

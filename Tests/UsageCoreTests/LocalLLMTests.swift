@@ -525,6 +525,7 @@ final class LocalLLMTests: XCTestCase {
         c.release()
     }
 
+    #if canImport(Darwin) || canImport(Glibc) || canImport(Musl)
     func testPollingStepsAsideForAProxyOrPollerInAnotherProcess() throws {
         let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
@@ -589,6 +590,8 @@ final class LocalLLMTests: XCTestCase {
         XCTAssertFalse(FileManager.default.fileExists(atPath: dir.path), "no lock file was created")
     }
 
+
+    #endif
     #if canImport(Darwin) || canImport(Glibc) || canImport(Musl)
 
     func testHeadResponseWithContentLengthDoesNotSwallowTheNextExchange() throws {

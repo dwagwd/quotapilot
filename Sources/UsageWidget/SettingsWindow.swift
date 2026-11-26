@@ -125,9 +125,9 @@ final class SettingsWindowController: NSWindowController {
         alerts.frame = NSRect(x: 262, y: 148, width: 156, height: 24)
         alerts.toolTip = l.text("quotaAlertsHelp")
         bridges.title = l.text("bridges"); bridges.state = settings.options.bridges ? .on : .off
-        bridges.frame = NSRect(x: 22, y: 117, width: 245, height: 24)
+        bridges.frame = NSRect(x: 22, y: 117, width: 225, height: 24)
         let guide = NSButton(title: l.text("bridgeHelp"), target: self, action: #selector(connectionGuide))
-        guide.frame = NSRect(x: 277, y: 115, width: 140, height: 26); guide.bezelStyle = .rounded
+        guide.frame = NSRect(x: 252, y: 115, width: 166, height: 26); guide.bezelStyle = .rounded
         let selectionHint = NSTextField(wrappingLabelWithString: l.text("selectionHint"))
         selectionHint.frame = NSRect(x: 22, y: 80, width: 396, height: 30)
         selectionHint.font = .systemFont(ofSize: 11); selectionHint.textColor = .secondaryLabelColor

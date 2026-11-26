@@ -24,6 +24,8 @@ struct LocalUsageLines: View {
     /// Everything of the last 30 days, for the monthly electricity figure.
     var monthEvents: [LocalLLMEvent] = []
     var energy = EnergySettings()
+    /// The Local models window already shows the reference help and the power estimate in its own settings above: leave them out here.
+    var settingsShownAbove = false
 
     var body: some View {
         let report = LocalLLMReport(events: events, reference: reference)
@@ -33,7 +35,7 @@ struct LocalUsageLines: View {
             } else {
                 Text(String(format: l.text("localEquivalent"), l.usd(report.costUSD), report.reference.id)).font(.title3.weight(.semibold))
                     .help(l.text("localReferenceHelp"))
-                Text(l.text("localReferenceHelp")).font(.caption2).foregroundStyle(.secondary)
+                if !settingsShownAbove { Text(l.text("localReferenceHelp")).font(.caption2).foregroundStyle(.secondary) }
                 energyView
                 ForEach(report.lines, id: \.id) { line in lineView(line) }
                 if report.unmetered > 0 {
@@ -65,7 +67,7 @@ struct LocalUsageLines: View {
                     Text(l.text("energyParallel")).font(.caption2).foregroundStyle(.secondary)
                     if result.cloudCost == nil { Text(l.text("energyNoRate")).font(.caption2).foregroundStyle(.secondary) }
                     if result.coverage < 0.95 { Text(String(format: l.text("energyCoverage"), l.percent(result.coverage))).font(.caption2).foregroundStyle(.orange) }
-                    if energy.watts == nil {
+                    if energy.watts == nil && !settingsShownAbove {
                         Text(String(format: l.text("energyEstimate"), l.number(result.watts, decimals: 0), DevicePower.estimate(for: .current()).basis))
                             .font(.caption2).foregroundStyle(.secondary)
                     }
@@ -197,7 +199,7 @@ struct LocalModelsView: View {
                 LocalUsageLines(events: model.events.filter { $0.t >= Date().timeIntervalSince1970 - range.seconds },
                                 reference: model.settings.referenceModel, l: l,
                                 monthEvents: model.events.filter { $0.t >= Date().timeIntervalSince1970 - 30 * 86400 },
-                                energy: model.settings.energySettings)
+                                energy: model.settings.energySettings, settingsShownAbove: true)
             }.padding(14)
         }.frame(minWidth: 540, minHeight: 560)
     }

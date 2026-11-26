@@ -100,6 +100,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
     private var agentLastScanAt: Double?
     private var agentTick: Timer?
     private let agentsLabel = NSTextField(labelWithString: "")
+    /// Menu line "Today ≈ $X API-equivalent"; hidden while log reading is off or nothing is priced yet.
+    private var todayCostItem: NSMenuItem?
+    private var todayCostMinute: Double?
     private var deepSeekBalances: [DeepSeekBalance] = []
     private var deepSeekError = false
     private var deepSeekTick: Timer?
@@ -678,6 +681,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
         add(l.text("pin"), #selector(togglePinned)).state = pinned ? .on : .off
         menu.addItem(.separator())
         // 2. What people open most.
+        let todayItem = NSMenuItem(title: "", action: nil, keyEquivalent: ""); todayItem.isEnabled = false; todayItem.isHidden = true
+        menu.addItem(todayItem); todayCostItem = todayItem
         add(l.text("usageStats"), #selector(showStats))
         add(l.text("connectAgents"), #selector(connectAgents))
         add(l.text("consentMenu"), #selector(reviewConnectionConsent))
@@ -1009,7 +1014,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
             .joined(separator: " · ")
     }
 
+    /// Equivalent API price of today's tokens (since local midnight), recomputed at most once a minute.
+    private func todayCostText(now: Double) -> String? {
+        guard settings.agentLogsEnabled, agentLastScanAt != nil else { return nil }
+        let report = UsageReport(statsStore.statsInput(since: Calendar.current.startOfDay(for: Date(timeIntervalSince1970: now)).timeIntervalSince1970, now: now))
+        guard report.total.total > 0 else { return nil }
+        return String(format: l.text("menuTodayCost"), l.usd(report.costUSD) + (report.hasUnpriced ? "+" : ""))
+    }
+
+    private func updateTodayCost(now: Double) {
+        let minute = floor(now / 60)
+        guard todayCostMinute != minute || !settings.agentLogsEnabled else { return }
+        todayCostMinute = minute
+        let text = todayCostText(now: now)
+        todayCostItem?.title = text ?? ""
+        todayCostItem?.isHidden = text == nil
+        todayCostItem?.toolTip = l.text("statsApiNote")
+    }
+
     private func renderAgentTokens(now: Double) {
+        updateTodayCost(now: now)
         guard settings.agentLogsEnabled else {
             agentsLabel.stringValue = l.text("allAgents") + " · " + l.text("agentLogsOff")
             agentsLabel.textColor = .secondaryLabelColor; agentsLabel.toolTip = l.text("agentLogsHelp"); return
@@ -1056,6 +1080,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
     // MARK: Statistics
 
     private func saveStats(now: Double) {
+        todayCostMinute = nil
         usageDisplayCache.invalidate()
         statsStore.prune(now: now)
         if let data = try? JSONEncoder().encode(statsStore) {

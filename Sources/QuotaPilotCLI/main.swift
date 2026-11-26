@@ -185,6 +185,45 @@ func tokenSummary(hours: Double) -> [String: TokenBreakdown] {
     return tokenState.ledger.summary(since: since, now: now)
 }
 
+/// Cost, cache and share statistics for the same window as `tokenSummary` (call that first).
+func usageReport(hours: Double) -> UsageReport {
+    let now = Date().timeIntervalSince1970
+    return UsageReport(tokenState.ledger.statsInput(since: now - hours * 3600, now: now))
+}
+
+func reportJSON(_ report: UsageReport) -> [String: Any] {
+    func line(_ l: UsageReport.Line) -> [String: Any] {
+        ["id": l.id, "provider": l.provider, "model": l.model ?? NSNull(), "tokens": breakdownJSON(l.usage), "calls": l.calls,
+         "priceStatus": l.status.rawValue, "costUSD": l.costUSD ?? NSNull(), "share": l.share]
+    }
+    return ["equivalentApiCostUSD": report.costUSD, "unpricedTokens": report.unpricedTokens, "localTokens": report.localTokens,
+            "calls": report.calls, "activeMinutes": report.activeMinutes, "activeMinutesIsApproximate": true,
+            "cacheHitRate": report.cacheHitRate ?? NSNull(), "cacheSavingsUSD": report.cacheSavingsUSD,
+            "categoryShares": Dictionary(uniqueKeysWithValues: report.categories.map { ($0.kind.rawValue, ["tokens": $0.tokens, "share": $0.share]) }),
+            "byProvider": report.providers.map(line), "byModel": report.models.map(line),
+            "note": "List-price equivalent for models with a known price; a subscription does not pay this."]
+}
+
+func reportText(_ report: UsageReport) -> [String] {
+    guard report.total.total > 0 else { return [] }
+    var lines = ["≈ \(l.usd(report.costUSD)) equivalent API price (list price; subscription users don't pay this)"
+                 + (report.hasUnpriced ? " + \(l.compact(report.unpricedTokens)) tokens not priced" : "")]
+    lines.append("\(l.compact(Double(report.calls))) calls · active ≈ \(l.activeTime(minutes: report.activeMinutes)) (approx.: 5-minute slots with any call)")
+    if let rate = report.cacheHitRate {
+        lines.append("Cache hit rate \(l.percent(rate))" + (report.cacheSavingsUSD > 0 ? " · saves ≈ \(l.usd(report.cacheSavingsUSD)) versus no cache" : ""))
+    }
+    lines.append("Where the tokens went: " + report.categories.map { "\(l.categoryName($0.kind)) \(l.percent($0.share))" }.joined(separator: " · "))
+    func text(_ line: UsageReport.Line, _ name: String) -> String {
+        "  " + name.padding(toLength: 34, withPad: " ", startingAt: 0) + l.percent(line.share).padding(toLength: 6, withPad: " ", startingAt: 0)
+            + l.costText(line).padding(toLength: 11, withPad: " ", startingAt: 0) + "\(line.calls) calls"
+    }
+    lines.append("By agent")
+    for line in report.providers { lines.append(text(line, line.provider == "local" ? "Local" : providerName(line.provider))) }
+    lines.append("By model")
+    for line in report.models { lines.append(text(line, l.modelName(line) + (line.provider == "local" ? "" : " (" + providerName(line.provider) + ")"))) }
+    return lines
+}
+
 // MARK: Formatting
 
 let l = L10n(.english)
@@ -421,7 +460,7 @@ USAGE
   quotapilot watch [--interval SECONDS]      Refresh status in the terminal (default 60 s)
   quotapilot route <web|review|plan|implement> [--json]
                                              Print the agent for a kind of task (exit 3 if none)
-  quotapilot stats [--hours N] [--json]      Token totals by agent and purpose from local logs
+  quotapilot stats [--hours N] [--json]      Token totals, equivalent API cost, cache hit rate and shares by agent and model from local logs
   quotapilot config [show]                   Show router mode and task rules
   quotapilot config <claude-plan|agent-logs> <on|off>
                                              Choose credential access and local log collection
@@ -536,18 +575,21 @@ case "route":
 case "stats":
     let summary = tokenSummary(hours: hours)
     let total = summary.values.reduce(into: TokenBreakdown()) { $0.add($1) }
+    let report = usageReport(hours: hours)
     if wantsJSON {
         let speed = Dictionary(grouping: speedSamples, by: \.provider).compactMapValues { samples -> [String: Any]? in
             guard let s = OutputSpeedSummary(samples) else { return nil }
             return ["tokensPerSecond": s.tokensPerSecond, "medianTokensPerSecond": s.medianTokensPerSecond, "calls": s.calls, "outputTokens": s.outputTokens, "seconds": s.seconds]
         }
-        printJSON(["hours": hours, "total": breakdownJSON(total), "providers": summary.mapValues(breakdownJSON), "outputSpeed": speed])
+        printJSON(["hours": hours, "total": breakdownJSON(total), "providers": summary.mapValues(breakdownJSON), "outputSpeed": speed,
+                   "usage": reportJSON(report)])
     } else {
         print("Tokens in the last \(hoursLabel(hours)): \(l.compact(total.total)) · ≈\(l.compact(total.total / hours))/h · ≈\(l.compact(total.total / hours / 3600))/s")
         print("  " + breakdownText(total))
         for (provider, usage) in summary.sorted(by: { $0.value.total > $1.value.total }) {
             print(providerName(provider).padding(toLength: 9, withPad: " ", startingAt: 0) + l.compact(usage.total) + "  " + breakdownText(usage))
         }
+        for line in reportText(report) { print(line) }
         for line in speedText() { print("Output speed  " + line) }
         print("  Output speed = output tokens (incl. reasoning) ÷ model-call time. The time includes prefill and time to first token, so it is a lower bound on decode (TG) tok/s.")
     }

@@ -68,19 +68,97 @@ struct StatsView: View {
         let all = totals.values.reduce(into: TokenBreakdown()) { $0.add($1) }
         let rows: [(key: String, value: TokenBreakdown)] = totals.sorted { $0.value.total > $1.value.total }
         let series: [TokenSeriesPoint] = model.store.tokenSeries(since: since, now: now, bucket: range.bucket)
+        let report = UsageReport(model.store.statsInput(since: since, now: now))
         return GroupBox(l.text("statsTokens")) {
             VStack(alignment: .leading, spacing: 6) {
                 Text(tokenHeadline(all)).font(.headline)
+                costLine(report)
                 Text(breakdown(all)).font(.caption).foregroundStyle(.secondary)
+                if report.total.total > 0 { cacheLine(report); shareBar(report) }
                 ForEach(rows, id: \.key) { row in
                     Text(providerName(row.key) + "  " + l.compact(row.value.total) + "  —  " + breakdown(row.value)).font(.caption)
                 }
+                if report.total.total > 0 { breakdownLists(report) }
                 seriesChart(series, label: "Tokens")
                     .chartYAxis { AxisMarks { value in
                         AxisGridLine(); AxisValueLabel { Text(l.compact(value.as(Double.self) ?? 0)) }
                     } }
                     .frame(height: 180)
             }.padding(4)
+        }
+    }
+
+    private func costLine(_ report: UsageReport) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(String(format: l.text("statsApiEquivalent"), l.usd(report.costUSD))).font(.title3.weight(.semibold))
+                .help(l.text("statsApiNote"))
+            Text(l.text("statsApiNote")).font(.caption2).foregroundStyle(.secondary)
+            if report.hasUnpriced {
+                Text(String(format: l.text("statsUnpriced"), l.compact(report.unpricedTokens))).font(.caption2).foregroundStyle(.orange)
+            }
+            HStack(spacing: 10) {
+                Text(String(format: l.text("statsCalls"), l.compact(Double(report.calls)))).font(.caption)
+                Text(String(format: l.text("statsActive"), l.activeTime(minutes: report.activeMinutes))).font(.caption)
+                    .help(l.text("statsActiveHelp"))
+            }
+        }
+    }
+
+    private func cacheLine(_ report: UsageReport) -> some View {
+        var text = l.text("statsCacheHit") + " " + (report.cacheHitRate.map(l.percent) ?? "—")
+        if report.cacheSavingsUSD > 0 { text += "  ·  " + String(format: l.text("statsCacheSaved"), l.usd(report.cacheSavingsUSD)) }
+        return Text(text).font(.caption.weight(.semibold))
+    }
+
+    private func categoryColor(_ kind: UsageReport.Category.Kind) -> Color {
+        switch kind {
+        case .cacheRead: return .teal
+        case .newInput: return .blue
+        case .output: return .orange
+        case .reasoning: return .purple
+        }
+    }
+
+    /// One horizontal bar split by token category, with the percentages listed under it.
+    private func shareBar(_ report: UsageReport) -> some View {
+        VStack(alignment: .leading, spacing: 3) {
+            Text(l.text("statsTokenShare")).font(.caption2).foregroundStyle(.secondary)
+            GeometryReader { geometry in
+                HStack(spacing: 0) {
+                    ForEach(report.categories, id: \.kind) { category in
+                        Rectangle().fill(categoryColor(category.kind))
+                            .frame(width: max(0, geometry.size.width * category.share))
+                            .help(l.categoryName(category.kind) + " " + l.percent(category.share))
+                    }
+                }.clipShape(RoundedRectangle(cornerRadius: 3))
+            }.frame(height: 14)
+            HStack(spacing: 10) {
+                ForEach(report.categories, id: \.kind) { category in
+                    HStack(spacing: 3) {
+                        Circle().fill(categoryColor(category.kind)).frame(width: 7, height: 7)
+                        Text(l.categoryName(category.kind) + " " + l.percent(category.share)).font(.caption2)
+                    }
+                }
+            }
+        }
+    }
+
+    private func lineText(_ line: UsageReport.Line, name: String) -> String {
+        [name, l.percent(line.share), l.costText(line), String(format: l.text("statsCalls"), l.compact(Double(line.calls)))]
+            .joined(separator: "  ·  ")
+    }
+
+    private func breakdownLists(_ report: UsageReport) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(l.text("statsByAgent")).font(.caption.weight(.semibold)).padding(.top, 4)
+            ForEach(report.providers, id: \.id) { line in
+                Text(lineText(line, name: line.provider == "local" ? l.text("statsLocal") : providerName(line.provider))).font(.caption)
+            }
+            Text(l.text("statsByModel")).font(.caption.weight(.semibold)).padding(.top, 4)
+            ForEach(Array(report.models.prefix(12)), id: \.id) { line in
+                Text(lineText(line, name: l.modelName(line) + (line.provider == "local" ? "" : "  (" + providerName(line.provider) + ")")))
+                    .font(.caption).help(l.modelName(line))
+            }
         }
     }
 

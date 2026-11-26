@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+- Cost and usage statistics, computed on this Mac from the model names and token counts already in your agents' logs (nothing new is read, and none of it is shared). The Usage statistics window and `quotapilot stats` (also in `--json`) show the equivalent API price at vendor list prices, the cache hit rate and what the cache saved, a bar of where the tokens went (cache read, new input, output, reasoning), shares and prices by agent and by model, call counts, and approximate active time. The menu bar has one line, **Today ≈ $X API-equivalent**. Subscription users do not pay this amount.
+- Prices come from official vendor pages recorded in `site/data/models.json` (new `cacheRead` / `cacheWrite` fields; OpenAI prices and GPT-6.2 Astra / Sol added) and are bundled by `scripts/gen-prices.py`. Models without a price are shown as not priced and left out of the total; models run locally (Ollama, LM Studio, `name:tag` ids) are labelled Local at $0.
+- Statistics files from earlier versions still load; usage recorded before this version has no model and is listed as an unknown model.
+- Texts in all 10 interface languages.
+
 ## 0.7.0
 
 - Quota alerts now include the router's suggestion. When Codex or Claude reaches 90% or would run out before reset, the same notification says whether to switch to the other agent (with how much it has left) or that both are low and which resets first. Still one notification per reset cycle, off by default, and it uses no quota. Texts in all 10 interface languages.

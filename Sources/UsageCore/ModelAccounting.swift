@@ -95,9 +95,13 @@ public enum ModelIdentity {
         for marker in ["ollama", "lmstudio", "lm-studio", "gguf", "llama.cpp", "llamacpp", "hf.co/", "huggingface.co/"] where id.contains(marker) {
             return true
         }
-        guard let colon = id.firstIndex(of: ":"), !id.hasPrefix("claude"), !id.contains("anthropic.") else { return false }
-        let tag = id[id.index(after: colon)...]
-        return !tag.isEmpty && !tag.allSatisfy(\.isNumber)
+        // Cloud ids that also carry a colon: `vendor/claude-…:thinking`, fine-tunes `ft:…`, Ollama cloud tags
+        // (`:480b-cloud`) and OpenRouter variants (`:free`, `:nitro`, …).
+        let base = id.split(separator: "/").last.map(String.init) ?? id
+        guard let colon = base.firstIndex(of: ":"), !base.hasPrefix("claude"), !base.hasPrefix("ft:"), !id.contains("anthropic.") else { return false }
+        let tag = base[base.index(after: colon)...]
+        let cloudTags: Set<Substring> = ["free", "nitro", "floor", "online", "thinking", "beta", "extended", "exacto"]
+        return !tag.isEmpty && !tag.allSatisfy(\.isNumber) && !tag.hasSuffix("-cloud") && !cloudTags.contains(tag)
     }
 }
 
@@ -155,6 +159,9 @@ public struct UsageReport: Equatable {
         public let costUSD: Double?
         /// Share of all tokens.
         public let share: Double
+        /// Tokens of this line that have no known price (not in `costUSD`).
+        public let unpricedTokens: Double
+        public var hasUnpriced: Bool { unpricedTokens > 0 }
     }
     public struct Category: Equatable {
         public enum Kind: String, CaseIterable { case cacheRead, newInput, output, reasoning }
@@ -191,7 +198,7 @@ public struct UsageReport: Equatable {
     public init(_ input: UsageStatsInput) {
         var total = TokenBreakdown(), calls = 0, cost = 0.0, unpriced = 0.0, local = 0.0, savings = 0.0
         var modelLines: [String: (provider: String, model: String?, usage: TokenBreakdown, calls: Int, status: PriceStatus, cost: Double)] = [:]
-        var providerLines: [String: (usage: TokenBreakdown, calls: Int, priced: Bool, cost: Double)] = [:]
+        var providerLines: [String: (usage: TokenBreakdown, calls: Int, priced: Bool, cost: Double, unpriced: Double)] = [:]
         for row in input.rows {
             let local_ = ModelIdentity.isLocal(row.model)
             let price = local_ ? nil : ModelPrices.price(for: row.model)
@@ -205,19 +212,20 @@ public struct UsageReport: Equatable {
             var line = modelLines[key] ?? (provider, row.model, TokenBreakdown(), 0, status, 0)
             line.usage.add(row.usage); line.calls += row.calls; line.cost += rowCost
             modelLines[key] = line
-            var group = providerLines[provider] ?? (TokenBreakdown(), 0, false, 0)
+            var group = providerLines[provider] ?? (TokenBreakdown(), 0, false, 0, 0)
             group.usage.add(row.usage); group.calls += row.calls; group.cost += rowCost
             group.priced = group.priced || status != .notPriced
+            if status == .notPriced { group.unpriced += row.usage.total }
             providerLines[provider] = group
         }
         let all = max(total.total, 1)
-        func make(_ id: String, _ provider: String, _ model: String?, _ usage: TokenBreakdown, _ calls: Int, _ status: PriceStatus, _ cost: Double) -> Line {
+        func make(_ id: String, _ provider: String, _ model: String?, _ usage: TokenBreakdown, _ calls: Int, _ status: PriceStatus, _ cost: Double, _ unpriced: Double) -> Line {
             Line(id: id, provider: provider, model: model, usage: usage, calls: calls, status: status,
-                 costUSD: status == .notPriced ? nil : cost, share: usage.total / all)
+                 costUSD: status == .notPriced ? nil : cost, share: usage.total / all, unpricedTokens: unpriced)
         }
-        self.models = modelLines.map { make($0.key, $0.value.provider, $0.value.model, $0.value.usage, $0.value.calls, $0.value.status, $0.value.cost) }
+        self.models = modelLines.map { make($0.key, $0.value.provider, $0.value.model, $0.value.usage, $0.value.calls, $0.value.status, $0.value.cost, $0.value.status == .notPriced ? $0.value.usage.total : 0) }
             .sorted { $0.usage.total != $1.usage.total ? $0.usage.total > $1.usage.total : $0.id < $1.id }
-        self.providers = providerLines.map { make($0.key, $0.key, nil, $0.value.usage, $0.value.calls, $0.value.priced ? .priced : .notPriced, $0.value.cost) }
+        self.providers = providerLines.map { make($0.key, $0.key, nil, $0.value.usage, $0.value.calls, $0.value.priced ? .priced : .notPriced, $0.value.cost, $0.value.unpriced) }
             .sorted { $0.usage.total != $1.usage.total ? $0.usage.total > $1.usage.total : $0.id < $1.id }
         self.total = total; self.calls = calls; self.costUSD = cost
         self.unpricedTokens = unpriced; self.localTokens = local; self.cacheSavingsUSD = savings

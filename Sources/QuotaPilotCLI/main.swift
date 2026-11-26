@@ -218,7 +218,7 @@ func reportText(_ report: UsageReport) -> [String] {
             + l.costText(line).padding(toLength: 11, withPad: " ", startingAt: 0) + "\(line.calls) calls"
     }
     lines.append("By agent")
-    for line in report.providers { lines.append(text(line, line.provider == "local" ? "Local" : providerName(line.provider))) }
+    for line in report.providers { lines.append(text(line, (line.provider == "local" ? "Local" : providerName(line.provider)) + (line.hasUnpriced ? " +" : ""))) }
     lines.append("By model")
     for line in report.models { lines.append(text(line, l.modelName(line) + (line.provider == "local" ? "" : " (" + providerName(line.provider) + ")"))) }
     return lines

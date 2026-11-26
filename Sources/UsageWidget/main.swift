@@ -663,6 +663,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
         screensChanged()
     }
     private func setupStatus() {
+        todayCostMinute = nil
         if status == nil { status = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength) }
         status.button?.image = NSImage(systemSymbolName: "gauge.with.dots.needle.50percent", accessibilityDescription: "QuotaPilot")
         let menu = NSMenu()

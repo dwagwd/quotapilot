@@ -356,14 +356,14 @@ public final class AgentLogScanner {
         let key = url.path
         // POSIX stat: FileManager.attributesOfItem can take ~100 ms per file on some external volumes.
         guard let info = Portable.status(key), info.isRegular else {
-            knownFiles.removeValue(forKey: key); offsets.removeValue(forKey: key); return []
+            knownFiles.removeValue(forKey: key); offsets.removeValue(forKey: key); currentModels.removeValue(forKey: key); return []
         }
         let size = info.size, modified = info.modified
         guard modified >= windowStart else { return [] }
         let events: [AgentTokenEvent]
         if let offset = offsets[key] {
             if size < offset {
-                offsets[key] = 0
+                offsets[key] = 0; currentModels.removeValue(forKey: key)
                 events = readForward(url, from: 0, size: size, source: source, windowStart: windowStart)
             } else {
                 events = size > offset ? readForward(url, from: offset, size: size, source: source, windowStart: windowStart) : []

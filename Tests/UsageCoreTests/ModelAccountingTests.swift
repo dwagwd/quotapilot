@@ -117,12 +117,19 @@ final class ModelAccountingTests: XCTestCase {
     }
 
     func testLocalModelDetection() {
-        for id in ["qwen3:8b", "llama3.1:70b", "deepseek-r1:14b", "gemma3:4b-it-qat", "gpt-oss:20b", "ollama/mistral", "lmstudio-community/foo", "foo-q4.gguf", "hf.co/bar/baz"] {
+        for id in ["qwen3:8b", "llama3.1:70b", "deepseek-r1:14b", "gemma3:4b-it-qat", "gpt-oss:20b", "ollama/mistral", "library/qwen3:8b", "lmstudio-community/foo", "foo-q4.gguf", "hf.co/bar/baz"] {
             XCTAssertTrue(ModelIdentity.isLocal(id), id)
         }
-        for id in ["claude-opus-5-5", "anthropic.claude-opus-5-5-v1:0", "gpt-6-1-sol", "gemini-4-carbon", "llama-3-8b", ""] {
+        for id in ["claude-opus-5-5", "anthropic.claude-opus-5-5-v1:0", "anthropic/claude-sonnet-5.5:thinking", "openai/gpt-6:nitro", "ft:gpt-6-1-sol:org:x:1", "qwen3-coder:480b-cloud", "gpt-6-1-sol", "gemini-4-carbon", "llama-3-8b", ""] {
             XCTAssertFalse(ModelIdentity.isLocal(id), id)
         }
+    }
+
+    func testUnpricedTokensAreReportedPerAgent() {
+        let report = UsageReport(UsageStatsInput(rows: [ModelUsage(provider: "codex", model: "gpt-6-1-sol", usage: TokenBreakdown(input: 10), calls: 1),
+                                                         ModelUsage(provider: "codex", model: "mystery", usage: TokenBreakdown(input: 5), calls: 1)], activeSlots: 1))
+        XCTAssertEqual(report.providers.first?.unpricedTokens, 5)
+        XCTAssertTrue(report.providers.first?.hasUnpriced ?? false)
     }
 
     // MARK: Cost, cache and shares

@@ -152,7 +152,8 @@ struct StatsView: View {
         VStack(alignment: .leading, spacing: 2) {
             Text(l.text("statsByAgent")).font(.caption.weight(.semibold)).padding(.top, 4)
             ForEach(report.providers, id: \.id) { line in
-                Text(lineText(line, name: line.provider == "local" ? l.text("statsLocal") : providerName(line.provider))).font(.caption)
+                Text(lineText(line, name: line.provider == "local" ? l.text("statsLocal") : providerName(line.provider)) + (line.hasUnpriced ? " +" : "")).font(.caption)
+                    .help(line.hasUnpriced ? String(format: l.text("statsUnpriced"), l.compact(line.unpricedTokens)) : "")
             }
             Text(l.text("statsByModel")).font(.caption.weight(.semibold)).padding(.top, 4)
             ForEach(Array(report.models.prefix(12)), id: \.id) { line in

@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.8.0
 
 - With **Local models** off, QuotaPilot no longer contacts any local backend (status, probes, the Local models window, engine version probes) and never reads the oMLX key from the Keychain or sends it.
 - Website: a model ranking at `/models/` (English and Traditional Chinese): every cloud model's list price, blended price, cache price, context, community-measured speed and rating, and local models by chip, memory and engine from shared reports (none shown until 3 people report a combination, with an honest empty state). Filter by type, provider, budget or your hardware, sort any column, and use the calculators: monthly cost for your usage (type it or paste `quotapilot stats --json`, read in the browser only) in your currency with an optional exchange rate, and an electricity calculator with your price per kWh, watts and hours. Two search pages are generated from the data: local LLM speed by Mac chip and LLM API price comparison. No benchmark scores are stored or shown; a smartness column exists only as a hidden empty slot.

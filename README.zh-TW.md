@@ -2,7 +2,11 @@
 
 [![最新版本](https://img.shields.io/github/v/tag/dwagwd/quotapilot?label=version)](https://github.com/dwagwd/quotapilot/releases/latest) [![授權：MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE) ![macOS 13+](https://img.shields.io/badge/macOS-13%2B-lightgrey) ![CLI：macOS · Linux · Windows](https://img.shields.io/badge/CLI-macOS%20%C2%B7%20Linux%20%C2%B7%20Windows-lightgrey)
 
-**在撞到上限之前，就知道 Codex 和 Claude Code 還剩多少額度。** 原生 macOS 桌面小卡與選單列圖示，另有可在 macOS、Linux、Windows 使用的 `quotapilot` 指令。顯示每個 5 小時與每週窗口用了多少、消耗速度多快、什麼時候重置。
+**Codex 與 Claude Code 的額度，並建議你接下來該用哪一個。** 原生 macOS 桌面小卡與選單列圖示，另有可在 macOS、Linux、Windows 使用的 `quotapilot` 指令。
+
+- 其中一個 agent 快用完時，提醒會告訴你該切換到哪一個、還剩多少；重置後可以接續中斷的 Codex 工作（選用）。
+- 把你的輸出速度與方案額度和社群中位數比較。分享是選用且匿名的，送出前會先預覽內容。
+- [AI Quota Watch](https://aiquotawatch.pages.dev/zh/) 網站列出各方案額度與重置紀錄，每個數字都附來源。
 
 <img src="assets/screenshot-card.png" width="380" alt="QuotaPilot 卡片：Claude 與 Codex 額度、token 速度與重置倒數">
 

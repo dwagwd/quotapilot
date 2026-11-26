@@ -2,7 +2,11 @@
 
 [![Latest version](https://img.shields.io/github/v/tag/dwagwd/quotapilot?label=version)](https://github.com/dwagwd/quotapilot/releases/latest) [![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE) ![macOS 13+](https://img.shields.io/badge/macOS-13%2B-lightgrey) ![CLI: macOS · Linux · Windows](https://img.shields.io/badge/CLI-macOS%20%C2%B7%20Linux%20%C2%B7%20Windows-lightgrey)
 
-**See how much Codex and Claude Code quota you have left before you hit the limit.** A small native macOS card and menu bar item, plus a `quotapilot` command for macOS, Linux and Windows. It shows the quota used in each 5-hour and weekly window, how fast you are burning it, and when it resets.
+**Quota for Codex and Claude Code, with a recommendation for which one to use next.** A small native macOS card and menu bar item, plus a `quotapilot` command for macOS, Linux and Windows.
+
+- When one agent is running low, the alert says which to switch to and how much it has left; after a reset it can resume an interrupted Codex session (opt-in).
+- Compare your output speed and plan size with the community median. Sharing is optional and anonymous, and you see what would be sent first.
+- The [AI Quota Watch](https://aiquotawatch.pages.dev/) website lists plan limits and reset history, every number with its source.
 
 <img src="assets/screenshot-card.png" width="380" alt="QuotaPilot card showing Claude and Codex quota, token rates and reset countdowns">
 

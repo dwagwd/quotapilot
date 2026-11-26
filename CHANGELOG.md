@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.8.0
 
 - Local model usage (off by default): Ollama, LM Studio, llama.cpp, oMLX and Strata. Shows requests, input and output tokens, prompt and generation tokens per second, active time and a hypothetical equivalent cost on a reference cloud model (setting; default `claude-sonnet-5-5`) in the statistics window, the menu (**Local today**), a new **Local models…** window and `quotapilot stats` / `quotapilot local`. llama.cpp (`--metrics`) and oMLX are read automatically; a metering proxy (127.0.0.1 only, bytes passed through unchanged, only usage and timing fields read, prompts never stored) covers every other OpenAI- or Anthropic-compatible server. macOS app and, for the CLI proxy and pollers, Linux; the CLI still builds on Windows. While on, local-model calls in Codex and Claude Code logs are not booked twice. Texts in all 10 interface languages. See `docs/local-llm.md`.
 - Cost and usage statistics, computed on this Mac from the model names and token counts already in your agents' logs (nothing new is read, and none of it is shared). The Usage statistics window and `quotapilot stats` (also in `--json`) show the equivalent API price at vendor list prices, the cache hit rate and what the cache saved, a bar of where the tokens went (cache read, new input, output, reasoning), shares and prices by agent and by model, call counts, and approximate active time. The menu bar has one line, **Today ≈ $X API-equivalent**. Subscription users do not pay this amount.

@@ -130,7 +130,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
     private var localTodayItem: NSMenuItem?
     private var claudePlanError: String?
     private var claudePlanFetching = false
-    private var claudeLogin: (token: String, plan: String?, expiresAt: Double?)?
+    private let claudeLoginCache = ClaudeKeychain.shared
+    private var claudeRetryItem: NSMenuItem?
     private let usageEventFileRotationBytes: UInt64 = 20 * 1_048_576
     private var usageEventLastAttemptAt: Double?
     private var usageEventLastSuccessAt: Double?
@@ -696,6 +697,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
         // 2. What people open most.
         let todayItem = NSMenuItem(title: "", action: nil, keyEquivalent: ""); todayItem.isEnabled = false; todayItem.isHidden = true
         menu.addItem(todayItem); todayCostItem = todayItem
+        let retryItem = NSMenuItem(title: l.text("claudeRetryAccess"), action: #selector(retryClaudeLogin), keyEquivalent: ""); retryItem.target = self
+        retryItem.isHidden = claudePlanError != "claudeLoginNeedsAccess"
+        menu.addItem(retryItem); claudeRetryItem = retryItem
         let localItem = NSMenuItem(title: "", action: nil, keyEquivalent: ""); localItem.isEnabled = false; localItem.isHidden = true
         menu.addItem(localItem); localTodayItem = localItem
         add(l.text("usageStats"), #selector(showStats))
@@ -834,6 +838,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
         return prefix + " · ≈" + number + unit + "/" + l.unit(settings.rateUnit, short: true)
     }
     private func render() {
+        claudeRetryItem?.isHidden = claudePlanError != "claudeLoginNeedsAccess" || !settings.claudePlanEnabled
         guard panel != nil else { return }
         let now = Date().timeIntervalSince1970
         let item = current
@@ -1373,7 +1378,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
         alert.runModal()
         var next = settings
         next.claudePlanEnabled = plan.state == .on
-        if !next.claudePlanEnabled { claudeLogin = nil; claudePlanError = nil }
+        if !next.claudePlanEnabled { claudeLoginCache.forget(); claudePlanError = nil }
         next.autoConnectEnabled = connect.state == .on
         let startedSharing = share.state == .on && !settings.autoShareEnabled
         next.autoShareEnabled = share.state == .on
@@ -1394,7 +1399,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
 
     @objc private func reviewConnectionConsent() {
         askConnectionConsentIfNeeded(force: true)
-        claudeLogin = nil
+        claudeLoginCache.retryNow()
         autoConnectAgents(); refreshClaudePlan(); refreshDeepSeek(); writeStatus()
     }
 
@@ -1428,23 +1433,41 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
     /// where no status line runs. Writes the same sanitized snapshot the status-line bridge writes.
     private func refreshClaudePlan() {
         guard settings.claudePlanEnabled, AgentDetection.claudeInstalled, !claudePlanFetching else { return }
-        claudePlanFetching = true
-        // Reuse the token until it is about to expire instead of reading the keychain every two minutes.
-        if let cached = claudeLogin, (cached.expiresAt ?? .infinity) > Date().timeIntervalSince1970 + 60 {
-            fetchClaudePlan(login: cached); return
+        // Fresh quota from Claude Code's own status line is enough: no token, no keychain, no request.
+        if ClaudeBridgeSource.freshSnapshot(directory: support.appendingPathComponent("providers", isDirectory: true)) != nil {
+            if claudePlanError != nil { claudePlanError = nil; render() }
+            return
         }
+        claudePlanFetching = true
+        // The cache reuses the token until it is about to expire and reads the keychain only when it must.
         DispatchQueue.global(qos: .utility).async { [weak self] in
-            let login = KeychainSecret.claudeCodeCredentials().flatMap(ClaudePlanUsage.credentials)
-            DispatchQueue.main.async { self?.claudeLogin = login; self?.fetchClaudePlan(login: login) }
+            let result = ClaudeKeychain.shared.login()
+            DispatchQueue.main.async {
+                guard let self else { return }
+                switch result {
+                case .login(let login): self.fetchClaudePlan(login: login)
+                case .missing: self.failClaudePlan("claudeLoginMissing")
+                case .expired: self.failClaudePlan("claudeLoginExpired")
+                case .needsAccess: self.failClaudePlan("claudeLoginNeedsAccess")
+                }
+            }
         }
     }
 
-    private func fetchClaudePlan(login: (token: String, plan: String?, expiresAt: Double?)?) {
-        guard settings.claudePlanEnabled else { claudePlanFetching = false; claudeLogin = nil; claudePlanError = nil; return }
-        guard let login else { claudePlanFetching = false; claudePlanError = "claudeLoginMissing"; render(); writeStatus(); return }
-        if let expires = login.expiresAt, expires <= Date().timeIntervalSince1970 {
-            claudePlanFetching = false; claudePlanError = "claudeLoginExpired"; render(); writeStatus(); return
-        }
+    private func failClaudePlan(_ code: String) {
+        claudePlanFetching = false
+        guard settings.claudePlanEnabled else { claudePlanError = nil; return }
+        claudePlanError = code; render(); writeStatus()
+    }
+
+    /// Menu item "Retry Claude login access": the one way the keychain is asked again after a refusal.
+    @objc private func retryClaudeLogin() {
+        claudeLoginCache.retryNow(); claudePlanError = nil
+        refreshClaudePlan(); render()
+    }
+
+    private func fetchClaudePlan(login: ClaudeLogin) {
+        guard settings.claudePlanEnabled else { claudePlanFetching = false; claudePlanError = nil; return }
         var request = URLRequest(url: ClaudePlanUsage.endpoint, timeoutInterval: 20)
         request.setValue("Bearer " + login.token, forHTTPHeaderField: "Authorization")
         request.setValue(ClaudePlanUsage.betaHeader, forHTTPHeaderField: "anthropic-beta")
@@ -1455,9 +1478,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
             DispatchQueue.main.async {
                 guard let self else { return }
                 self.claudePlanFetching = false
-                guard self.settings.claudePlanEnabled else { self.claudeLogin = nil; self.claudePlanError = nil; return }
+                guard self.settings.claudePlanEnabled else { self.claudeLoginCache.forget(); self.claudePlanError = nil; return }
                 guard let snapshot, let encoded = try? JSONEncoder().encode(snapshot) else {
-                    if status == 401 { self.claudeLogin = nil }  // re-read the refreshed token next time
+                    if status == 401 { self.claudeLoginCache.reject() }  // replaced only once Claude Code has written a new one
                     self.claudePlanError = status == 401 ? "claudeLoginExpired" : "claudePlanUnavailable"; self.render(); self.writeStatus(); return
                 }
                 self.claudePlanError = nil
@@ -1709,7 +1732,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
             self.settings = next
             self.ratesDirty = true
             self.requestAlertAuthorizationIfNeeded()
-            if !next.claudePlanEnabled { self.claudeLogin = nil; self.claudePlanError = nil }
+            if !next.claudePlanEnabled { self.claudeLoginCache.forget(); self.claudePlanError = nil }
             self.applyLocalSettings(); self.ingestLocalEvents()
             self.scanAgentLogs(); self.backfillStats(); self.autoConnectAgents(); self.refreshClaudePlan(); self.restartSystemTimer()
             self.client.pollInterval = next.options.energySaver ? 120 : 60

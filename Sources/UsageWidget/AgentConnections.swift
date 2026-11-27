@@ -121,24 +121,6 @@ extension AgentDetection {
     }
 }
 
-extension KeychainSecret {
-    /// Claude Code's own login item, read the way Claude Code itself reads it: with `/usr/bin/security`.
-    /// Reading through SecItemCopyMatching made macOS ask again every time Claude Code refreshed its token,
-    /// because each refresh rewrites the item and drops this app's "Always Allow".
-    static func claudeCodeCredentials() -> Data? {
-        let process = Process(), pipe = Pipe()
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/security")
-        process.arguments = ["find-generic-password", "-s", "Claude Code-credentials", "-w"]
-        process.standardOutput = pipe; process.standardError = FileHandle.nullDevice
-        if (try? process.run()) != nil {
-            let data = pipe.fileHandleForReading.readDataToEndOfFile()
-            process.waitUntilExit()
-            if process.terminationStatus == 0, !data.isEmpty { return data }
-        }
-        return try? Data(contentsOf: AgentDetection.home.appendingPathComponent(".claude/.credentials.json"))
-    }
-}
-
 /// Optional, user-chosen links between agents. Model-to-model review goes through the other agent's
 /// non-interactive CLI (`claude -p`, `codex exec`) wrapped in a skill; the MCP link only exposes Claude Code's
 /// tools to Codex and is kept separate. Every link can be removed from the same menu.

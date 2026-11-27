@@ -113,25 +113,16 @@ func fetchCodexWindows(timeout: Double = 30) -> (windows: [WindowItem], error: S
     return ([], session.failure ?? "timeout")
 }
 
-func readClaudeCredentials() -> Data? {
-    #if os(macOS)
-    // The same keychain item Claude Code uses; `security` prints it for the current user.
-    let process = Process(), pipe = Pipe()
-    process.executableURL = URL(fileURLWithPath: "/usr/bin/security")
-    process.arguments = ["find-generic-password", "-s", "Claude Code-credentials", "-w"]
-    process.standardOutput = pipe; process.standardError = FileHandle.nullDevice
-    if (try? process.run()) != nil {
-        let data = pipe.fileHandleForReading.readDataToEndOfFile()
-        process.waitUntilExit()
-        if process.terminationStatus == 0, !data.isEmpty { return data }
-    }
-    #endif
-    return try? Data(contentsOf: FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".claude/.credentials.json"))
-}
-
 func fetchClaudeWindows() -> (windows: [WindowItem], error: String?) {
-    guard let data = readClaudeCredentials(), let login = ClaudePlanUsage.credentials(from: data) else { return ([], "claudeLoginMissing") }
-    if let expires = login.expiresAt, expires <= Date().timeIntervalSince1970 { return ([], "claudeLoginExpired") }
+    // Fresh quota from Claude Code's status line needs no login at all.
+    if let bridge = ClaudeBridgeSource.freshSnapshot() { return (bridge.limits.windows(), nil) }
+    let login: ClaudeLogin
+    switch ClaudeKeychain.shared.login() {
+    case .login(let found): login = found
+    case .missing: return ([], "claudeLoginMissing")
+    case .expired: return ([], "claudeLoginExpired")
+    case .needsAccess: return ([], "claudeLoginNeedsAccess")
+    }
     var request = URLRequest(url: ClaudePlanUsage.endpoint, timeoutInterval: 20)
     request.setValue("Bearer " + login.token, forHTTPHeaderField: "Authorization")
     request.setValue(ClaudePlanUsage.betaHeader, forHTTPHeaderField: "anthropic-beta")
@@ -146,6 +137,7 @@ func fetchClaudeWindows() -> (windows: [WindowItem], error: String?) {
     _ = done.wait(timeout: .now() + 25)
     guard (200..<300).contains(status), let body,
           let snapshot = ClaudePlanUsage.snapshot(from: body, plan: login.plan, account: ClaudePlanUsage.localAccountID(home: FileManager.default.homeDirectoryForCurrentUser), now: Date().timeIntervalSince1970) else {
+        if status == 401 { ClaudeKeychain.shared.reject() }
         return ([], status == 401 ? "claudeLoginExpired" : "claudePlanUnavailable")
     }
     return (snapshot.limits.windows(), nil)

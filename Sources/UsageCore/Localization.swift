@@ -12,7 +12,12 @@ public struct L10n {
         return WidgetLanguage.allCases.first { $0 != .system && preferred.hasPrefix($0.rawValue.split(separator: "-")[0]) }?.rawValue ?? "en"
     }
     public var locale: Locale { Locale(identifier: code) }
-    public func text(_ key: String) -> String { Self.table[key]?[code] ?? Self.table[key]?["en"] ?? key }
+    public func text(_ key: String) -> String {
+        let value = Self.table[key]?[code] ?? Self.table[key]?["en"] ?? key
+        // Composed from the menu title and the checkbox title in this language, so the hint always names the real items.
+        if key == "claudeOnlyHint" { return String(format: value, text("consentMenu"), text("consentClaudePlan")) }
+        return value
+    }
     public func unit(_ unit: TimeUnit, short: Bool = false) -> String { text(unit.rawValue + (short ? "Short" : "")) }
     public func duration(_ minutes: Int?) -> String {
         guard let m = minutes, m > 0 else { return text("cycleUnknown") }

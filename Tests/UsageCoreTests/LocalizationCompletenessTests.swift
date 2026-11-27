@@ -32,7 +32,25 @@ final class LocalizationCompletenessTests: XCTestCase {
         }
         for (key, values) in L10n.table {
             guard let english = values["en"] else { continue }
-            for (code, text) in values where code != "en" { XCTAssertEqual(specifiers(text), specifiers(english), "\(key) \(code)") }
+            for (code, text) in values where code != "en" {
+                // Positional specifiers (%1$@, %2$@) may be reordered by a language; plain ones must keep their order.
+                let a = specifiers(text), b = specifiers(english)
+                XCTAssertEqual(english.contains("$") || text.contains("$") ? a.sorted() : a, english.contains("$") || text.contains("$") ? b.sorted() : b, "\(key) \(code)")
+            }
+        }
+    }
+
+    /// Texts that point at a menu item must contain that language's real title, not an English or stale copy.
+    func testTextsNameTheRealMenuItems() {
+        for code in codes {
+            let l = L10n(WidgetLanguage(rawValue: code)!)
+            let hint = l.text("claudeOnlyHint")
+            XCTAssertTrue(hint.contains(l.text("consentMenu")), "claudeOnlyHint menu \(code)")
+            XCTAssertTrue(hint.contains(l.text("consentClaudePlan")), "claudeOnlyHint checkbox \(code)")
+            XCTAssertFalse(hint.contains("%"), "claudeOnlyHint unformatted \(code)")
+            if code == "en" || code.hasPrefix("zh") { continue }
+            let title = l.text("restartToUpdate").replacingOccurrences(of: "%@", with: "…")
+            XCTAssertTrue(l.text("updateHowTo").contains(title), "updateHowTo names restartToUpdate \(code)")
         }
     }
 }

@@ -1322,8 +1322,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
         let tokens = settings.agentLogsEnabled ? l.text("agentTokensAuto") : l.text("agentLogsOff")
         let lines = [
             "Codex: " + l.text(client.executable == nil ? "notInstalled" : "connected") + " · " + tokens,
-            "Claude Code: " + tokens + " · " + l.text("agentQuotaBridge") + " " + state(AgentDetection.claudeInstalled, claudeBridge),
-            "Antigravity CLI: " + l.text("agentQuotaBridge") + " " + state(AgentDetection.antigravityInstalled, antigravityBridge),
+            "Claude Code: " + tokens + " · " + l.text("agentQuotaBridge") + ": " + state(AgentDetection.claudeInstalled, claudeBridge),
+            "Antigravity CLI: " + l.text("agentQuotaBridge") + ": " + state(AgentDetection.antigravityInstalled, antigravityBridge),
             "DeepSeek: " + l.text(AgentDetection.deepSeekKey() == nil ? "notConnected" : "connected") + " — " + l.text("deepSeekNote"),
             l.text("cursorNote")
         ]
@@ -1853,10 +1853,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
 
     private func diagnosticAge(_ seconds: Double?) -> String {
         guard let seconds, seconds.isFinite, seconds >= 0 else { return l.text("never") }
-        if seconds < 60 { return "\(Int(seconds))s" }
+        let s = l.text("secondShort"), m = l.text("minuteShort"), h = l.text("hourShort")
+        if seconds < 60 { return "\(Int(seconds))\(s)" }
         let minutes = Int(seconds / 60)
-        if minutes < 60 { return "\(minutes)m \(Int(seconds) % 60)s" }
-        return "\(minutes / 60)h \(minutes % 60)m"
+        if minutes < 60 { return "\(minutes)\(m) \(Int(seconds) % 60)\(s)" }
+        return "\(minutes / 60)\(h) \(minutes % 60)\(m)"
     }
 
     private func diagnosticsText(now: Double = Date().timeIntervalSince1970) -> String {

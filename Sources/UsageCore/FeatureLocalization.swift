@@ -108,7 +108,6 @@ let featureTranslations: [String: [String: String]] = [
         "taskExported": ["en": "Task ledger exported.", "zh-Hant": "任務帳本已匯出。", "zh-Hans": "任务账本已导出。"],
         "taskExportFailed": ["en": "Could not export the task ledger.", "zh-Hant": "無法匯出任務帳本。", "zh-Hans": "无法导出任务账本。"],
         "taskSaveFailed": ["en": "Could not save the local task record and account snapshots. Check available disk space and permissions.", "zh-Hant": "無法保存本機任務紀錄與帳號快照，請檢查磁碟空間和檔案權限。", "zh-Hans": "无法保存本地任务记录和账号快照，请检查磁盘空间和文件权限。"],
-        "sourceValueAge": ["en": "ago", "zh-Hant": "前", "zh-Hans": "前"],
         "accountChanged": ["en": "Account changed during this period", "zh-Hant": "期間內切換了帳號", "zh-Hans": "期间内切换了账号"],
         "windowResetDuringTask": ["en": "Window reset during this period", "zh-Hant": "期間內額度窗口重置", "zh-Hans": "期间内额度窗口重置"],
         "windowReachedDuringTask": ["en": "Window reached 100% during this period", "zh-Hant": "期間內觀測到額度窗口達 100%", "zh-Hans": "期间内观测到额度窗口达到 100%"],

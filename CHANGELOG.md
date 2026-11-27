@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.9.3
 
 - Fewer macOS permission prompts for "Claude Code-credentials". Claude Code rewrites that keychain item when it refreshes its token, which can drop "Always Allow" and make macOS ask again. QuotaPilot now uses Claude Code's status-line quota (when connected and updated within five minutes) and does not touch the keychain at all; otherwise it reads the item once per token lifetime, keeps the token in memory only, checks `~/.claude/.credentials.json` first, never re-reads an expired or rejected token until Claude Code has written a new one (detected from the item's modification time, which needs no permission), and after a refused read waits six hours. Menu: **Retry Claude login access** appears when access is needed. `quotapilot watch` and one-shot commands share the same logic (`watch` used to read the item every refresh).
 

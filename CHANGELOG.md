@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.9.5
+
+- Same as 0.9.4, which was tagged but not released because a build check rejected a date-only change in the bundled price table. The check now compares prices only.
+
 ## 0.9.4
 
 - Every interface text is now available in all 10 languages (Japanese, Korean, Spanish, French, German, Brazilian Portuguese and Italian added for update, sharing-consent, privacy, task and diagnostics texts). Hints name the real menu items in each language.

@@ -10,7 +10,10 @@ spec.loader.exec_module(gen)
 
 class GeneratedPricesTest(unittest.TestCase):
     def test_generated_swift_matches_models_json(self):
-        self.assertEqual(gen.TARGET.read_text(encoding="utf-8"), gen.render(),
+        # The daily data job may bump lastReviewed without touching prices; only prices must match.
+        import re
+        strip = lambda text: re.sub(r"(Reviewed |reviewed = \")\d{4}-\d{2}-\d{2}", r"\1DATE", text)
+        self.assertEqual(strip(gen.TARGET.read_text(encoding="utf-8")), strip(gen.render()),
                          "run python3 scripts/gen-prices.py and commit the result")
 
     def test_cache_prices_never_exceed_input(self):

@@ -1,5 +1,5 @@
 {
-  "lastReviewed": "2026-11-26",
+  "lastReviewed": "2026-11-27",
   "note": "Every plan row carries its own source URL, the date we checked it, and a confidence level. 'official' = read on the vendor's own page; 'reported' = third-party coverage we could not confirm on an official page. A row can override this per field with 'fields' (price, multiple) when, for example, the usage multiple is on the vendor's page but the price only appears in third-party coverage.",
   "providers": [
     {
@@ -54,36 +54,42 @@
           "priceUsd": 100,
           "multiple": 5,
           "summary": {
-            "en": "Launched 9 Apr 2026; reported 5x Plus usage.",
-            "zh": "2026/4/9 推出；據報為 Plus 的 5 倍用量。"
+            "en": "Launched 9 Apr 2026 (reported). Work and Codex allowance is now twice its earlier level; the 5x Plus multiple is reported and predates that.",
+            "zh": "據報 2026/4/9 推出。Work 與 Codex 額度現為先前的兩倍；Plus 5 倍的倍數為第三方數據，早於此次調整。"
           },
-          "confidence": "reported",
-          "source": "https://www.nocode.mba/articles/chatgpt-pricing",
-          "checked": "2026-11-02"
+          "confidence": "official",
+          "source": "https://help.openai.com/en/articles/9793128",
+          "checked": "2026-11-27",
+          "fields": {
+            "multiple": "reported"
+          }
         },
         {
           "name": "Pro (200)",
           "priceUsd": 200,
           "multiple": 20,
           "summary": {
-            "en": "Highest tier; reported ~20x Plus. Included usage reportedly lowered for new subscribers late Sep 2026.",
-            "zh": "最高方案；據報約 Plus 的 20 倍。據報 2026 年 9 月底起新訂閱者的內含用量下調。"
+            "en": "About 20x Plus (reported). The lower allowance announced on 29 Sep 2026 was canceled; affected subscribers were doubled back. Price unchanged.",
+            "zh": "據報約 Plus 的 20 倍。2026/9/29 宣布的額度下調已取消，受影響的訂閱者額度加倍恢復，價格不變。"
           },
-          "confidence": "reported",
-          "source": "https://overchat.ai/ai-hub/chatgpt-price-plans",
-          "checked": "2026-11-02"
+          "confidence": "official",
+          "source": "https://help.openai.com/en/articles/9793128",
+          "checked": "2026-11-27",
+          "fields": {
+            "multiple": "reported"
+          }
         },
         {
           "name": "Pro (500)",
           "priceUsd": 500,
           "multiple": null,
           "summary": {
-            "en": "Reported top tier with the most included usage and an Ultrafast mode that spends usage eight times faster. No multiple published.",
-            "zh": "據報為最高方案，內含用量最多，並有 Ultrafast 模式（消耗用量的速度為八倍）。未公布倍數。"
+            "en": "Most included usage of the three Pro tiers, plus Ultrafast (8x the Standard usage rate on GPT-6 Astra and GPT-6.1 Sol). Work and Codex allowance doubled. No multiple published.",
+            "zh": "三個 Pro 方案中內含用量最多，並含 Ultrafast（GPT-6 Astra 與 GPT-6.1 Sol 以標準速率的 8 倍消耗用量）。Work 與 Codex 額度加倍。未公布倍數。"
           },
-          "confidence": "reported",
-          "source": "https://overchat.ai/ai-hub/chatgpt-price-plans",
-          "checked": "2026-11-12"
+          "confidence": "official",
+          "source": "https://help.openai.com/en/articles/9793128",
+          "checked": "2026-11-27"
         }
       ],
       "support": "full"
@@ -109,7 +115,7 @@
           },
           "confidence": "official",
           "source": "https://claude.com/pricing",
-          "checked": "2026-11-26"
+          "checked": "2026-11-27"
         },
         {
           "name": "Pro",
@@ -121,7 +127,7 @@
           },
           "confidence": "official",
           "source": "https://claude.com/pricing",
-          "checked": "2026-11-26"
+          "checked": "2026-11-27"
         },
         {
           "name": "Max",
@@ -133,7 +139,7 @@
           },
           "confidence": "official",
           "source": "https://claude.com/pricing",
-          "checked": "2026-11-26"
+          "checked": "2026-11-27"
         },
         {
           "name": "Ultra",
@@ -145,7 +151,7 @@
           },
           "confidence": "official",
           "source": "https://claude.com/pricing",
-          "checked": "2026-11-26"
+          "checked": "2026-11-27"
         }
       ],
       "support": "full"
@@ -171,7 +177,7 @@
           },
           "confidence": "official",
           "source": "https://support.google.com/gemini/answer/16275805?hl=en",
-          "checked": "2026-11-26"
+          "checked": "2026-11-27"
         },
         {
           "name": "AI Plus",
@@ -183,7 +189,7 @@
           },
           "confidence": "official",
           "source": "https://support.google.com/gemini/answer/16275805?hl=en",
-          "checked": "2026-11-26"
+          "checked": "2026-11-27"
         },
         {
           "name": "AI Pro",
@@ -198,7 +204,7 @@
             "price": "reported"
           },
           "source": "https://support.google.com/gemini/answer/16275805?hl=en",
-          "checked": "2026-11-26"
+          "checked": "2026-11-27"
         },
         {
           "name": "AI Ultra",
@@ -213,7 +219,7 @@
             "price": "reported"
           },
           "source": "https://support.google.com/gemini/answer/16275805?hl=en",
-          "checked": "2026-11-26"
+          "checked": "2026-11-27"
         },
         {
           "name": "AI Ultra (top)",
@@ -228,7 +234,7 @@
             "price": "reported"
           },
           "source": "https://support.google.com/gemini/answer/16275805?hl=en",
-          "checked": "2026-11-26"
+          "checked": "2026-11-27"
         }
       ],
       "support": "tokens",
@@ -256,7 +262,7 @@
               },
               "confidence": "official",
               "source": "https://antigravity.google/docs/plans",
-              "checked": "2026-11-26"
+              "checked": "2026-11-27"
             },
             {
               "name": "with AI Pro",
@@ -271,7 +277,7 @@
                 "price": "reported"
               },
               "source": "https://antigravity.google/docs/plans",
-              "checked": "2026-11-26"
+              "checked": "2026-11-27"
             },
             {
               "name": "with AI Ultra",
@@ -398,7 +404,7 @@
               },
               "confidence": "official",
               "source": "https://cursor.com/pricing",
-              "checked": "2026-11-26"
+              "checked": "2026-11-27"
             },
             {
               "name": "Plus",
@@ -410,7 +416,7 @@
               },
               "confidence": "official",
               "source": "https://cursor.com/pricing",
-              "checked": "2026-11-26"
+              "checked": "2026-11-27"
             },
             {
               "name": "Premium",
@@ -422,7 +428,7 @@
               },
               "confidence": "official",
               "source": "https://cursor.com/pricing",
-              "checked": "2026-11-26"
+              "checked": "2026-11-27"
             },
             {
               "name": "Super",
@@ -434,7 +440,7 @@
               },
               "confidence": "official",
               "source": "https://cursor.com/pricing",
-              "checked": "2026-11-26"
+              "checked": "2026-11-27"
             },
             {
               "name": "Ultra",
@@ -446,7 +452,7 @@
               },
               "confidence": "official",
               "source": "https://cursor.com/pricing",
-              "checked": "2026-11-26"
+              "checked": "2026-11-27"
             }
           ],
           "noteSource": "https://www.techzine.eu/news/devops/142197/spacex-acquires-cursor-for-60-billion/"

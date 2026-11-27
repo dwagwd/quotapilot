@@ -1,28 +1,28 @@
 {
-  "lastReviewed": "2026-11-26",
+  "lastReviewed": "2026-11-27",
   "sources": {
     "anthropic": {
       "name": "Claude API pricing",
       "url": "https://platform.claude.com/docs/en/about-claude/pricing",
-      "checked": "2026-11-26",
+      "checked": "2026-11-27",
       "covers": "Claude API prices, including prompt-caching reads and 5-minute writes"
     },
     "google": {
       "name": "Gemini API pricing",
       "url": "https://aistudio.google.com/docs/pricing",
-      "checked": "2026-11-26",
+      "checked": "2026-11-27",
       "covers": "Gemini API prices (≤200k prompt bracket), including implicit context-caching reads"
     },
     "xai": {
       "name": "xAI models & pricing",
       "url": "https://docs.x.ai/docs/models",
-      "checked": "2026-11-26",
+      "checked": "2026-11-27",
       "covers": "Grok API prices (<200k prompt bracket), including cached input"
     },
     "openai": {
       "name": "OpenAI API pricing",
       "url": "https://developers.openai.com/api/docs/pricing",
-      "checked": "2026-11-26",
+      "checked": "2026-11-27",
       "covers": "GPT API prices (Standard tier, up to 272K input tokens), including cached input"
     }
   },

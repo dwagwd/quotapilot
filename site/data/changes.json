@@ -1,5 +1,5 @@
 {
-  "lastReviewed": "2026-11-26",
+  "lastReviewed": "2026-11-27",
   "changes": [
     {
       "date": "2026-12-01",
@@ -13,6 +13,18 @@
       },
       "confidence": "official",
       "source": "https://ai.google.dev/gemini-api/docs/pricing"
+    },
+    {
+      "date": "2026-11-27",
+      "provider": "chatgpt",
+      "kind": "quota",
+      "direction": "up",
+      "text": {
+        "en": "OpenAI's help page now says the Pro 200 allowance cut is canceled, and Pro 100 and Pro 500 get twice their earlier Work and Codex allowance. Prices unchanged.",
+        "zh": "OpenAI 說明頁現指出 Pro 200 的額度下調已取消，Pro 100 與 Pro 500 的 Work 與 Codex 額度加倍。價格不變。"
+      },
+      "confidence": "official",
+      "source": "https://help.openai.com/en/articles/9793128"
     },
     {
       "date": "2026-09-30",

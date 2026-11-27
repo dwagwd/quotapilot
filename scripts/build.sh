@@ -57,9 +57,7 @@ if [ -n "${QUOTAPILOT_SIGN_IDENTITY:-}" ]; then
   codesign --force --options runtime --timestamp --sign "$QUOTAPILOT_SIGN_IDENTITY" "$APP/Contents/Helpers/quotapilot"
   codesign --force --options runtime --timestamp --sign "$QUOTAPILOT_SIGN_IDENTITY" "$APP"
 else
-  # An explicit designated requirement (identifier only) instead of the default `cdhash H"…"`: an ad-hoc build
-  # otherwise gets a new requirement on every build, which is what macOS compares for its per-app grants.
-  codesign --force --sign - -i quotapilot -r="designated => identifier \"quotapilot\"" "$APP/Contents/Helpers/quotapilot"
-  codesign --force --sign - -r="designated => identifier \"io.github.dwagwd.quotapilot\"" "$APP"
+  codesign --force --sign - "$APP/Contents/Helpers/quotapilot"
+  codesign --force --sign - "$APP"
 fi
 echo "Built: $APP"

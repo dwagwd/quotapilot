@@ -111,4 +111,38 @@ final class ClaudeLoginCacheTests: XCTestCase {
         let text = "keychain: \"~/Library/Keychains/login.keychain-db\"\nattributes:\n    \"cdat\"<timedate>=0x3230  \"20260920020404Z\\000\"\n    \"mdat\"<timedate>=0x3230  \"20261126002409Z\\000\"\n    \"svce\"<blob>=\"Claude Code-credentials\"\n"
         XCTAssertEqual(ClaudeKeychain.stampValue(fromAttributes: text), "20261126002409Z")
     }
+
+    func testSecondRefusalStopsAskingUntilRetry() {
+        let env = Env(); env.keychainDenied = true
+        let cache = make(env)
+        _ = cache.login()
+        env.now += ClaudeLoginCache.backoff + 1
+        XCTAssertEqual(cache.login(), .needsAccess); XCTAssertEqual(env.reads, 2)
+        env.now += 365 * 86400
+        XCTAssertEqual(cache.login(), .needsAccess); XCTAssertEqual(env.reads, 2, "no third ask")
+        env.keychainDenied = false; env.keychain = creds("a", expires: nil)
+        cache.retryNow()
+        XCTAssertEqual(cache.login(), .login(ClaudeLogin(token: "a", plan: "max", expiresAt: nil)))
+    }
+
+    func testRejectedFileTokenIsNotSentAgainUntilTheFileChanges() {
+        let env = Env(); env.file = creds("f1", expires: nil); env.stamp = nil
+        let cache = make(env)
+        XCTAssertEqual(cache.login(), .login(ClaudeLogin(token: "f1", plan: "max", expiresAt: nil)))
+        cache.reject()
+        XCTAssertEqual(cache.login(), .expired)
+        env.file = creds("f2", expires: nil)
+        XCTAssertEqual(cache.login(), .login(ClaudeLogin(token: "f2", plan: "max", expiresAt: nil)))
+    }
+
+    func testPendingPromptDoesNotBlockOtherCalls() {
+        let env = Env(); env.keychain = creds("a", expires: nil)
+        var inner: ClaudeLoginCache.Result?
+        var cache: ClaudeLoginCache!
+        cache = ClaudeLoginCache(readFile: { nil }, readKeychain: { inner = cache.login(); return env.keychain },
+                                 keychainStamp: { env.stamp }, now: { env.now })
+        XCTAssertEqual(cache.login(), .login(ClaudeLogin(token: "a", plan: "max", expiresAt: nil)))
+        XCTAssertEqual(inner, .busy, "a call made while the read waits is answered at once")
+        XCTAssertEqual(cache.keychainReads, 1)
+    }
 }

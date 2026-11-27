@@ -121,7 +121,8 @@ func fetchClaudeWindows() -> (windows: [WindowItem], error: String?) {
     case .login(let found): login = found
     case .missing: return ([], "claudeLoginMissing")
     case .expired: return ([], "claudeLoginExpired")
-    case .needsAccess: return ([], "claudeLoginNeedsAccess")
+    case .needsAccess: return ([], "claudeLoginNeedsAccessCLI")
+    case .busy: return ([], "claudePlanUnavailable")
     }
     var request = URLRequest(url: ClaudePlanUsage.endpoint, timeoutInterval: 20)
     request.setValue("Bearer " + login.token, forHTTPHeaderField: "Authorization")

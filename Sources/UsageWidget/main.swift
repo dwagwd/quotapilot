@@ -1449,6 +1449,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
                 case .missing: self.failClaudePlan("claudeLoginMissing")
                 case .expired: self.failClaudePlan("claudeLoginExpired")
                 case .needsAccess: self.failClaudePlan("claudeLoginNeedsAccess")
+                case .busy: self.claudePlanFetching = false
                 }
             }
         }

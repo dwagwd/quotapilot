@@ -23,7 +23,8 @@ public final class ClaudeLoginCache {
         case login(ClaudeLogin)
         case missing        // no login found
         case expired        // found, but expired or rejected; Claude Code has to refresh it
-        case needsAccess    // the keychain read failed or was refused; waiting out the back-off
+        case needsAccess    // the keychain read failed or was refused; waiting for the back-off or for a retry
+        case busy           // another read is still waiting (for example on a permission prompt)
     }
 
     public static let backoff: Double = 6 * 3600
@@ -37,8 +38,13 @@ public final class ClaudeLoginCache {
     private var cached: ClaudeLogin?
     private var lastReadStamp: String?
     private var blockedUntil: Double = 0
+    private var refusals = 0
+    private var reading = false
+    private var lastServedToken: String?
+    private var rejectedToken: String?
+    private var reads = 0
     /// How many times the keychain secret was read; tests and diagnostics.
-    public private(set) var keychainReads = 0
+    public var keychainReads: Int { lock.lock(); defer { lock.unlock() }; return reads }
 
     public init(readFile: @escaping () -> Data?, readKeychain: @escaping () -> Data?, keychainStamp: @escaping () -> String?,
                 now: @escaping () -> Double = { Date().timeIntervalSince1970 }) {
@@ -46,42 +52,69 @@ public final class ClaudeLoginCache {
     }
 
     private func usable(_ login: ClaudeLogin, _ t: Double) -> Bool {
-        (login.expiresAt ?? .infinity) > t + Self.expiryMargin
+        (login.expiresAt ?? .infinity) > t + Self.expiryMargin && login.token != rejectedToken
     }
 
+    private func serve(_ login: ClaudeLogin) -> Result { lastServedToken = login.token; return .login(login) }
+
+    /// The lock only guards the state: `security` may wait for a person to answer a prompt, and no other call
+    /// may be held up behind that. A second call while a read is pending returns `.busy`.
     public func login() -> Result {
-        lock.lock(); defer { lock.unlock() }
+        lock.lock()
         let t = now()
         var fileExpired = false
         if let data = readFile(), let from = ClaudePlanUsage.credentials(from: data) {
             let login = ClaudeLogin(token: from.token, plan: from.plan, expiresAt: from.expiresAt)
-            if usable(login, t) { return .login(login) }
+            if usable(login, t) { defer { lock.unlock() }; return serve(login) }
             fileExpired = true
         }
-        if let cached, usable(cached, t) { return .login(cached) }
-        if blockedUntil > t { return .needsAccess }
-        guard let stamp = keychainStamp() else { return fileExpired ? .expired : .missing }
-        // Same item as the one already read: its token is expired or was rejected, and reading it again returns the same.
-        if lastReadStamp == stamp { return .expired }
-        keychainReads += 1
-        guard let data = readKeychain() else { blockedUntil = t + Self.backoff; return .needsAccess }
+        if let cached, usable(cached, t) { defer { lock.unlock() }; return serve(cached) }
+        if reading { lock.unlock(); return .busy }
+        if blockedUntil > t { lock.unlock(); return .needsAccess }
+        reading = true
+        lock.unlock()
+
+        let stamp = keychainStamp()
+        var secret: Data?
+        let skip = stamp == nil
+        let needsRead: Bool = {
+            lock.lock(); defer { lock.unlock() }
+            // Same item as the one already read: its token is expired or was rejected, and reading it again returns the same.
+            return !skip && lastReadStamp != stamp
+        }()
+        if needsRead { secret = readKeychain() }
+
+        lock.lock(); defer { lock.unlock() }
+        reading = false
+        guard let stamp else { return fileExpired ? .expired : .missing }
+        if !needsRead { return .expired }
+        reads += 1
+        guard let data = secret else {
+            refusals += 1
+            // The first refusal waits for the back-off; after a second one nothing asks again until the person retries.
+            blockedUntil = refusals >= 2 ? .infinity : t + Self.backoff
+            return .needsAccess
+        }
+        refusals = 0
         lastReadStamp = stamp
         guard let from = ClaudePlanUsage.credentials(from: data) else { cached = nil; return .missing }
         let login = ClaudeLogin(token: from.token, plan: from.plan, expiresAt: from.expiresAt)
         cached = login
-        return usable(login, t) ? .login(login) : .expired
+        return usable(login, t) ? serve(login) : .expired
     }
 
-    /// The server refused the token (401). Reading the same item again would return the same token.
+    /// The server refused the token (401). The same token is not sent again, wherever it came from; a new one is
+    /// picked up when Claude Code writes the item or the credentials file.
     public func reject() {
         lock.lock(); defer { lock.unlock() }
+        rejectedToken = lastServedToken
         cached = nil
     }
 
     /// The person asked to try again: lift the back-off and read the keychain on the next `login()`.
     public func retryNow() {
         lock.lock(); defer { lock.unlock() }
-        cached = nil; blockedUntil = 0; lastReadStamp = nil
+        cached = nil; blockedUntil = 0; lastReadStamp = nil; refusals = 0
     }
 
     /// Plan usage was switched off: drop the token from memory.
@@ -123,23 +156,26 @@ public enum ClaudeBridgeSource {
 public enum ClaudeKeychain {
     static let service = "Claude Code-credentials"
 
-    static func run(_ arguments: [String]) -> Data? {
+    /// Runs `security`; gives up (and stops it) after `timeout` seconds, so a prompt nobody answers cannot hang the caller.
+    static func run(_ arguments: [String], timeout: Double) -> Data? {
         let process = Process(), pipe = Pipe()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/security")
         process.arguments = arguments
         process.standardOutput = pipe; process.standardError = FileHandle.nullDevice
+        let done = DispatchSemaphore(value: 0)
+        process.terminationHandler = { _ in done.signal() }
         guard (try? process.run()) != nil else { return nil }
+        guard done.wait(timeout: .now() + timeout) == .success else { process.terminate(); return nil }
         let data = pipe.fileHandleForReading.readDataToEndOfFile()
-        process.waitUntilExit()
         return process.terminationStatus == 0 && !data.isEmpty ? data : nil
     }
 
     /// The secret. Shows the macOS permission prompt when this program is not on the item's access list.
-    public static func secret() -> Data? { run(["find-generic-password", "-s", service, "-w"]) }
+    public static func secret() -> Data? { run(["find-generic-password", "-s", service, "-w"], timeout: 90) }
 
     /// The item's modification date from its attributes. Does not return the secret and never prompts.
     public static func stamp() -> String? {
-        guard let data = run(["find-generic-password", "-s", service]), let text = String(data: data, encoding: .utf8) else { return nil }
+        guard let data = run(["find-generic-password", "-s", service], timeout: 10), let text = String(data: data, encoding: .utf8) else { return nil }
         return stampValue(fromAttributes: text) ?? text
     }
 

@@ -189,6 +189,21 @@ jobs:
             throw "Expected quotapilot.exe fixed file and product versions $expectedVersion, got file $fileVersion and product $productVersion"
           }
 
+          # Tray app (desktop/QuotaPilotTray): one self-contained single-file QuotaPilot.exe with its own version resource.
+          # It runs quotapilot.exe from the same folder and has no network code of its own.
+          # Tags from before the tray app existed (workflow_dispatch rebuilds) have no desktop/ folder and ship the CLI only.
+          $hasTray = Test-Path -LiteralPath desktop\QuotaPilotTray\QuotaPilotTray.csproj
+          $trayOut = Join-Path $env:RUNNER_TEMP 'tray'
+          if ($hasTray) {
+            & dotnet publish desktop/QuotaPilotTray -c Release -r win-x64 --self-contained `
+              -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:Version=$version -o $trayOut
+            if ($LASTEXITCODE -ne 0) { throw "dotnet publish failed ($LASTEXITCODE)" }
+            $trayInfo = (Get-Item -LiteralPath "$trayOut\QuotaPilot.exe").VersionInfo
+            if ($trayInfo.ProductName -cne 'QuotaPilot' -or $trayInfo.ProductVersion -cne $version) {
+              throw "Expected QuotaPilot.exe version info 'QuotaPilot $version', got '$($trayInfo.ProductName) $($trayInfo.ProductVersion)'"
+            }
+          }
+
           $dumpbin = (Get-Command dumpbin.exe -ErrorAction SilentlyContinue).Source
           $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
           $crtDirs = @()
@@ -240,6 +255,7 @@ jobs:
           $bundle = Join-Path $env:RUNNER_TEMP ([IO.Path]::GetRandomFileName())
           New-Item -ItemType Directory -Path $bundle | Out-Null
           Copy-Item .build\release\quotapilot.exe, LICENSE -Destination $bundle
+          if ($hasTray) { Copy-Item "$trayOut\QuotaPilot.exe" -Destination $bundle }
           # Notices always come from the workflow's own commit (also when rebuilding an older tag), byte for byte.
           git fetch --no-tags --depth 1 origin $env:GITHUB_WORKFLOW_SHA
           if ($LASTEXITCODE -ne 0) { throw 'Could not fetch the workflow commit for the Windows notices' }
@@ -280,7 +296,7 @@ jobs:
           }
 
           $stagedFiles = Get-ChildItem -LiteralPath $bundle -File
-          foreach ($binary in ($stagedFiles | Where-Object { $_.Extension -in '.exe', '.dll' })) {
+          foreach ($binary in ($stagedFiles | Where-Object { $_.Extension -in '.exe', '.dll' -and $_.Name -ne 'QuotaPilot.exe' })) {
             foreach ($dll in (Get-ImportedDlls $binary.FullName)) {
               if (!(Test-SystemDll $dll) -and !(Test-Path -LiteralPath (Join-Path $bundle $dll) -PathType Leaf)) {
                 throw "$($binary.Name) imports $dll, which is missing from the staging folder"
@@ -301,6 +317,7 @@ jobs:
                 (Compare-Object -ReferenceObject $stagedFiles.Name -DifferenceObject $extracted.Name)) {
               throw 'Windows ZIP must contain all staged files directly at its root'
             }
+            if ($hasTray -and !(Test-Path -LiteralPath (Join-Path $smokeRoot 'QuotaPilot.exe') -PathType Leaf)) { throw 'Windows ZIP is missing QuotaPilot.exe (tray app)' }
             Set-Location -LiteralPath $smokeRoot
             $env:PATH = 'C:\Windows\System32;C:\Windows'
             & "$PSHOME\pwsh.exe" -NoProfile -NonInteractive -Command {

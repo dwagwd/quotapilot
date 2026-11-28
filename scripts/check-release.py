@@ -18,7 +18,7 @@ assert "MIT License" in (ROOT / "LICENSE").read_text()
 # Match accidental machine-specific paths, real credentials, or private key material.
 patterns = [r"/Users/[^/\s]+/", r"/Volumes/[^\n]+/coding/", r"sk-[A-Za-z0-9_-]{20,}", r"gh[pousr]_[A-Za-z0-9]{20,}", r"-----BEGIN [A-Z ]*PRIVATE KEY-----"]
 for path in public_files():
-    if path.name == "check-release.py" or path.suffix in {".png", ".icns"}:
+    if path.name == "check-release.py" or path.suffix in {".png", ".icns", ".ico"}:
         continue  # binary artwork
     text = path.read_text(encoding="utf-8")
     for pattern in patterns:

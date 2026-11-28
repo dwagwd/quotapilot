@@ -1,0 +1,29 @@
+{
+  "errors" : {},
+  "generatedAt" : 1795854366.9,
+  "models" : { "claude" : { "at" : 1795854362.7, "effort" : "medium", "model" : "example-model" } },
+  "reroutes" : [],
+  "router" : {
+    "agent" : "claude",
+    "agents" : [
+      { "headroom" : 49, "limitingWindow" : "codex:secondary", "provider" : "codex", "resetsAt" : 1796303691 },
+      { "headroom" : 54, "limitingWindow" : "claude:seven_day:primary", "provider" : "claude", "resetsAt" : 1796324400.28 }
+    ],
+    "byTask" : { "implement" : { "agent" : "claude", "reason" : "quota", "rule" : "auto" } },
+    "minimumHeadroom" : 10,
+    "mode" : "auto",
+    "reason" : "mostHeadroom"
+  },
+  "tokens" : {
+    "hours" : 24,
+    "providers" : { "claude" : { "total" : 717407778 }, "codex" : { "total" : 49215026 } },
+    "total" : { "cacheRead" : 746985266, "cacheWrite" : 15168846, "input" : 3021988, "output" : 1446704, "reasoning" : 45892, "total" : 766622804 }
+  },
+  "version" : "0.9.7",
+  "windows" : [
+    { "id" : "codex:primary", "limitReached" : false, "name" : "Codex", "planName" : "Plus", "planType" : "plus", "resetsAt" : 1795859166, "usedPercent" : 92, "windowDurationMins" : 300 },
+    { "id" : "codex:secondary", "limitReached" : false, "name" : "Codex", "planName" : "Plus", "planType" : "plus", "resetsAt" : 1796303691, "usedPercent" : 51, "windowDurationMins" : 10080 },
+    { "id" : "claude:five_hour:primary", "limitReached" : false, "name" : "Claude", "planName" : "Max 5x", "planType" : "max_5x", "resetsAt" : 1795857600.28, "usedPercent" : 45, "windowDurationMins" : 300 },
+    { "id" : "claude:seven_day:primary", "limitReached" : false, "name" : "Claude", "planName" : "Max 5x", "planType" : "max_5x", "resetsAt" : 1796324400.28, "usedPercent" : 78, "windowDurationMins" : 10080 }
+  ]
+}

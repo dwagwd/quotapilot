@@ -45,3 +45,27 @@ The included Microsoft Visual C++ runtime DLLs are Microsoft Visual Studio
 Distributable Code. Their redistribution is governed by the applicable
 Microsoft Visual Studio license terms.
 https://learn.microsoft.com/en-us/cpp/windows/redistributing-visual-cpp-files
+
+QuotaPilot.exe (tray app, desktop/QuotaPilotTray) additionally contains:
+
+.NET 8 runtime and base class libraries (self-contained, single file)
+MIT License, Copyright (c) .NET Foundation and Contributors. See dotnet-LICENSE.txt.
+The runtime's own third-party notices are in dotnet-ThirdPartyNotices.txt.
+https://github.com/dotnet/runtime/blob/main/LICENSE.TXT
+
+Avalonia 11 (UI framework, Fluent theme, Win32 platform)
+MIT License, Copyright 2013-2025 © The AvaloniaUI Project. See avalonia-LICENSE.txt.
+https://github.com/AvaloniaUI/Avalonia/blob/master/licence.md
+
+SkiaSharp 2.88 and HarfBuzzSharp 8.3
+MIT License, Copyright (c) Xamarin, Inc. and Microsoft Corporation. See skiasharp-LICENSE.txt.
+They bundle native Skia (BSD 3-Clause), HarfBuzz (MIT), ANGLE and other components under the
+terms listed in skiasharp-THIRD-PARTY-NOTICES.txt.
+https://github.com/mono/SkiaSharp
+
+ANGLE (libEGL, libGLESv2, d3dcompiler) from the Avalonia.Angle.Windows.Natives package
+BSD 3-Clause style license. See angle-LICENSE.txt.
+https://github.com/AvaloniaUI/Avalonia.Angle.Windows.Natives
+
+MicroCom runtime (Avalonia)
+MIT License, Copyright The AvaloniaUI Project.

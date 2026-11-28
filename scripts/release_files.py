@@ -3,9 +3,11 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 DIRECTORIES = ("Sources", "Tests", "scripts", "skills", ".github", ".codex-plugin", "docs", "assets", "packaging",
                # Website, collector and Homebrew formula, so the archive can reproduce what the workflows deploy.
-               "site", "collector", "Formula")
+               "site", "collector", "Formula",
+               # Windows and Linux tray app (C#, Avalonia); build output stays out.
+               "desktop")
 # Local tool state (Wrangler cache with account details, editor/agent folders) and build output never ship.
-SKIPPED_PARTS = {"node_modules", "_site", "__pycache__"}
+SKIPPED_PARTS = {"node_modules", "_site", "__pycache__", "bin", "obj", "TestResults"}
 # Pages that site/scripts/build-pages.mjs regenerates (ignored in site/.gitignore).
 GENERATED = ("site/plans/", "site/effort/", "site/resets/", "site/models/", "site/zh/", "site/sitemap.xml", "site/robots.txt")
 FILES = ("Package.swift", "VERSION", "LICENSE", "README.md", "README.zh-TW.md", "CONTRIBUTING.md", "SECURITY.md", "PRIVACY.md", "CHANGELOG.md", ".gitignore")

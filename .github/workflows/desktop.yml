@@ -1,0 +1,58 @@
+# Tray app for Windows and Linux (desktop/QuotaPilotTray, C# + Avalonia): unit tests, headless card renderings
+# (uploaded as PNG artifacts) and a single-file self-contained publish. The runners' preinstalled .NET 8 SDK is used.
+name: Desktop
+on:
+  push:
+    branches: ["**"]
+    paths: ["desktop/**", ".github/workflows/desktop.yml", "VERSION"]
+  pull_request:
+    paths: ["desktop/**", ".github/workflows/desktop.yml", "VERSION"]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: desktop-${{ github.ref }}
+  cancel-in-progress: true
+env:
+  DOTNET_NOLOGO: "1"
+  DOTNET_CLI_TELEMETRY_OPTOUT: "1"
+  QUOTAPILOT_SCREENSHOT_DIR: ${{ github.workspace }}/desktop-screenshots
+jobs:
+  tray:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { name: windows, os: windows-latest, rid: win-x64 }
+          - { name: linux, os: ubuntu-latest, rid: linux-x64 }
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - name: Test
+        shell: bash
+        run: dotnet test desktop/QuotaPilotTray.Tests -c Release
+      - name: Publish (single file, self-contained)
+        shell: bash
+        run: |
+          VERSION="$(tr -d '[:space:]' < VERSION)"
+          dotnet publish desktop/QuotaPilotTray -c Release -r ${{ matrix.rid }} --self-contained \
+            -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:Version="$VERSION" \
+            -o desktop-publish
+          ls -la desktop-publish
+      - name: Check the Windows version resource
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $version = (Get-Content -LiteralPath VERSION -Raw).Trim()
+          $info = (Get-Item -LiteralPath desktop-publish\QuotaPilot.exe).VersionInfo
+          if ($info.ProductName -cne 'QuotaPilot' -or $info.ProductVersion -cne $version) {
+            throw "Expected QuotaPilot.exe version info 'QuotaPilot $version', got '$($info.ProductName) $($info.ProductVersion)'"
+          }
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: always()
+        with:
+          name: tray-card-screenshots-${{ matrix.name }}
+          path: desktop-screenshots/*.png
+          if-no-files-found: warn

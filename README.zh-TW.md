@@ -70,7 +70,7 @@ Apple Silicon 且 macOS 15 以上的 Mac，Homebrew 會直接安裝預先編譯�
 
 需要 macOS 13+、Swift 5.9+／Xcode Command Line Tools、測試用 Python 3，以及已登入 ChatGPT 帳號的 Codex App 或 CLI。Codex 核心小卡不依賴 Python，其他 agent 橋接需要 Python 3。
 
-**Windows／Linux：`quotapilot` 命令列工具。**選單列 App 只支援 macOS；在 macOS、Linux、Windows 都可以用 `quotapilot status`（各 agent 額度、24 小時 Token、依工作分派）、`quotapilot watch`（終端機即時更新）、`quotapilot route review`（輸出 codex 或 claude）、`quotapilot stats --hours 168`、`quotapilot config rule web codex`，加上 `--json` 可供腳本與 skill 使用。macOS 上 Homebrew 會把 `quotapilot` 放進 `PATH`（工具位於 `QuotaPilot.app/Contents/Helpers/quotapilot`）；其他平台以 Swift 6.2 以上執行 `swift build -c release --product quotapilot` 建置。
+**Windows／Linux：系統匣小卡與 `quotapilot` 命令列工具。**選單列 App 只支援 macOS；在 Windows 雙擊 `QuotaPilot.exe` 即可使用系統匣圖示與額度小卡（見 [docs/desktop-tray.md](docs/desktop-tray.md)），`quotapilot.exe` 則是命令列工具。在 macOS、Linux、Windows 都可以用 `quotapilot status`（各 agent 額度、24 小時 Token、依工作分派）、`quotapilot watch`（終端機即時更新）、`quotapilot route review`（輸出 codex 或 claude）、`quotapilot stats --hours 168`、`quotapilot config rule web codex`，加上 `--json` 可供腳本與 skill 使用。macOS 上 Homebrew 會把 `quotapilot` 放進 `PATH`（工具位於 `QuotaPilot.app/Contents/Helpers/quotapilot`）；其他平台以 Swift 6.2 以上執行 `swift build -c release --product quotapilot` 建置。
 
 Windows／Linux 的命令列工具可從[最新版本](https://github.com/dwagwd/quotapilot/releases/latest)下載。請參閱 [程式碼簽章政策](docs/code-signing-policy.md)。
 

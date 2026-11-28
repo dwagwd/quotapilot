@@ -1,0 +1,39 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>QuotaPilotTray</RootNamespace>
+    <LangVersion>12</LangVersion>
+    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+    <BuiltInComInteropSupport>false</BuiltInComInteropSupport>
+    <ApplicationManifest></ApplicationManifest>
+    <ApplicationIcon>Assets/app.ico</ApplicationIcon>
+    <EnableCompressionInSingleFile>true</EnableCompressionInSingleFile>
+    <DebugType>none</DebugType>
+    <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
+    <!-- Windows ships QuotaPilot.exe next to quotapilot.exe; elsewhere the name stays distinct from the CLI. -->
+    <AssemblyName>quotapilot-tray</AssemblyName>
+    <AssemblyName Condition="$(RuntimeIdentifier.StartsWith('win'))">QuotaPilot</AssemblyName>
+    <!-- Version resource. Releases pass -p:Version=<contents of VERSION>. -->
+    <Version Condition="'$(Version)' == ''">0.0.0</Version>
+    <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
+    <Product>QuotaPilot</Product>
+    <Company>QuotaPilot project</Company>
+    <Description>QuotaPilot tray</Description>
+    <Authors>QuotaPilot project</Authors>
+    <Copyright>MIT License</Copyright>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Avalonia" Version="11.3.6" />
+    <PackageReference Include="Avalonia.Desktop" Version="11.3.6" />
+    <PackageReference Include="Avalonia.Themes.Fluent" Version="11.3.6" />
+  </ItemGroup>
+  <ItemGroup>
+    <AvaloniaResource Include="Assets/tray.png" />
+  </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="QuotaPilotTray.Tests" />
+  </ItemGroup>
+</Project>

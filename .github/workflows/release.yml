@@ -178,7 +178,19 @@ jobs:
           $bundle = Join-Path $env:RUNNER_TEMP ([IO.Path]::GetRandomFileName())
           New-Item -ItemType Directory -Path $bundle | Out-Null
           Copy-Item .build\release\quotapilot.exe, LICENSE -Destination $bundle
-          Copy-Item packaging\windows\*.txt -Destination $bundle
+          # Older tags have no packaging\windows: take the notices from the workflow's own commit.
+          if (Test-Path packaging\windows) {
+            Copy-Item packaging\windows\*.txt -Destination $bundle
+          } else {
+            git fetch --no-tags --depth 1 origin $env:GITHUB_SHA
+            if ($LASTEXITCODE -ne 0) { throw 'Could not fetch the workflow commit for the Windows notices' }
+            New-Item -ItemType Directory -Path packaging\windows -Force | Out-Null
+            foreach ($f in (git ls-tree --name-only "$($env:GITHUB_SHA):packaging/windows")) {
+              git show "$($env:GITHUB_SHA):packaging/windows/$f" | Set-Content -Encoding utf8NoBOM "packaging\windows\$f"
+              if ($LASTEXITCODE -ne 0) { throw "Could not read packaging/windows/$f" }
+            }
+            Copy-Item packaging\windows\*.txt -Destination $bundle
+          }
           $pending = [System.Collections.Generic.Queue[string]]::new()
           $seen = [System.Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
           $exeImports = @(Get-ImportedDlls "$bundle\quotapilot.exe")

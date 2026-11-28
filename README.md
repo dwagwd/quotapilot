@@ -68,7 +68,7 @@ Ten interface languages. The complete list is in [docs/features.md](docs/feature
 
 ## Windows and Linux: the `quotapilot` CLI
 
-The menu bar app is macOS-only. **On Windows, double-click `QuotaPilot.exe` for the tray icon and quota card** (see [docs/desktop-tray.md](docs/desktop-tray.md)); `quotapilot.exe` is the command-line tool. On **macOS, Linux and Windows** the `quotapilot` command shows the same data and router:
+The menu bar app is macOS-only. **On Windows, double-click `QuotaPilotTray.exe` for the tray icon and quota card** (see [docs/desktop-tray.md](docs/desktop-tray.md)); `quotapilot.exe` is the command-line tool. On **macOS, Linux and Windows** the `quotapilot` command shows the same data and router:
 
 ```sh
 quotapilot status            # quota per agent, tokens (24 h), routing by task
@@ -81,7 +81,7 @@ quotapilot share             # opt-in: preview anonymous speed/quota numbers, th
 quotapilot compare           # your speed and plan quota next to the community medians (sends nothing)
 ```
 
-On macOS the Homebrew formula puts `quotapilot` on `PATH` (the tool ships inside the app at `QuotaPilot.app/Contents/Helpers/quotapilot`). On Linux and Windows, download the archive for your platform (Linux x64 or ARM64, Windows x64) from the [latest release](https://github.com/dwagwd/quotapilot/releases/latest) and verify it against the accompanying `.sha256` file. On Windows, extract everything from `quotapilot-windows-x64.zip` into one folder and keep `QuotaPilot.exe` (tray app), `quotapilot.exe`, the bundled DLLs, and the license files together. To build from source, run `swift build -c release --product quotapilot` with Swift 6.2 or later (binary in `.build/release/`).
+On macOS the Homebrew formula puts `quotapilot` on `PATH` (the tool ships inside the app at `QuotaPilot.app/Contents/Helpers/quotapilot`). On Linux and Windows, download the archive for your platform (Linux x64 or ARM64, Windows x64) from the [latest release](https://github.com/dwagwd/quotapilot/releases/latest) and verify it against the accompanying `.sha256` file. On Windows, extract everything from `quotapilot-windows-x64.zip` into one folder and keep `QuotaPilotTray.exe` (tray app), `quotapilot.exe`, the bundled DLLs, and the license files together. To build from source, run `swift build -c release --product quotapilot` with Swift 6.2 or later (binary in `.build/release/`).
 
 [Code signing policy](docs/code-signing-policy.md)
 

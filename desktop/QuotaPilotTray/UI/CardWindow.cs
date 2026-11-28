@@ -10,6 +10,8 @@ public sealed class CardWindow : Window
 {
     DateTime hiddenAt = DateTime.MinValue;
     readonly Loc loc;
+    /// <summary>Do not hide when focus is lost (the --show-card screenshot mode).</summary>
+    public bool KeepOpen { get; set; }
     public event Action? RefreshRequested;
 
     public CardWindow(Loc loc)
@@ -23,11 +25,23 @@ public sealed class CardWindow : Window
         SystemDecorations = SystemDecorations.None;
         ShowActivated = true;
         Title = loc["app.name"];
-        Deactivated += (_, _) => { if (IsVisible) { hiddenAt = DateTime.UtcNow; Hide(); } };
+        Deactivated += (_, _) => { if (IsVisible && !KeepOpen) { hiddenAt = DateTime.UtcNow; Hide(); } };
     }
 
-    public void SetModel(CardModel model)
+    CardModel? model;
+    bool stale;
+
+    /// <summary>The view is rebuilt only while the card is showing; a hidden card builds it when it is next opened.</summary>
+    public void SetModel(CardModel next)
     {
+        model = next;
+        if (IsVisible) Rebuild(); else stale = true;
+    }
+
+    void Rebuild()
+    {
+        stale = false;
+        if (model is null) return;
         var view = new CardView(model, loc);
         view.RefreshRequested += () => RefreshRequested?.Invoke();
         Content = view;
@@ -38,6 +52,7 @@ public sealed class CardWindow : Window
     {
         if (IsVisible) { Hide(); return; }
         if (DateTime.UtcNow - hiddenAt < TimeSpan.FromMilliseconds(350)) return;
+        if (stale || Content is null) Rebuild();
         Show();
         Activate();
         Dispatcher.UIThread.Post(PlaceNearTray, DispatcherPriority.Background);

@@ -19,21 +19,26 @@ public static class Shell
 
     public static string ShellQuote(string s) => "'" + s.Replace("'", "'\\''") + "'";
 
+    /// <summary>cmd.exe expands %VAR% and treats ^ & | and friends specially even inside quotes, so such paths are refused.</summary>
+    public static bool IsSafeForCmd(string path) => path.IndexOfAny(['%', '^', '&', '|', '<', '>', '(', ')', '!', '"']) < 0;
+
     /// <summary>Arguments for cmd.exe: opens a new console window that stays open after the command.</summary>
     public static string WindowsTerminalArguments(string exe, string subcommand) =>
         $"/c start \"QuotaPilot\" cmd /k \"\"{exe}\" {subcommand}\"";
 
-    public static bool OpenStats(string? cliPath)
+    /// <summary>Opens a terminal running <c>quotapilot stats</c>. Returns null on success, else the string key of the reason.</summary>
+    public static string? OpenStats(string? cliPath)
     {
-        if (cliPath is null) return false;
+        if (cliPath is null) return "err.cliMissing";
         try
         {
             if (OperatingSystem.IsWindows())
             {
+                if (!IsSafeForCmd(cliPath)) return "err.statsPath";
                 Process.Start(new ProcessStartInfo("cmd.exe", WindowsTerminalArguments(cliPath, "stats")) { UseShellExecute = false, CreateNoWindow = true });
-                return true;
+                return null;
             }
-            if (!OperatingSystem.IsLinux()) return false;
+            if (!OperatingSystem.IsLinux()) return "err.statsNoTerminal";
             var script = $"{ShellQuote(cliPath)} stats; printf '\\nPress Enter to close'; read _";
             foreach (var (terminal, flag) in new[] { ("x-terminal-emulator", "-e"), ("gnome-terminal", "--"), ("konsole", "-e"), ("xfce4-terminal", "-x"), ("xterm", "-e") })
             {
@@ -41,11 +46,11 @@ public static class Shell
                 var info = new ProcessStartInfo(terminal) { UseShellExecute = false };
                 info.ArgumentList.Add(flag); info.ArgumentList.Add("sh"); info.ArgumentList.Add("-c"); info.ArgumentList.Add(script);
                 Process.Start(info);
-                return true;
+                return null;
             }
         }
         catch (Exception e) when (e is System.ComponentModel.Win32Exception or InvalidOperationException) { }
-        return false;
+        return "err.statsNoTerminal";
     }
 
     static bool OnPath(string name) =>

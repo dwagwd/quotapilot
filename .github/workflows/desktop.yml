@@ -46,9 +46,9 @@ jobs:
         shell: pwsh
         run: |
           $version = (Get-Content -LiteralPath VERSION -Raw).Trim()
-          $info = (Get-Item -LiteralPath desktop-publish\QuotaPilot.exe).VersionInfo
+          $info = (Get-Item -LiteralPath desktop-publish\QuotaPilotTray.exe).VersionInfo
           if ($info.ProductName -cne 'QuotaPilot' -or $info.ProductVersion -cne $version) {
-            throw "Expected QuotaPilot.exe version info 'QuotaPilot $version', got '$($info.ProductName) $($info.ProductVersion)'"
+            throw "Expected QuotaPilotTray.exe version info 'QuotaPilot $version', got '$($info.ProductName) $($info.ProductVersion)'"
           }
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: always()

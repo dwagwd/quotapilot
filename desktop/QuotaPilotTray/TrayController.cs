@@ -27,7 +27,7 @@ public sealed class TrayController : IDisposable
     DateTime lastFetch = DateTime.MinValue;
     bool fetching;
 
-    public TrayController(IStatusSource source, IAutostart autostart, Loc loc)
+    public TrayController(IStatusSource source, IAutostart autostart, Loc loc, bool showCardAfterFirstRead = false)
     {
         this.source = source; this.autostart = autostart; this.loc = loc;
         card = new CardWindow(loc);
@@ -63,7 +63,14 @@ public sealed class TrayController : IDisposable
         timer = new DispatcherTimer { Interval = Interval };
         timer.Tick += (_, _) => _ = RefreshAsync();
         timer.Start();
-        _ = RefreshAsync();
+        _ = FirstRefreshAsync(showCardAfterFirstRead);
+    }
+
+    async Task FirstRefreshAsync(bool showCard)
+    {
+        card.KeepOpen = showCard;
+        await RefreshAsync();
+        if (showCard && !card.IsVisible) card.Toggle();
     }
 
     public static string TrayVersion =>
@@ -73,6 +80,14 @@ public sealed class TrayController : IDisposable
     {
         card.Toggle();
         if (card.IsVisible && DateTime.UtcNow - lastFetch > TimeSpan.FromSeconds(15)) _ = RefreshAsync();
+    }
+
+    void OpenStats()
+    {
+        var problem = Shell.OpenStats(CliRunner.Locate());
+        if (problem is null) return;
+        card.SetModel(CardModel.Failed(loc[problem], last, DateTimeOffset.UtcNow.ToUnixTimeSeconds(), loc));
+        if (!card.IsVisible) card.Toggle();
     }
 
     void ToggleAutostart()
@@ -87,7 +102,9 @@ public sealed class TrayController : IDisposable
         fetching = true;
         try
         {
-            var result = await Task.Run(() => source.FetchAsync(CancellationToken.None));
+            StatusResult result;
+            try { result = await Task.Run(() => source.FetchAsync(CancellationToken.None)); }
+            catch (Exception e) when (e is not OutOfMemoryException) { result = new StatusResult(null, "err.cliFailed", e.Message); }
             lastFetch = DateTime.UtcNow;
             var now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
             if (result.Snapshot is { } snapshot)

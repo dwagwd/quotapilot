@@ -17,7 +17,8 @@ public sealed class App : Application
         {
             desktop.ShutdownMode = Avalonia.Controls.ShutdownMode.OnExplicitShutdown;
             var exe = Environment.ProcessPath ?? "QuotaPilot";
-            controller = new TrayController(new CliRunner(), AutostartFactory.Create(exe), Loc.FromSystem());
+            controller = new TrayController(new CliRunner(), AutostartFactory.Create(exe), Loc.FromSystem(),
+                showCardAfterFirstRead: desktop.Args?.Contains("--show-card") == true);
             desktop.Exit += (_, _) => controller.Dispose();
         }
         base.OnFrameworkInitializationCompleted();

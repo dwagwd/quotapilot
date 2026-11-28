@@ -11,7 +11,7 @@
   - the router's suggested agent;
   - problems in plain words, for example "Codex not found. Install the desktop app or CLI."
 - **Right-click menu**: Refresh, Open stats in terminal (`quotapilot stats`), Start with Windows (Start at login on Linux), About, Quit.
-- English and Traditional Chinese, chosen from the system UI language. Set `QUOTAPILOT_TRAY_LANG=zh-TW` (or `en`) to force one.
+- English and Traditional Chinese, chosen from the system UI language. Set `QUOTAPILOT_TRAY_LANG=zh-TW` (or `en`) to force one. `QuotaPilotTray.exe --show-card` opens the card right after the first read (used by the clean-Windows screenshot check).
 
 ## How it works
 
@@ -21,12 +21,12 @@ The app does not read quota itself. Every 60 seconds, and when the card opens or
 
 ## Privacy
 
-The tray app makes no network requests and has no network code. It only starts the `quotapilot` command beside it and, on request, a terminal or your browser (About links). What the command itself reads and sends is described in [PRIVACY.md](../PRIVACY.md). "Start with Windows" writes one value under `HKCU\Software\Microsoft\Windows\CurrentVersion\Run`; on Linux it writes `~/.config/autostart/quotapilot-tray.desktop`. Turning the option off removes it.
+The tray app makes no network requests and has no network code. It only starts the `quotapilot` command beside it (never itself: the tray exe is named `QuotaPilotTray.exe` so it cannot collide with `quotapilot.exe` on case-insensitive Windows file systems) and, on request, a terminal or your browser (About links). What the command itself reads and sends is described in [PRIVACY.md](../PRIVACY.md). "Start with Windows" writes one value under `HKCU\Software\Microsoft\Windows\CurrentVersion\Run`; on Linux it writes `~/.config/autostart/quotapilot-tray.desktop`. Turning the option off removes it.
 
 ## Install
 
-- **Windows**: extract `quotapilot-windows-x64.zip` into one folder and double-click `QuotaPilot.exe`. `quotapilot.exe` in the same folder is the command-line tool. The exe is not signed yet (SignPath application in progress), so SmartScreen may ask for confirmation.
-- **Linux**: the release tarball does not include the tray app yet (planned). Build it with the .NET 8 SDK: `dotnet publish desktop/QuotaPilotTray -c Release -r linux-x64 --self-contained -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true`, and put `quotapilot` (from the CLI archive) next to the result `quotapilot-tray`. GNOME shows tray icons only with an AppIndicator extension; KDE, XFCE and others work out of the box. The runtime needs `libicu`.
+- **Windows**: extract `quotapilot-windows-x64.zip` into one folder and double-click `QuotaPilotTray.exe`. `quotapilot.exe` in the same folder is the command-line tool. The exe is not signed yet (SignPath application in progress), so SmartScreen may ask for confirmation.
+- **Linux**: the release tarball does not include the tray app yet (planned). Build it with the .NET 8 SDK: `dotnet publish desktop/QuotaPilotTray -c Release -r linux-x64 --self-contained -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true`, and put `quotapilot` (from the CLI archive) next to the result `QuotaPilotTray`. GNOME shows tray icons only with an AppIndicator extension; KDE, XFCE and others work out of the box. The runtime needs `libicu`.
 
 ## Build and test
 

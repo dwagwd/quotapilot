@@ -8,7 +8,7 @@ static class Program
     public static void Main(string[] args)
     {
         // One tray icon per user session.
-        using var mutex = new Mutex(true, "QuotaPilotTray-single-instance", out var first);
+        using var mutex = new Mutex(true, @"Local\QuotaPilotTray-single-instance", out var first);
         if (!first) return;
         BuildAvaloniaApp().StartWithClassicDesktopLifetime(args);
     }

@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- **Windows tray app** (docs/desktop-tray.md): `QuotaPilot.exe` in the Windows zip shows a tray icon with the tightest quota in its tooltip and a quota card (usage bars, reset countdowns, tokens, suggested agent, errors in plain words), English and Traditional Chinese, open at login. It runs the bundled `quotapilot` and has no network code of its own. The same code builds for Linux (not in the release tarball yet).
+- **Windows tray app** (docs/desktop-tray.md): `QuotaPilotTray.exe` in the Windows zip shows a tray icon with the tightest quota in its tooltip and a quota card (usage bars, reset countdowns, tokens, suggested agent, errors in plain words), English and Traditional Chinese, open at login. It runs the bundled `quotapilot` and has no network code of its own. The same code builds for Linux (not in the release tarball yet).
 
 ## 0.9.7
 

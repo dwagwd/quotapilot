@@ -13,9 +13,8 @@
     <EnableCompressionInSingleFile>true</EnableCompressionInSingleFile>
     <DebugType>none</DebugType>
     <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
-    <!-- Windows ships QuotaPilot.exe next to quotapilot.exe; elsewhere the name stays distinct from the CLI. -->
-    <AssemblyName>quotapilot-tray</AssemblyName>
-    <AssemblyName Condition="$(RuntimeIdentifier.StartsWith('win'))">QuotaPilot</AssemblyName>
+    <!-- Never "quotapilot": the tray exe sits next to quotapilot.exe, and Windows file names are case-insensitive. -->
+    <AssemblyName>QuotaPilotTray</AssemblyName>
     <!-- Version resource. Releases pass -p:Version=<contents of VERSION>. -->
     <Version Condition="'$(Version)' == ''">0.0.0</Version>
     <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>

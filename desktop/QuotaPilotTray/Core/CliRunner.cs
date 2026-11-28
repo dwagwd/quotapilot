@@ -18,19 +18,38 @@ public sealed class CliRunner : IStatusSource
     public static string ExecutableName => OperatingSystem.IsWindows() ? "quotapilot.exe" : "quotapilot";
 
     /// <summary>quotapilot next to this app, else on PATH. QUOTAPILOT_TRAY_CLI overrides both (development and tests).</summary>
-    public static string? Locate()
+    public static string? Locate() => Locate(
+        Environment.GetEnvironmentVariable("QUOTAPILOT_TRAY_CLI"),
+        Environment.ProcessPath is { Length: > 0 } p ? Path.GetDirectoryName(p) : AppContext.BaseDirectory,
+        Environment.GetEnvironmentVariable("PATH"), Environment.ProcessPath);
+
+    /// <summary>Never returns the running program itself (on Windows file names are case-insensitive).</summary>
+    public static string? Locate(string? forced, string? appDirectory, string? pathVariable, string? self)
     {
-        var forced = Environment.GetEnvironmentVariable("QUOTAPILOT_TRAY_CLI");
-        if (!string.IsNullOrEmpty(forced)) return File.Exists(forced) ? forced : null;
-        var beside = Path.Combine(AppContext.BaseDirectory, ExecutableName);
-        if (File.Exists(beside)) return beside;
-        var pathVar = Environment.GetEnvironmentVariable("PATH") ?? "";
-        foreach (var dir in pathVar.Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries))
+        bool IsSelf(string candidate)
+        {
+            if (string.IsNullOrEmpty(self)) return false;
+            try
+            {
+                var comparison = OperatingSystem.IsLinux() ? StringComparison.Ordinal : StringComparison.OrdinalIgnoreCase;
+                return string.Equals(Path.GetFullPath(candidate), Path.GetFullPath(self), comparison);
+            }
+            catch (ArgumentException) { return false; }
+        }
+        bool Usable(string candidate) => File.Exists(candidate) && !IsSelf(candidate);
+
+        if (!string.IsNullOrEmpty(forced)) return Usable(forced) ? forced : null;
+        if (!string.IsNullOrEmpty(appDirectory))
+        {
+            var beside = Path.Combine(appDirectory, ExecutableName);
+            if (Usable(beside)) return beside;
+        }
+        foreach (var dir in (pathVariable ?? "").Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries))
         {
             try
             {
                 var candidate = Path.Combine(dir.Trim('"'), ExecutableName);
-                if (File.Exists(candidate)) return candidate;
+                if (Usable(candidate)) return candidate;
             }
             catch (ArgumentException) { }
         }
@@ -74,12 +93,17 @@ public sealed class CliRunner : IStatusSource
         cts.CancelAfter(timeout);
         try
         {
+            // The deadline covers the pipe reads too: a child that outlives the CLI and keeps the pipe open must not hang the tray.
             await process.WaitForExitAsync(cts.Token).ConfigureAwait(false);
-            return (process.ExitCode, await stdout.ConfigureAwait(false), await stderr.ConfigureAwait(false), false);
+            await Task.WhenAll(stdout, stderr).WaitAsync(cts.Token).ConfigureAwait(false);
+            return (process.ExitCode, stdout.Result, stderr.Result, false);
         }
         catch (OperationCanceledException) when (!ct.IsCancellationRequested)
         {
-            try { process.Kill(entireProcessTree: true); } catch (InvalidOperationException) { }
+            try { process.Kill(entireProcessTree: true); } catch (Exception e) when (e is InvalidOperationException or System.ComponentModel.Win32Exception) { }
+            // Reads abandoned here end when the pipe closes; observe them so they never surface as unobserved exceptions.
+            _ = stdout.ContinueWith(t => _ = t.Exception, TaskContinuationOptions.OnlyOnFaulted);
+            _ = stderr.ContinueWith(t => _ = t.Exception, TaskContinuationOptions.OnlyOnFaulted);
             return (-1, "", "", true);
         }
     }

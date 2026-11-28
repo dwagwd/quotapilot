@@ -46,7 +46,7 @@ Distributable Code. Their redistribution is governed by the applicable
 Microsoft Visual Studio license terms.
 https://learn.microsoft.com/en-us/cpp/windows/redistributing-visual-cpp-files
 
-QuotaPilot.exe (tray app, desktop/QuotaPilotTray) additionally contains:
+QuotaPilotTray.exe (tray app, desktop/QuotaPilotTray) additionally contains:
 
 .NET 8 runtime and base class libraries (self-contained, single file)
 MIT License, Copyright (c) .NET Foundation and Contributors. See dotnet-LICENSE.txt.

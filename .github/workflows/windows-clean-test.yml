@@ -1,5 +1,6 @@
 # Manual end-to-end check of a published Windows release on a clean Windows image
 # (Windows Server Core container: no Swift toolchain, no Visual Studio, no Visual C++ redistributable).
+# After the container run, the tray app is started on the host desktop and a screenshot is uploaded.
 # It downloads the release zip exactly as a user would, extracts it, and runs the main commands inside the container.
 name: Windows clean test
 
@@ -60,3 +61,38 @@ jobs:
           $dir = Join-Path $env:RUNNER_TEMP 'qp'
           docker run --rm -v "${dir}:C:\qp" mcr.microsoft.com/windows/servercore:ltsc2022 powershell -NoProfile -ExecutionPolicy Bypass -File C:\qp\clean-test.ps1
           if ($LASTEXITCODE -ne 0) { throw "Clean Windows test failed ($LASTEXITCODE)" }
+      # The container has no desktop session; this host has one, so the tray app is started here (not in the container).
+      - name: Start the tray app on the desktop and take a screenshot
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $dir = Join-Path $env:RUNNER_TEMP 'qp'
+          $tray = Join-Path $dir 'QuotaPilotTray.exe'
+          $cli = Join-Path $dir 'quotapilot.exe'
+          if (!(Test-Path -LiteralPath $tray)) { Write-Host "No QuotaPilotTray.exe in $env:TAG (older release): skipped"; exit 0 }
+          if ((Get-FileHash $tray).Hash -eq (Get-FileHash $cli).Hash) { throw 'QuotaPilotTray.exe and quotapilot.exe are the same file' }
+          $env:QUOTAPILOT_TRAY_CLI = $cli
+          $process = Start-Process -FilePath $tray -ArgumentList '--show-card' -WorkingDirectory $dir -PassThru
+          Start-Sleep -Seconds 10
+          $shot = Join-Path $env:RUNNER_TEMP 'tray-screenshot.png'
+          try {
+            Add-Type -AssemblyName System.Windows.Forms, System.Drawing
+            $bounds = [System.Windows.Forms.SystemInformation]::VirtualScreen
+            $bitmap = New-Object System.Drawing.Bitmap $bounds.Width, $bounds.Height
+            $graphics = [System.Drawing.Graphics]::FromImage($bitmap)
+            $graphics.CopyFromScreen($bounds.Location, [System.Drawing.Point]::Empty, $bounds.Size)
+            $bitmap.Save($shot, [System.Drawing.Imaging.ImageFormat]::Png)
+            $graphics.Dispose(); $bitmap.Dispose()
+          } catch { Write-Host "::warning::Screenshot failed: $_" }
+          $process.Refresh()
+          if ($process.HasExited) { throw "QuotaPilotTray.exe exited after start (exit code $($process.ExitCode))" }
+          Write-Host "QuotaPilotTray.exe is still running (PID $($process.Id))"
+          Stop-Process -Id $process.Id -Force
+          if (!(Test-Path -LiteralPath $shot)) { throw 'No screenshot was captured' }
+          Copy-Item -LiteralPath $shot -Destination (Join-Path $env:GITHUB_WORKSPACE 'tray-screenshot.png')
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: always()
+        with:
+          name: tray-screenshot-windows
+          path: tray-screenshot.png
+          if-no-files-found: warn

@@ -36,12 +36,16 @@ public sealed class WindowsAutostart(string exePath) : IAutostart
 
     public static string Command(string exePath) => "\"" + exePath + "\"";
 
+    /// <summary>True only when the stored command starts this exact program; a value left by a moved or older copy does not count.</summary>
+    public static bool Matches(string? stored, string exePath) =>
+        stored is not null && string.Equals(stored.Trim(), Command(exePath), StringComparison.OrdinalIgnoreCase);
+
     public bool IsEnabled
     {
         get
         {
             if (!OperatingSystem.IsWindows()) return false;
-            return Read() is { } value && value.Length > 0;
+            return Matches(Read(), exePath);
         }
     }
 
@@ -78,7 +82,20 @@ public sealed class LinuxAutostart(string exePath, string? configHome = null) : 
         }
     }
 
-    public bool IsEnabled => File.Exists(FilePath);
+    public bool IsEnabled
+    {
+        get
+        {
+            try { return File.Exists(FilePath) && File.ReadAllText(FilePath).Contains(ExecLine(exePath) + "\n", StringComparison.Ordinal); }
+            catch (IOException) { return false; }
+        }
+    }
+
+    static string ExecLine(string exePath)
+    {
+        var entry = DesktopEntry(exePath);
+        return entry.Split('\n').First(l => l.StartsWith("Exec=", StringComparison.Ordinal));
+    }
 
     /// <summary>Exec values quote the path and escape the characters the desktop-entry spec reserves.</summary>
     public static string DesktopEntry(string exePath)

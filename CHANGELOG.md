@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.9.6
+
+- Windows: the command-line zip now includes the Swift and Foundation runtime DLLs and the Microsoft C++ runtime it needs, so `quotapilot.exe` starts on a PC without Swift installed (it failed with "FoundationNetworking.dll was not found"). Keep all files in the zip together in one folder. Every release is now started from the extracted zip with only Windows system folders on PATH before it is published. Third-party notices for the bundled runtime are in the zip.
+- Docs: macOS asks once for "files on a removable volume" when agent logs live on an external disk; explained in docs/providers.md.
+
 ## 0.9.5
 
 - Same as 0.9.4, which was tagged but not released because a build check rejected a date-only change in the bundled price table. The check now compares prices only.

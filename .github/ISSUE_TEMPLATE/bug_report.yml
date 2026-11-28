@@ -1,5 +1,5 @@
 name: Bug report
-description: Something in QuotaPilot (app, tray app, CLI or website) does not work as expected.
+description: Something in QuotaPilot (macOS app, CLI or website) does not work as expected.
 labels: [bug]
 body:
   - type: dropdown

@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.9.7
+
+- Windows: `quotapilot.exe` carries product name and version information, and the release notes and website link the new code signing policy (docs/code-signing-policy.md; free signing through the SignPath Foundation program has been applied for).
+- Privacy policy: links to the privacy policies of the services QuotaPilot contacts when you turn features on, and states that the statistics window and `quotapilot compare` download the public community file.
+
 ## 0.9.6
 
 - Windows: the command-line zip now includes the Swift and Foundation runtime DLLs and the Microsoft C++ runtime it needs, so `quotapilot.exe` starts on a PC without Swift installed (it failed with "FoundationNetworking.dll was not found"). Keep all files in the zip together in one folder. Every release is now started from the extracted zip with only Windows system folders on PATH before it is published. Third-party notices for the bundled runtime are in the zip.

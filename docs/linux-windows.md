@@ -13,7 +13,10 @@ People on Linux and Windows get the same three things Mac users get, with the sa
 ## What exists today (0.6.8)
 
 The `quotapilot` command-line tool is built for Linux x64, Linux ARM64 and Windows x64 by the release workflow and
-attached to every GitHub release. It does everything except draw a desktop card:
+attached to every GitHub release. On Windows, extract `quotapilot-windows-x64.zip` and keep `quotapilot.exe`
+and the bundled DLLs together in the `quotapilot-windows-x64` folder.
+
+The CLI does everything except draw a desktop card:
 
 | Feature | macOS app | `quotapilot` on Linux / Windows |
 |---|---|---|

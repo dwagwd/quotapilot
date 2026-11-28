@@ -111,11 +111,105 @@ jobs:
         shell: pwsh
         run: |
           swift build -c release --product quotapilot --static-swift-stdlib -Xswiftc -gnone
-          Copy-Item .build\release\quotapilot.exe quotapilot.exe
-          Compress-Archive -Path quotapilot.exe, LICENSE -DestinationPath $env:ASSET
+          if ($LASTEXITCODE -ne 0) { throw "Swift build failed ($LASTEXITCODE)" }
+
+          $swiftBin = Split-Path (Get-Command swift.exe).Source
+          $runtimeHits = @(where.exe swiftCore.dll 2>$null)
+          $runtime = $runtimeHits | Where-Object { $_ -match '\\Runtimes\\' } | Select-Object -First 1
+          if (!$runtime) {
+            $runtime = Get-Item "$swiftBin\..\..\..\..\Runtimes\*\usr\bin\swiftCore.dll" -ErrorAction SilentlyContinue |
+              Select-Object -First 1 -ExpandProperty FullName
+          }
+          if (!$runtime) { $runtime = $runtimeHits | Select-Object -First 1 }
+          if (!$runtime) { throw 'Could not locate the Swift runtime (swiftCore.dll)' }
+          $runtimeDirs = @(Split-Path $runtime; $swiftBin) | Select-Object -Unique
+
+          $dumpbin = (Get-Command dumpbin.exe -ErrorAction SilentlyContinue).Source
+          $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+          if (!$dumpbin -and (Test-Path -LiteralPath $vswhere)) {
+            $dumpbin = & $vswhere -latest -products '*' -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -find 'VC\Tools\MSVC\**\bin\Hostx64\x64\dumpbin.exe' |
+              Select-Object -First 1
+          }
+          if ($dumpbin) {
+            $reader = $dumpbin
+            $readerOption = '/dependents'
+            $dllPattern = '^\s+([^\s\\/]+\.dll)\s*$'
+          } else {
+            $reader = Join-Path $swiftBin 'llvm-readobj.exe'
+            if (!(Test-Path -LiteralPath $reader)) { throw 'Could not find dumpbin or Swift llvm-readobj' }
+            $readerOption = '--coff-imports'
+            $dllPattern = '^\s*Name:\s+([^\s\\/]+\.dll)\s*$'
+          }
+
+          function Get-ImportedDlls($binary) {
+            $imports = & $reader $readerOption $binary
+            if ($LASTEXITCODE -ne 0) { throw "Could not inspect $binary ($LASTEXITCODE)" }
+            foreach ($line in $imports) {
+              if ($line -match $dllPattern) { $Matches[1] }
+            }
+          }
+
+          $bundle = 'quotapilot-windows-x64'
+          New-Item -ItemType Directory -Path $bundle | Out-Null
+          Copy-Item .build\release\quotapilot.exe, LICENSE -Destination $bundle
+          $pending = [System.Collections.Generic.Queue[string]]::new()
+          $seen = [System.Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
+          $exeImports = @(Get-ImportedDlls "$bundle\quotapilot.exe")
+          if (!$exeImports.Count) { throw 'No DLL imports found in quotapilot.exe' }
+          foreach ($dll in $exeImports) { $pending.Enqueue($dll) }
+          # Include ICU data even when Foundation's ICU loads it outside the import table.
+          Get-ChildItem -LiteralPath $runtimeDirs -Filter '*.dll' -File |
+            Where-Object { $_.Name -match '^(?:_FoundationICU|icu(?:uc|in|dt)[\w-]*)\.dll$' } |
+            ForEach-Object { $pending.Enqueue($_.Name) }
+
+          while ($pending.Count -gt 0) {
+            $dll = $pending.Dequeue()
+            if (!$seen.Add($dll) -or $dll -match '^(api|ext)-ms-win-') { continue }
+
+            $systemDll = Join-Path "$env:SystemRoot\System32" $dll
+            $source = $runtimeDirs | ForEach-Object { Join-Path $_ $dll } |
+              Where-Object { Test-Path -LiteralPath $_ -PathType Leaf } | Select-Object -First 1
+            if (Test-Path -LiteralPath $systemDll -PathType Leaf) {
+              # The runner has UCRT and vcruntime140.dll in System32. UCRT ships with
+              # Windows, but clean machines may lack the VC++ redistributable.
+              if ($dll -match '^(?:vcruntime|msvcp|concrt|vccorlib)140.*\.dll$') {
+                $source = $systemDll
+              } elseif (!$source) {
+                continue
+              }
+            }
+            if (!$source) { throw "Could not resolve dependency $dll" }
+            Copy-Item -LiteralPath $source -Destination $bundle
+            foreach ($dependency in (Get-ImportedDlls $source)) { $pending.Enqueue($dependency) }
+          }
+
+          $smokeRoot = Join-Path $env:RUNNER_TEMP ([IO.Path]::GetRandomFileName())
+          New-Item -ItemType Directory -Path $smokeRoot | Out-Null
+          Copy-Item -LiteralPath $bundle -Destination $smokeRoot -Recurse
+          Push-Location (Join-Path $smokeRoot $bundle)
+          try {
+            & "$PSHOME\pwsh.exe" -NoProfile -NonInteractive -Command {
+              $ErrorActionPreference = 'Stop'
+              $env:PATH = 'C:\Windows\System32;C:\Windows'
+              foreach ($argument in @('version', '--help')) {
+                $output = .\quotapilot.exe $argument 2>&1
+                $code = $LASTEXITCODE
+                $output | Write-Host
+                $missingDll = '\.dll\b[^\r\n]*(?:not (?:be )?found|missing)|(?:missing|cannot find|could not find|unable to load|failed to load)[^\r\n]*\.dll\b'
+                if ($code -ne 0 -or ($output -join [Environment]::NewLine) -match $missingDll) {
+                  throw "quotapilot.exe $argument failed the isolated smoke test (exit $code)"
+                }
+              }
+            }
+            if ($LASTEXITCODE -ne 0) { throw "Windows smoke test failed ($LASTEXITCODE)" }
+          } finally {
+            Pop-Location
+            Remove-Item -LiteralPath $smokeRoot -Recurse -Force
+          }
+
+          Compress-Archive -LiteralPath $bundle -DestinationPath $env:ASSET
           $h = (Get-FileHash $env:ASSET -Algorithm SHA256).Hash.ToLower()
           "$h  $env:ASSET" | Out-File -Encoding ascii "$env:ASSET.sha256"
-          .\quotapilot.exe version
       - name: Upload to the release
         shell: bash
         run: gh release upload "$TAG" "$ASSET" "$ASSET.sha256" --repo "$GITHUB_REPOSITORY" --clobber

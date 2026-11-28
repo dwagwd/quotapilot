@@ -42,6 +42,7 @@ jobs:
           # The CHANGELOG section for this version, up to the next "## " heading.
           awk -v v="## $VERSION" '$0==v {on=1; next} /^## / && on {exit} on' CHANGELOG.md > dist/notes.md
           printf '\n\nInstall or update:\n\n```sh\nbrew tap dwagwd/quotapilot https://github.com/dwagwd/quotapilot\nbrew install dwagwd/quotapilot/quotapilot   # or: brew upgrade quotapilot\n```\n\nApple Silicon Macs on macOS 15 or later get a prebuilt package; other Macs build from source (about 2 minutes, needs the Xcode Command Line Tools).\n' >> dist/notes.md
+          printf '\n[Code signing policy](https://github.com/dwagwd/quotapilot/blob/main/docs/code-signing-policy.md)\n' >> dist/notes.md
       - name: Publish
         env:
           GH_TOKEN: ${{ github.token }}
@@ -131,7 +132,8 @@ jobs:
           }
           # Windows stores the fixed version as four 16-bit numbers.
           $versionParts = [uint16[]] ($version -split '\.')
-          $fixedVersion = "$($versionParts -join ','),0"
+          $versionParts += 0
+          $fixedVersion = $versionParts -join ','
           $sdkBin = Join-Path ${env:ProgramFiles(x86)} 'Windows Kits\10\bin'
           $rcExe = Get-ChildItem -LiteralPath $sdkBin -Directory |
             Where-Object { $_.Name -match '^\d+\.\d+\.\d+\.\d+$' } |
@@ -177,6 +179,14 @@ jobs:
           $versionInfo = (Get-Item -LiteralPath .build\release\quotapilot.exe).VersionInfo
           if ($versionInfo.ProductName -cne 'QuotaPilot' -or $versionInfo.ProductVersion -cne $version) {
             throw "Expected quotapilot.exe version info 'QuotaPilot $version', got '$($versionInfo.ProductName) $($versionInfo.ProductVersion)'"
+          }
+          $expectedVersion = $versionParts -join '.'
+          $fileVersion = @($versionInfo.FileMajorPart, $versionInfo.FileMinorPart,
+            $versionInfo.FileBuildPart, $versionInfo.FilePrivatePart) -join '.'
+          $productVersion = @($versionInfo.ProductMajorPart, $versionInfo.ProductMinorPart,
+            $versionInfo.ProductBuildPart, $versionInfo.ProductPrivatePart) -join '.'
+          if ($fileVersion -ne $expectedVersion -or $productVersion -ne $expectedVersion) {
+            throw "Expected quotapilot.exe fixed file and product versions $expectedVersion, got file $fileVersion and product $productVersion"
           }
 
           $dumpbin = (Get-Command dumpbin.exe -ErrorAction SilentlyContinue).Source

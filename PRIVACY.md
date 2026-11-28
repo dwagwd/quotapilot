@@ -16,7 +16,7 @@ QuotaPilot and the AI Quota Watch website are run by the QuotaPilot maintainers,
 
 ## What the app reads
 
-- **Codex:** it asks the local Codex App Server for account identity, quota windows and the cumulative account token counter. Codex may make authenticated requests to OpenAI to answer. Codex's own policies apply.
+- **Codex:** it asks the local Codex App Server for account identity, quota windows and the cumulative account token counter. Codex may make authenticated requests to OpenAI to answer. See [OpenAI's privacy policy](https://openai.com/policies/privacy-policy).
 - **Claude Code plan usage (off until you turn it on at first launch):** it reads Claude Code's stored login (the `Claude Code-credentials` keychain item through `/usr/bin/security`, or `~/.claude/.credentials.json`) and sends that token only to `https://api.anthropic.com/api/oauth/usage`, the endpoint Claude Code itself uses. The token is kept in memory and never written to disk. When Claude Code's status-line bridge supplied fresh quota in the last five minutes, none of this happens: the login is not read and no request is made. The keychain is read at most once per token lifetime, and not again for six hours after a refused read.
 - **Local agent logs (token breakdown, on by default):** it reads `~/.codex/sessions` and `~/.claude/projects` JSONL files and keeps only token counts, timestamps, model names, a provider name and a de-duplication key. Prompts, replies, tool output and file contents are not stored or sent.
 - **Automatic connection (off until you turn it on at first launch):** it may edit `~/.claude/settings.json` or `~/.gemini/antigravity-cli/settings.json` to add the status-line bridge (see the last section).
@@ -27,9 +27,9 @@ It never starts model turns on its own unless you turn on **Auto-continue**, and
 
 ## What leaves the computer
 
-- **Update checks (on by default):** once a day the app reads the repository's version tags from `api.github.com`, without account data. Builds made by Homebrew or from source have no Developer ID team, so they only read version tags and tell you to run `brew upgrade quotapilot` when a newer version exists; nothing is downloaded. The download-and-verify path runs only in a build signed with a Developer ID team, and no such build is published. Turning off **Check for updates automatically** stops the check.
-- **Claude and Codex usage requests:** described above; they go only to Anthropic and (through Codex) OpenAI.
-- **Anonymous sharing:** only if you run `quotapilot share` or turn on **Share anonymous stats daily**. See below.
+- **Update checks (on by default):** once a day the app reads the repository's version tags from `api.github.com`, without account data. Builds made by Homebrew or from source have no Developer ID team, so they only read version tags and tell you to run `brew upgrade quotapilot` when a newer version exists; nothing is downloaded. The download-and-verify path runs only in a build signed with a Developer ID team, and no such build is published. Turning off **Check for updates automatically** stops the check. See [GitHub's general privacy statement](https://docs.github.com/site-policy/privacy-policies/github-general-privacy-statement).
+- **Claude and Codex usage requests:** described above; they go only to Anthropic and (through Codex) OpenAI. See [Anthropic's privacy policy](https://www.anthropic.com/legal/privacy).
+- **Anonymous sharing:** only if you run `quotapilot share` or turn on **Share anonymous stats daily**. The collector runs on Cloudflare. See [Cloudflare's privacy policy](https://www.cloudflare.com/privacypolicy/).
 - Nothing else: no telemetry or analytics service.
 
 ## Anonymous sharing (opt-in)
@@ -105,7 +105,7 @@ Local files and screenshots may disclose usage patterns. Share only redacted dia
 
 Claude Code and Antigravity CLI bridges receive official status-line JSON, normalize quota fields, and discard the raw payload. Only hashed session/account identity, observation time, and quotas are saved locally. Existing status-line commands are preserved; setup creates a local settings backup. The native widget reads changed snapshots every 15 seconds only when imports are enabled. Bridge history is kept in process memory.
 
-The optional Cursor Teams collector sends an exact member-email filter to the official Cursor Team Admin API. Its admin key is entered in a terminal without echo and kept only in process memory. The key is never stored in a file, preference, command-line argument, model conversation, or log. No redirects are followed. The collector must be started manually and stopped with Ctrl-C. It does not retrieve browser cookies. Normalized snapshots contain no email or credentials.
+The optional Cursor Teams collector sends an exact member-email filter to the official Cursor Team Admin API. Its admin key is entered in a terminal without echo and kept only in process memory. The key is never stored in a file, preference, command-line argument, model conversation, or log. No redirects are followed. The collector must be started manually and stopped with Ctrl-C. It does not retrieve browser cookies. Normalized snapshots contain no email or credentials. See [Cursor's privacy policy](https://cursor.com/en-US/privacy).
 
 The repository and packages exclude runtime snapshots and settings backups. Optional bridge removal instructions are in [providers.md](docs/providers.md).
 
@@ -113,7 +113,7 @@ The repository and packages exclude runtime snapshots and settings backups. Opti
 
 - **Token breakdown:** when enabled (default), the widget reads the local logs of **Codex** (`~/.codex/sessions`), **Claude Code** (`~/.claude/projects`), **Gemini CLI** (`~/.gemini/tmp`) and **Grok CLI** (`~/.grok/logs`) and keeps only token counts, timestamps, a provider name and a de-duplication key in memory. Prompts, replies, tool output and file contents are not stored or sent anywhere.
 - **Auto-continue** (off by default) reads the first line of recent Codex session files (session id and working folder) when a quota limit is first reached, to note which session was interrupted, and after the quota resets runs `codex exec resume` for that session only (if several sessions were active, it skips and tells you); Codex then sends a request with your Codex account. Its output is appended to `auto-continue.log` (mode 0600) in the widget's Application Support folder.
-- **DeepSeek:** the API key is stored only in the macOS login keychain (this device only) and sent only to `https://api.deepseek.com/user/balance`.
+- **DeepSeek balance:** when configured, the API key is sent only to `https://api.deepseek.com/user/balance`. QuotaPilot stores a key entered in the app only in the macOS login keychain (this device only). See [DeepSeek's privacy policy](https://cdn.deepseek.com/policies/en-US/deepseek-privacy-policy.html).
 - **Automatic connection** (your choice at first launch) edits `~/.claude/settings.json` or `~/.gemini/antigravity-cli/settings.json` only to add the status-line bridge, after writing a timestamped backup, and never replaces a non-command status line. It reads a DeepSeek key from Claude Code's `env` only when `ANTHROPIC_BASE_URL` points at a deepseek.com host; the key is not copied or stored.
 
 The CLI honors the saved Claude-login and agent-log collection choices. Standalone CLI installations leave Claude credential access off until `quotapilot config claude-plan on`; `quotapilot config agent-logs off` stops log scanning in status, stats and sharing previews. Neither choice enables anonymous sharing.

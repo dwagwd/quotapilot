@@ -30,7 +30,8 @@ It never starts model turns on its own unless you turn on **Auto-continue**, and
 - **Update checks (on by default):** once a day the app reads the repository's version tags from `api.github.com`, without account data. Builds made by Homebrew or from source have no Developer ID team, so they only read version tags and tell you to run `brew upgrade quotapilot` when a newer version exists; nothing is downloaded. The download-and-verify path runs only in a build signed with a Developer ID team, and no such build is published. Turning off **Check for updates automatically** stops the check. See [GitHub's general privacy statement](https://docs.github.com/site-policy/privacy-policies/github-general-privacy-statement).
 - **Claude and Codex usage requests:** described above; they go only to Anthropic and (through Codex) OpenAI. See [Anthropic's privacy policy](https://www.anthropic.com/legal/privacy).
 - **Anonymous sharing:** only if you run `quotapilot share` or turn on **Share anonymous stats daily**. The collector runs on Cloudflare. See [Cloudflare's privacy policy](https://www.cloudflare.com/privacypolicy/).
-- Nothing else: no telemetry or analytics service.
+- **Community comparison:** opening the Usage statistics window, or running `quotapilot compare`, downloads the public community file (`data/community.json`) from the AI Quota Watch website on Cloudflare Pages, even when sharing is off. Nothing about your usage is sent with that download; Cloudflare sees the connection like any web request.
+- Nothing else: the app and the `quotapilot` tool use no telemetry or analytics service.
 
 ## Anonymous sharing (opt-in)
 
@@ -73,7 +74,7 @@ The model ranking page (`/models/`) calculators run entirely in your browser: wh
 
 The published website also uses **Cloudflare Web Analytics**, which counts page views and the page or site a visitor came from, without cookies, local storage or fingerprinting, and shows us only totals. Its script loads from `static.cloudflareinsights.com` under [Cloudflare's privacy policy](https://www.cloudflare.com/privacypolicy/). The app and the `quotapilot` tool do not use it.
 
-The report form can use Cloudflare Turnstile. It is switched on only when the site has a Turnstile key configured; check `turnstileSiteKey` in `site/assets/config.js`: an empty key means no Cloudflare code loads and the collector relies on its per-network rate limits and daily budgets instead. When it is on, it runs only after you press "Preview report" (nothing from Cloudflare loads when the page opens), to check that a human is sending. Turnstile runs in your browser under Cloudflare's privacy policy and sets no tracking cookies for us. We keep nothing from it: the one-time token is checked once with Cloudflare and discarded.
+The report form can use Cloudflare Turnstile. It is switched on only when the site has a Turnstile key configured; check `turnstileSiteKey` in `site/assets/config.js`: an empty key means no Cloudflare code loads and the collector relies on its per-network rate limits and daily budgets instead. When it is on, it runs only after you press "Preview report" (the Turnstile code does not load when the page opens; the Web Analytics script above does), to check that a human is sending. Turnstile runs in your browser under Cloudflare's privacy policy and sets no tracking cookies for us. We keep nothing from it: the one-time token is checked once with Cloudflare and discarded.
 
 ## Stored locally
 

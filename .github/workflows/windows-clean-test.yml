@@ -1,6 +1,6 @@
-# Manual end-to-end check of a published Windows release on a clean Windows image:
-# no Swift toolchain, no Visual Studio, no Visual C++ redistributable installed.
-# It downloads the release zip exactly as a user would, extracts it, and runs the main commands.
+# Manual end-to-end check of a published Windows release on a clean Windows image
+# (Windows Server Core container: no Swift toolchain, no Visual Studio, no Visual C++ redistributable).
+# It downloads the release zip exactly as a user would, extracts it, and runs the main commands inside the container.
 name: Windows clean test
 
 on:
@@ -16,33 +16,25 @@ permissions:
 jobs:
   clean-windows:
     runs-on: windows-2022
-    container:
-      image: mcr.microsoft.com/windows/servercore:ltsc2022
-    defaults:
-      run:
-        shell: powershell
     steps:
       - name: Download and extract the release zip
+        shell: pwsh
         env:
           TAG: ${{ inputs.tag }}
         run: |
           $ErrorActionPreference = 'Stop'
-          [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
-          $url = "https://github.com/dwagwd/quotapilot/releases/download/$env:TAG/quotapilot-windows-x64.zip"
-          New-Item -ItemType Directory -Path C:\qp | Out-Null
-          Invoke-WebRequest -UseBasicParsing -Uri $url -OutFile C:\qp.zip
-          Expand-Archive -LiteralPath C:\qp.zip -DestinationPath C:\qp
-          Get-ChildItem C:\qp | Format-Table Name, Length -AutoSize | Out-String -Width 200
-          # Proof the image is clean: no Swift runtime and no VC++ runtime outside the zip.
-          foreach ($dll in 'swiftCore.dll','swiftWinSDK.dll','vcruntime140.dll','msvcp140.dll') {
-            $found = Get-ChildItem -Path C:\Windows\System32 -Filter $dll -ErrorAction SilentlyContinue
-            "System32 has ${dll}: $([bool]$found)"
-          }
-      - name: Run the main commands from the extracted folder
-        run: |
+          $dir = Join-Path $env:RUNNER_TEMP 'qp'
+          New-Item -ItemType Directory -Path $dir | Out-Null
+          $zip = Join-Path $env:RUNNER_TEMP 'qp.zip'
+          Invoke-WebRequest -Uri "https://github.com/dwagwd/quotapilot/releases/download/$env:TAG/quotapilot-windows-x64.zip" -OutFile $zip
+          Expand-Archive -LiteralPath $zip -DestinationPath $dir
+          Get-ChildItem $dir | Format-Table Name, Length -AutoSize | Out-String -Width 200
+          $script = @'
           $ErrorActionPreference = 'Continue'
           Set-Location C:\qp
-          $env:PATH = 'C:\Windows\System32;C:\Windows;C:\Windows\System32\WindowsPowerShell\v1.0'
+          foreach ($dll in 'swiftCore.dll','swiftWinSDK.dll','vcruntime140.dll','vcruntime140_1.dll','msvcp140.dll') {
+            "Image System32 has ${dll}: $(Test-Path (Join-Path $env:WINDIR "System32\$dll"))"
+          }
           $failed = $false
           $commands = @(
             @('version'), @('--help'), @('status'), @('status', '--json'), @('stats', '--hours', '24'),
@@ -56,10 +48,15 @@ jobs:
             $out.Trim()
             "--- exit code $code"
             # 0xC0000135 = DLL not found, 0xC0000139 = entry point not found, 0xC000007B = bad image.
-            if ($code -in -1073741515, -1073741511, -1073741701 -or $out -match '\.dll') {
-              "FAILED: missing or broken DLL"
-              $failed = $true
-            }
+            if ($code -in -1073741515, -1073741511, -1073741701 -or $out -match '\.dll') { "FAILED: missing or broken DLL"; $failed = $true }
             if (($a[0] -in 'version', '--help') -and $code -ne 0) { "FAILED: $line"; $failed = $true }
           }
           if ($failed) { exit 1 }
+          '@
+          Set-Content -Encoding utf8 -Path (Join-Path $dir 'clean-test.ps1') -Value $script
+      - name: Run the main commands in a clean Windows Server Core container
+        shell: pwsh
+        run: |
+          $dir = Join-Path $env:RUNNER_TEMP 'qp'
+          docker run --rm -v "${dir}:C:\qp" mcr.microsoft.com/windows/servercore:ltsc2022 powershell -NoProfile -ExecutionPolicy Bypass -File C:\qp\clean-test.ps1
+          if ($LASTEXITCODE -ne 0) { throw "Clean Windows test failed ($LASTEXITCODE)" }

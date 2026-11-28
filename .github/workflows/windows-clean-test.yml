@@ -1,0 +1,67 @@
+# Manual end-to-end check of a published Windows release on a clean Windows image:
+# no Swift toolchain, no Visual Studio, no Visual C++ redistributable installed.
+# It downloads the release zip exactly as a user would, extracts it, and runs the main commands.
+name: Windows clean test
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag to test, e.g. v0.9.7"
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  clean-windows:
+    runs-on: windows-2022
+    container:
+      image: mcr.microsoft.com/windows/servercore:ltsc2022
+    defaults:
+      run:
+        shell: powershell
+    steps:
+      - name: Download and extract the release zip
+        env:
+          TAG: ${{ inputs.tag }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+          $url = "https://github.com/dwagwd/quotapilot/releases/download/$env:TAG/quotapilot-windows-x64.zip"
+          New-Item -ItemType Directory -Path C:\qp | Out-Null
+          Invoke-WebRequest -UseBasicParsing -Uri $url -OutFile C:\qp.zip
+          Expand-Archive -LiteralPath C:\qp.zip -DestinationPath C:\qp
+          Get-ChildItem C:\qp | Format-Table Name, Length -AutoSize | Out-String -Width 200
+          # Proof the image is clean: no Swift runtime and no VC++ runtime outside the zip.
+          foreach ($dll in 'swiftCore.dll','swiftWinSDK.dll','vcruntime140.dll','msvcp140.dll') {
+            $found = Get-ChildItem -Path C:\Windows\System32 -Filter $dll -ErrorAction SilentlyContinue
+            "System32 has ${dll}: $([bool]$found)"
+          }
+      - name: Run the main commands from the extracted folder
+        run: |
+          $ErrorActionPreference = 'Continue'
+          Set-Location C:\qp
+          $env:PATH = 'C:\Windows\System32;C:\Windows;C:\Windows\System32\WindowsPowerShell\v1.0'
+          $failed = $false
+          $commands = @(
+            @('version'), @('--help'), @('status'), @('status', '--json'), @('stats', '--hours', '24'),
+            @('route'), @('local', 'status'), @('local', 'hardware'), @('compare'), @('config')
+          )
+          foreach ($a in $commands) {
+            $line = ".\quotapilot.exe $($a -join ' ')"
+            "=== $line"
+            $out = & .\quotapilot.exe @a 2>&1 | Out-String
+            $code = $LASTEXITCODE
+            $out.Trim()
+            "--- exit code $code"
+            # 0xC0000135 = DLL not found, 0xC0000139 = entry point not found, 0xC000007B = bad image.
+            if ($code -in -1073741515, -1073741511, -1073741701 -or $out -match '\.dll') {
+              "FAILED: missing or broken DLL"
+              $failed = $true
+            }
+            if (($a[0] -in 'version', '--help') -and $code -ne 0) { "FAILED: $line"; $failed = $true }
+          }
+          if ($failed) { exit 1 }
+</content>
+</invoke>

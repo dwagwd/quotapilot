@@ -28,7 +28,7 @@ test("every redesign string exists in both languages", () => {
     "nav.tools", "nav.install", "sponsor.label", "sponsor.title", "sponsor.sub", "sponsor.cta", "sponsor.hero",
     "empty.title", "empty.sub", "empty.s1", "empty.s2", "empty.s3", "empty.cta", "empty.alt", "empty.meta", "empty.inline", "empty.sponsor",
     "stat.people", "stat.window", "stat.compiled", "stat.nNote", "stat.lower", "stat.lowerHelp", "stat.method", "stat.staleNote",
-    "com.reporters1", "com.reportersN", "foot.privacy", "foot.method", "foot.source", "foot.sponsor", "foot.text", "foot.language",
+    "com.reporters1", "com.reportersN", "foot.privacy", "foot.method", "foot.source", "foot.report", "foot.feedback", "foot.sponsor", "foot.text", "foot.language",
     "theme.label", "theme.auto", "theme.light", "theme.dark", "glance.reviewed", "glance.compiled",
     "method.title", "method.collector", "method.privacy", "method.aggregate"
   ];

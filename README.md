@@ -159,4 +159,4 @@ To remove: quit the widget, remove its app, optionally remove its local data and
 
 The current version is on the badge at the top; changes are in [CHANGELOG.md](CHANGELOG.md). Codex and Claude Code are used daily by the maintainers. The Antigravity and Cursor bridges are experimental and tested with fixtures only. CI builds and tests on macOS 15, Linux x64 and ARM64, and Windows x64; macOS 13 and 14, Intel Macs and Windows on ARM should work but are not tested by CI. See [validation scope](docs/validation.md).
 
-If QuotaPilot is useful to you, a star helps other people find it. Problems and ideas are welcome in [issues](https://github.com/dwagwd/quotapilot/issues).
+If QuotaPilot is useful to you, a star helps other people find it. Found a problem? [Open an issue](https://github.com/dwagwd/quotapilot/issues/new/choose) (the app has the same link: menu → About QuotaPilot → Report a problem…). Ideas, questions and feedback are welcome as [an idea or feedback issue](https://github.com/dwagwd/quotapilot/issues/new?template=feature_request.yml).

@@ -51,7 +51,7 @@ const T = {
     plansLine: (p, loc) => `${p.plans.map((pl) => (pl.priceUsd ? `${pl.name} ${money(pl.priceUsd)}` : pl.name)).join(", ")} · limit window: ${loc(p.window)}`,
     resetsPageTitle: (y) => `Codex usage limit reset history (${y}): every reset, with times`,
     resetsNav: "Reset history", notAffiliated: "Independent tracker, not affiliated with OpenAI, Anthropic, Google or xAI.",
-    privacy: "Privacy", method: "How the numbers are made", sourceCode: "Source on GitHub", sponsor: "Sponsor",
+    privacy: "Privacy", method: "How the numbers are made", sourceCode: "Source on GitHub", report: "Report a problem", feedback: "Ideas and feedback", sponsor: "Sponsor",
     modelsNav: "Model ranking", resetsFoot: "Codex reset history", installLine: "Free macOS app: QuotaPilot",
     installTitle: "See your own quota before you hit the limit", installBody: "QuotaPilot is a free, open-source macOS app that shows how much Codex and Claude Code quota you have left and when it resets. No account; nothing leaves your Mac unless you choose to share.", installCta: "Install notes and other systems",
     theme: "Theme", themeAuto: "Auto", themeLight: "Light", themeDark: "Dark"
@@ -78,7 +78,7 @@ const T = {
     plansLine: (p, loc) => `${p.plans.map((pl) => (pl.priceUsd ? `${pl.name} ${money(pl.priceUsd)}` : pl.name)).join("、")} · 額度重置：${loc(p.window)}`,
     resetsPageTitle: (y) => `Codex 額度重置紀錄（${y}）：每一次重置與時間`,
     resetsNav: "重置紀錄", notAffiliated: "獨立追蹤網站，與 OpenAI、Anthropic、Google、xAI 無關。",
-    privacy: "隱私政策", method: "數據怎麼來的", sourceCode: "GitHub 原始碼", sponsor: "贊助",
+    privacy: "隱私政策", method: "數據怎麼來的", sourceCode: "GitHub 原始碼", report: "回報問題", feedback: "建議與回饋", sponsor: "贊助",
     modelsNav: "模型排行", resetsFoot: "Codex 重置紀錄", installLine: "免費 macOS App：QuotaPilot",
     installTitle: "在撞到上限之前，先看到自己的額度", installBody: "QuotaPilot 是免費、開源的 macOS App，顯示 Codex 與 Claude Code 還剩多少額度、什麼時候重置。不需要帳號；除非你選擇分享，資料不會離開你的 Mac。", installCta: "安裝說明與其他系統",
     theme: "主題", themeAuto: "自動", themeLight: "淺色", themeDark: "深色"
@@ -146,7 +146,7 @@ ${installCard(t, home)}
 </main>
 <footer class="footer"><div class="wrap footer-inner">
   <p class="foot-row"><strong>AI Quota Watch</strong> · ${t.notAffiliated}</p>
-  <nav class="footer-links"><a href="${REPO}/blob/main/PRIVACY.md" rel="noopener">${t.privacy}</a><a href="${REPO}/blob/main/collector/README.md" rel="noopener">${t.method}</a><a href="${REPO}" rel="noopener">${t.sourceCode}</a>${SPONSOR ? `<a class="foot-sponsor" href="${esc(SPONSOR)}" target="_blank" rel="noopener">♥ ${t.sponsor}</a>` : ""}</nav>
+  <nav class="footer-links"><a href="${REPO}/blob/main/PRIVACY.md" rel="noopener">${t.privacy}</a><a href="${REPO}/blob/main/collector/README.md" rel="noopener">${t.method}</a><a href="${REPO}" rel="noopener">${t.sourceCode}</a><a href="${REPO}/issues/new/choose" rel="noopener">${t.report}</a><a href="${REPO}/issues/new?template=feature_request.yml" rel="noopener">${t.feedback}</a>${SPONSOR ? `<a class="foot-sponsor" href="${esc(SPONSOR)}" target="_blank" rel="noopener">♥ ${t.sponsor}</a>` : ""}</nav>
   <nav class="footer-links"><a href="${up}${zh}models/">${t.modelsNav}</a><a href="${up}${zh}plans/">${t.plansIndex}</a><a href="${up}${zh}resets/codex">${t.resetsFoot}</a></nav>
   <p class="foot-install"><a href="${home}#install">${t.installLine} ↗</a></p>
   <div class="foot-controls"><label class="foot-theme"><span>${t.theme}</span><select id="themeSelect"><option value="auto">${t.themeAuto}</option><option value="light">${t.themeLight}</option><option value="dark">${t.themeDark}</option></select></label></div>

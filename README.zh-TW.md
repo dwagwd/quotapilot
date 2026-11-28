@@ -109,3 +109,7 @@ Codex 額度來自 `account/rateLimits/read`，tokens 來自 `account/usage/read
 本機採樣在 `~/Library/Application Support/QuotaPilot/`，偏好設定屬於 `io.github.dwagwd.quotapilot`。請勿將這些個人資料推送至 GitHub。移除時先退出 App；如有安裝其他 agent 橋接，依連接指南還原 statusLine 設定，再移除 App、資料及插件。
 
 命令列工具會遵守 macOS App 已儲存的資料讀取選擇。獨立安裝 CLI 時，請用 `quotapilot config claude-plan on` 同意讀取 Claude Code 登入；用 `quotapilot config agent-logs off` 可停用本機記錄掃描。
+
+## 回報問題與建議
+
+遇到問題請[開 issue](https://github.com/dwagwd/quotapilot/issues/new/choose)（App 的選單 → 關於 QuotaPilot → 回報問題… 也會開到同一頁）。建議、疑問與回饋請用[建議與回饋表單](https://github.com/dwagwd/quotapilot/issues/new?template=feature_request.yml)。中文也可以。

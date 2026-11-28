@@ -1,13 +1,15 @@
-name: Feature request
-description: Suggest an improvement.
+name: Idea or feedback
+description: Suggest an improvement, ask a question, or tell us what you think of QuotaPilot or AI Quota Watch.
+labels: [enhancement]
 body:
   - type: textarea
     id: problem
     attributes:
-      label: What problem would this solve?
+      label: What would you like to tell us?
+      description: An idea, a question, or what works and what does not for you.
     validations:
       required: true
   - type: textarea
     id: proposal
     attributes:
-      label: Proposed behavior and alternatives
+      label: Proposed behavior and alternatives (optional)

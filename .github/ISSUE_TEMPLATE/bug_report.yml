@@ -1,6 +1,19 @@
 name: Bug report
-description: Report a reproducible widget problem.
+description: Something in QuotaPilot (app, tray app, CLI or website) does not work as expected.
+labels: [bug]
 body:
+  - type: dropdown
+    id: part
+    attributes:
+      label: Where did it happen?
+      options:
+        - macOS menu bar app
+        - quotapilot CLI on macOS
+        - quotapilot CLI on Linux
+        - quotapilot CLI on Windows
+        - AI Quota Watch website
+    validations:
+      required: true
   - type: textarea
     id: behavior
     attributes:
@@ -16,7 +29,8 @@ body:
   - type: input
     id: versions
     attributes:
-      label: macOS, widget, and Codex CLI versions
+      label: Versions
+      description: QuotaPilot version (`quotapilot --version`), OS version, and Codex CLI / Claude Code versions if relevant.
     validations:
       required: true
   - type: textarea

@@ -15,6 +15,7 @@ People on Linux and Windows get the same three things Mac users get, with the sa
 The `quotapilot` command-line tool is built for Linux x64, Linux ARM64 and Windows x64 by the release workflow and
 attached to every GitHub release. On Windows, extract everything from `quotapilot-windows-x64.zip` into one folder
 and keep `quotapilot.exe`, the bundled DLLs, and the license files together.
+See the [Code signing policy](code-signing-policy.md).
 
 The CLI does everything except draw a desktop card:
 

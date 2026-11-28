@@ -124,8 +124,60 @@ jobs:
           }
           $runtimeDirs = @($runtimeBin, $swiftBin)
           $env:PATH = "$runtimeBin;$swiftBin;$env:PATH"
-          & $swiftExe build -c release --product quotapilot --static-swift-stdlib -Xswiftc -gnone
+
+          $version = (Get-Content -LiteralPath VERSION -Raw).Trim()
+          if ($version -cnotmatch '^[0-9]+\.[0-9]+\.[0-9]+$') {
+            throw "Expected a major.minor.patch VERSION, got '$version'"
+          }
+          # Windows stores the fixed version as four 16-bit numbers.
+          $versionParts = [uint16[]] ($version -split '\.')
+          $fixedVersion = "$($versionParts -join ','),0"
+          $sdkBin = Join-Path ${env:ProgramFiles(x86)} 'Windows Kits\10\bin'
+          $rcExe = Get-ChildItem -LiteralPath $sdkBin -Directory |
+            Where-Object { $_.Name -match '^\d+\.\d+\.\d+\.\d+$' } |
+            Sort-Object -Property { [version]$_.Name } -Descending |
+            ForEach-Object { Join-Path $_.FullName 'x64\rc.exe' } |
+            Where-Object { Test-Path -LiteralPath $_ -PathType Leaf } |
+            Select-Object -First 1
+          if (!$rcExe) { throw "Could not find x64 rc.exe in $sdkBin" }
+          $versionRc = Join-Path $env:RUNNER_TEMP 'quotapilot-version.rc'
+          $versionRes = Join-Path $env:RUNNER_TEMP 'quotapilot-version.res'
+          @"
+          LANGUAGE 0x09, 0x01
+          1 VERSIONINFO
+          FILEVERSION $fixedVersion
+          PRODUCTVERSION $fixedVersion
+          FILEOS 0x00040004
+          FILETYPE 0x00000001
+          BEGIN
+            BLOCK "StringFileInfo"
+            BEGIN
+              BLOCK "040904B0"
+              BEGIN
+                VALUE "CompanyName", "QuotaPilot project\0"
+                VALUE "FileDescription", "QuotaPilot command-line tool\0"
+                VALUE "FileVersion", "$version\0"
+                VALUE "InternalName", "quotapilot\0"
+                VALUE "OriginalFilename", "quotapilot.exe\0"
+                VALUE "ProductName", "QuotaPilot\0"
+                VALUE "ProductVersion", "$version\0"
+              END
+            END
+            BLOCK "VarFileInfo"
+            BEGIN
+              VALUE "Translation", 0x0409, 1200
+            END
+          END
+          "@ | Set-Content -LiteralPath $versionRc -Encoding ascii
+          & $rcExe /nologo /fo $versionRes $versionRc
+          if ($LASTEXITCODE -ne 0) { throw "rc.exe failed ($LASTEXITCODE)" }
+
+          & $swiftExe build -c release --product quotapilot --static-swift-stdlib -Xswiftc -gnone -Xlinker $versionRes
           if ($LASTEXITCODE -ne 0) { throw "Swift build failed ($LASTEXITCODE)" }
+          $versionInfo = (Get-Item -LiteralPath .build\release\quotapilot.exe).VersionInfo
+          if ($versionInfo.ProductName -cne 'QuotaPilot' -or $versionInfo.ProductVersion -cne $version) {
+            throw "Expected quotapilot.exe version info 'QuotaPilot $version', got '$($versionInfo.ProductName) $($versionInfo.ProductVersion)'"
+          }
 
           $dumpbin = (Get-Command dumpbin.exe -ErrorAction SilentlyContinue).Source
           $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"

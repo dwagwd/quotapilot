@@ -64,6 +64,8 @@ jobs:
       # The container has no desktop session; this host has one, so the tray app is started here (not in the container).
       - name: Start the tray app on the desktop and take a screenshot
         shell: pwsh
+        env:
+          TAG: ${{ inputs.tag }}
         run: |
           $ErrorActionPreference = 'Stop'
           $dir = Join-Path $env:RUNNER_TEMP 'qp'

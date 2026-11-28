@@ -38,7 +38,7 @@ public sealed class TrayController : IDisposable
         var refresh = new NativeMenuItem(loc["menu.refresh"]);
         refresh.Click += (_, _) => _ = RefreshAsync();
         var stats = new NativeMenuItem(loc["menu.stats"]);
-        stats.Click += (_, _) => Shell.OpenStats(CliRunner.Locate());
+        stats.Click += (_, _) => OpenStats();
         autostartItem = new NativeMenuItem(loc[OperatingSystem.IsWindows() ? "menu.autostart.win" : "menu.autostart.linux"])
         {
             ToggleType = NativeMenuItemToggleType.CheckBox, IsChecked = autostart.IsEnabled, IsEnabled = autostart.IsSupported,
@@ -109,9 +109,17 @@ public sealed class TrayController : IDisposable
             var now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
             if (result.Snapshot is { } snapshot)
             {
-                last = snapshot;
-                tray.ToolTipText = Format.Tooltip(snapshot, now, loc);
-                card.SetModel(CardModel.From(snapshot, now, loc));
+                try
+                {
+                    tray.ToolTipText = Format.Tooltip(snapshot, now, loc);
+                    card.SetModel(CardModel.From(snapshot, now, loc));
+                    last = snapshot;
+                }
+                catch (Exception e) when (e is not OutOfMemoryException)
+                {
+                    tray.ToolTipText = loc["tip.error"];
+                    card.SetModel(CardModel.Failed(loc.Format("err.cliFailed", e.Message), last, now, loc));
+                }
             }
             else
             {

@@ -110,26 +110,42 @@ jobs:
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
-          swift build -c release --product quotapilot --static-swift-stdlib -Xswiftc -gnone
-          if ($LASTEXITCODE -ne 0) { throw "Swift build failed ($LASTEXITCODE)" }
-
-          $swiftBin = Split-Path (Get-Command swift.exe).Source
-          $runtimeHits = @(where.exe swiftCore.dll 2>$null)
-          $runtime = $runtimeHits | Where-Object { $_ -match '\\Runtimes\\' } | Select-Object -First 1
-          if (!$runtime) {
-            $runtime = Get-Item "$swiftBin\..\..\..\..\Runtimes\*\usr\bin\swiftCore.dll" -ErrorAction SilentlyContinue |
-              Select-Object -First 1 -ExpandProperty FullName
+          $swiftExe = (Get-Command swift.exe -CommandType Application).Source
+          $swiftBin = Split-Path $swiftExe
+          # Swift installs Toolchains\<version>+<variant> beside Runtimes\<version>.
+          # Keep this version check aligned with the installer and packaging/windows licenses.
+          $toolchain = [regex]::Match($swiftBin, '^(?<root>.+)\\Toolchains\\(?<version>6\.2(?:\.0)?)(?:\+[^\\]+)?\\usr\\bin$', 'IgnoreCase')
+          if (!$toolchain.Success) {
+            throw "Expected the Swift 6.2 release toolchain, got $swiftExe"
           }
-          if (!$runtime) { $runtime = $runtimeHits | Select-Object -First 1 }
-          if (!$runtime) { throw 'Could not locate the Swift runtime (swiftCore.dll)' }
-          $runtimeDirs = @(Split-Path $runtime; $swiftBin) | Select-Object -Unique
+          $runtimeBin = Join-Path $toolchain.Groups['root'].Value "Runtimes\$($toolchain.Groups['version'].Value)\usr\bin"
+          if (!(Test-Path -LiteralPath (Join-Path $runtimeBin 'swiftCore.dll') -PathType Leaf)) {
+            throw "Could not find the matching Swift runtime in $runtimeBin"
+          }
+          $runtimeDirs = @($runtimeBin, $swiftBin)
+          $env:PATH = "$runtimeBin;$swiftBin;$env:PATH"
+          & $swiftExe build -c release --product quotapilot --static-swift-stdlib -Xswiftc -gnone
+          if ($LASTEXITCODE -ne 0) { throw "Swift build failed ($LASTEXITCODE)" }
 
           $dumpbin = (Get-Command dumpbin.exe -ErrorAction SilentlyContinue).Source
           $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
-          if (!$dumpbin -and (Test-Path -LiteralPath $vswhere)) {
-            $dumpbin = & $vswhere -latest -products '*' -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -find 'VC\Tools\MSVC\**\bin\Hostx64\x64\dumpbin.exe' |
-              Select-Object -First 1
+          $crtDirs = @()
+          if (Test-Path -LiteralPath $vswhere -PathType Leaf) {
+            $vsArgs = @('-latest', '-products', '*', '-requires', 'Microsoft.VisualStudio.Component.VC.Tools.x86.x64')
+            $vsInstall = & $vswhere @vsArgs -property installationPath
+            if ($LASTEXITCODE -ne 0) { throw "vswhere failed ($LASTEXITCODE)" }
+            if ($vsInstall) {
+              $crtDirs += @(Get-Item -Path "$vsInstall\VC\Redist\MSVC\*\x64\Microsoft.VC*.CRT" -ErrorAction SilentlyContinue |
+                Where-Object { $_.PSIsContainer -and $_.Parent.Parent.Name -match '^\d+(?:\.\d+){1,3}$' } |
+                Sort-Object -Property { [version]$_.Parent.Parent.Name } -Descending |
+                Select-Object -ExpandProperty FullName)
+            }
+            if (!$dumpbin) {
+              $dumpbin = & $vswhere @vsArgs -find 'VC\Tools\MSVC\**\bin\Hostx64\x64\dumpbin.exe' |
+                Select-Object -First 1
+            }
           }
+          $crtDirs += $runtimeDirs
           if ($dumpbin) {
             $reader = $dumpbin
             $readerOption = '/dependents'
@@ -149,9 +165,20 @@ jobs:
             }
           }
 
-          $bundle = 'quotapilot-windows-x64'
+          $vcRuntimePattern = '^(?:vcruntime|msvcp|concrt|vccorlib|vcomp|vcamp)140.*\.dll$'
+          $systemDir = Join-Path $env:SystemRoot 'System32'
+          function Test-SystemDll($dll) {
+            if ($dll -match '^(api|ext)-ms-win-' -or $dll -eq 'ucrtbase.dll') { return $true }
+            if ($dll -match $vcRuntimePattern) { return $false }
+            $systemDll = Get-Item -LiteralPath (Join-Path $systemDir $dll) -ErrorAction SilentlyContinue
+            # System32 on the runner also contains redistributable and third-party DLLs.
+            return ($null -ne $systemDll -and $systemDll.VersionInfo.ProductName -match '^Microsoft.*Windows.*Operating System$')
+          }
+
+          $bundle = Join-Path $env:RUNNER_TEMP ([IO.Path]::GetRandomFileName())
           New-Item -ItemType Directory -Path $bundle | Out-Null
           Copy-Item .build\release\quotapilot.exe, LICENSE -Destination $bundle
+          Copy-Item packaging\windows\*.txt -Destination $bundle
           $pending = [System.Collections.Generic.Queue[string]]::new()
           $seen = [System.Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
           $exeImports = @(Get-ImportedDlls "$bundle\quotapilot.exe")
@@ -164,36 +191,58 @@ jobs:
 
           while ($pending.Count -gt 0) {
             $dll = $pending.Dequeue()
-            if (!$seen.Add($dll) -or $dll -match '^(api|ext)-ms-win-') { continue }
+            if (!$seen.Add($dll) -or (Test-SystemDll $dll)) { continue }
 
-            $systemDll = Join-Path "$env:SystemRoot\System32" $dll
-            $source = $runtimeDirs | ForEach-Object { Join-Path $_ $dll } |
+            $sourceDirs = if ($dll -match $vcRuntimePattern) { $crtDirs } else { $runtimeDirs }
+            $source = $sourceDirs | ForEach-Object { Join-Path $_ $dll } |
               Where-Object { Test-Path -LiteralPath $_ -PathType Leaf } | Select-Object -First 1
-            if (Test-Path -LiteralPath $systemDll -PathType Leaf) {
-              # The runner has UCRT and vcruntime140.dll in System32. UCRT ships with
-              # Windows, but clean machines may lack the VC++ redistributable.
-              if ($dll -match '^(?:vcruntime|msvcp|concrt|vccorlib)140.*\.dll$') {
-                $source = $systemDll
-              } elseif (!$source) {
-                continue
-              }
-            }
             if (!$source) { throw "Could not resolve dependency $dll" }
             Copy-Item -LiteralPath $source -Destination $bundle
-            foreach ($dependency in (Get-ImportedDlls $source)) { $pending.Enqueue($dependency) }
+            foreach ($dependency in (Get-ImportedDlls (Join-Path $bundle $dll))) { $pending.Enqueue($dependency) }
           }
 
+          $stagedFiles = Get-ChildItem -LiteralPath $bundle -File
+          foreach ($binary in ($stagedFiles | Where-Object { $_.Extension -in '.exe', '.dll' })) {
+            foreach ($dll in (Get-ImportedDlls $binary.FullName)) {
+              if (!(Test-SystemDll $dll) -and !(Test-Path -LiteralPath (Join-Path $bundle $dll) -PathType Leaf)) {
+                throw "$($binary.Name) imports $dll, which is missing from the staging folder"
+              }
+            }
+          }
+
+          # Archive individual files so Expand-Archive puts them directly in its destination.
+          Compress-Archive -LiteralPath $stagedFiles.FullName -DestinationPath $env:ASSET
           $smokeRoot = Join-Path $env:RUNNER_TEMP ([IO.Path]::GetRandomFileName())
           New-Item -ItemType Directory -Path $smokeRoot | Out-Null
-          Copy-Item -LiteralPath $bundle -Destination $smokeRoot -Recurse
-          Push-Location (Join-Path $smokeRoot $bundle)
+          $originalPath = $env:PATH
+          Push-Location
           try {
+            Expand-Archive -LiteralPath $env:ASSET -DestinationPath $smokeRoot
+            $extracted = Get-ChildItem -LiteralPath $smokeRoot -Force
+            if (($extracted | Where-Object PSIsContainer) -or
+                (Compare-Object -ReferenceObject $stagedFiles.Name -DifferenceObject $extracted.Name)) {
+              throw 'Windows ZIP must contain all staged files directly at its root'
+            }
+            Set-Location -LiteralPath $smokeRoot
+            $env:PATH = 'C:\Windows\System32;C:\Windows'
             & "$PSHOME\pwsh.exe" -NoProfile -NonInteractive -Command {
               $ErrorActionPreference = 'Stop'
-              $env:PATH = 'C:\Windows\System32;C:\Windows'
               foreach ($argument in @('version', '--help')) {
-                $output = .\quotapilot.exe $argument 2>&1
-                $code = $LASTEXITCODE
+                $stdout = Join-Path $PWD 'smoke-stdout.log'
+                $stderr = Join-Path $PWD 'smoke-stderr.log'
+                $process = Start-Process -FilePath "$PWD\quotapilot.exe" -ArgumentList $argument `
+                  -WorkingDirectory $PWD -NoNewWindow -PassThru -RedirectStandardOutput $stdout -RedirectStandardError $stderr
+                try {
+                  if (!$process.WaitForExit(60000)) {
+                    $process.Kill($true)
+                    throw "quotapilot.exe $argument timed out after 60 seconds"
+                  }
+                  $process.WaitForExit()
+                  $code = $process.ExitCode
+                } finally {
+                  $process.Dispose()
+                }
+                $output = Get-Content -LiteralPath $stdout, $stderr -Raw
                 $output | Write-Host
                 $missingDll = '\.dll\b[^\r\n]*(?:not (?:be )?found|missing)|(?:missing|cannot find|could not find|unable to load|failed to load)[^\r\n]*\.dll\b'
                 if ($code -ne 0 -or ($output -join [Environment]::NewLine) -match $missingDll) {
@@ -203,11 +252,11 @@ jobs:
             }
             if ($LASTEXITCODE -ne 0) { throw "Windows smoke test failed ($LASTEXITCODE)" }
           } finally {
+            $env:PATH = $originalPath
             Pop-Location
             Remove-Item -LiteralPath $smokeRoot -Recurse -Force
           }
 
-          Compress-Archive -LiteralPath $bundle -DestinationPath $env:ASSET
           $h = (Get-FileHash $env:ASSET -Algorithm SHA256).Hash.ToLower()
           "$h  $env:ASSET" | Out-File -Encoding ascii "$env:ASSET.sha256"
       - name: Upload to the release

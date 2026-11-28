@@ -1,0 +1,31 @@
+QuotaPilot Windows release — third-party notices
+
+Swift 6.2 runtime and standard library
+Apache License 2.0 with Runtime Library Exception. See swift-LICENSE.txt.
+https://github.com/swiftlang/swift/blob/swift-6.2-RELEASE/LICENSE.txt
+
+Swift Foundation and Swift Foundation ICU
+Apache License 2.0 with Runtime Library Exception. Both projects ship the
+same license text, included as swift-foundation-and-icu-LICENSE.txt.
+See also swift-foundation-NOTICE.txt for Foundation's attributions.
+https://github.com/swiftlang/swift-foundation/blob/swift-6.2-RELEASE/LICENSE.md
+https://github.com/swiftlang/swift-foundation/blob/swift-6.2-RELEASE/NOTICE.txt
+https://github.com/swiftlang/swift-foundation-icu/blob/swift-6.2-RELEASE/LICENSE.md
+
+Swift Core Libraries Foundation and libdispatch
+Apache License 2.0 with Runtime Library Exception. Both projects ship the
+same license text, included as swift-corelibs-foundation-LICENSE.txt.
+https://github.com/swiftlang/swift-corelibs-foundation/blob/swift-6.2-RELEASE/LICENSE
+https://github.com/swiftlang/swift-corelibs-libdispatch/blob/swift-6.2-RELEASE/LICENSE
+
+ICU 74.1 (International Components for Unicode)
+Copyright © 2016 and later Unicode, Inc. and others.
+See unicode-icu-LICENSE.txt for the Unicode license and third-party terms.
+https://github.com/unicode-org/icu/blob/release-74-1/LICENSE
+
+Microsoft Visual C++ Redistributable (x64)
+Copyright © Microsoft Corporation. All rights reserved.
+The included Microsoft Visual C++ runtime DLLs are Microsoft Visual Studio
+Distributable Code. Their redistribution is governed by the applicable
+Microsoft Visual Studio license terms.
+https://learn.microsoft.com/en-us/cpp/windows/redistributing-visual-cpp-files

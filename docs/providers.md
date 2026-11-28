@@ -47,6 +47,10 @@ The calculation is `spendCents / (effectivePerUserLimitDollars × 100) × 100`. 
 
 Cursor individual plan monitoring, per-model shared-plan quota attribution, and Antigravity IDE-only monitoring are **not supported** in this version. No browser-cookie extraction, credential scraping, or undocumented private endpoint is used.
 
+## Logs on an external disk
+
+If `~/.codex`, `~/.claude` or another agent's log folder lives on an external or removable disk (for example a symlink to `/Volumes/...`), macOS asks once whether QuotaPilot may "access files on a removable volume". Choose Allow. macOS ties that answer to the app's code signature. Homebrew builds are ad-hoc signed, so each new version is a new signature and macOS asks again after `brew upgrade`; the command-line tool asks separately. If you build QuotaPilot yourself, signing it with your own Developer ID (`QUOTAPILOT_SIGN_IDENTITY`, see docs/releasing.md) keeps the answer across updates.
+
 ## Data and freshness contract
 
 Snapshots are restricted to `claude.json`, `antigravity.json`, and `cursor.json` under `~/Library/Application Support/QuotaPilot/providers/`. Files are written atomically with mode 0600, and the native importer accepts at most 256 KiB, 32 windows, a known provider, bounded identifiers, and a plausible observation timestamp. Provider IDs namespace every quota. Errors preserve the previous sample until it becomes stale; they never report zero usage. A gap over five minutes resets speed estimation.

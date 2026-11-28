@@ -33,6 +33,16 @@ Apple Silicon 且 macOS 15 以上的 Mac，Homebrew 會直接安裝預先編譯�
 - **沒有你的同意，資料不會離開你的 Mac。** 沒有遙測。匿名分享預設關閉，送出前會顯示完整內容，之後可以刪除。[隱私說明](PRIVACY.md)
 - **不會花掉你的額度。** 只讀取用量，不會自行啟動模型對話（除非你開啟自動續跑），也不會兌換重置額度。
 
+### 為什麼不自己生成一個小工具？
+
+現在用 AI 助手講幾句話就能做出額度小工具。QuotaPilot 是有人維護的開源選擇：
+
+- **macOS 原生。** 使用 AppKit 與 Swift 原生開發，不是網頁殼；另有可在 macOS、Linux、Windows 使用的 `quotapilot` 指令。
+- **不用另外註冊帳號。** 不需要 QuotaPilot 帳號或 API 金鑰，看 Codex 額度也不需要 Claude 帳號。它使用你電腦上已有的登入：Codex 額度用 Codex CLI；Claude 額度用你的 Claude Code 登入，而且要你同意才會讀。
+- **開源，MIT 授權。** 每一行碰到登入資訊的程式都能檢查，每次發行都附 SHA-256 校驗碼。
+- **持續可用。** 每次程式變更都在 macOS、Linux x64、Linux ARM64、Windows x64 上跑 CI 測試。
+- **為切換 agent 而設計。** Codex 與 Claude Code 並排顯示，並告訴你哪一個還有額度。可選 Antigravity 額度、Gemini CLI／Grok CLI／Cursor Teams 的 token 或花費統計，以及 macOS 與 Linux 上的本機模型（[支援的服務](docs/providers.md)）。
+
 ## 功能
 
 **看額度**

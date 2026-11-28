@@ -33,6 +33,16 @@ Unofficial community project. Not affiliated with or endorsed by OpenAI, Anthrop
 - **Nothing leaves your Mac unless you say so.** No telemetry. Anonymous sharing is off by default, shows exactly what it would send, and can be deleted later. [Privacy details](PRIVACY.md)
 - **It never spends your quota.** It reads usage; it does not start model turns (unless you turn on auto-continue) and never redeems reset credits.
 
+### Why not just generate a widget?
+
+AI assistants can now build a small quota widget from a prompt. QuotaPilot is a maintained, open-source alternative:
+
+- **Native on macOS.** AppKit and Swift, built natively rather than as a web view, plus the `quotapilot` command on macOS, Linux and Windows.
+- **No extra account.** No QuotaPilot account or API key, and Codex quota works without a Claude account. It uses the sign-ins already on your machine: the Codex CLI for Codex, and your Claude Code login for Claude quota, only after you allow it.
+- **Open source, MIT.** You can read every line that touches your login, and every release ships SHA-256 checksums.
+- **Kept working.** Tested in CI on every code change on macOS, Linux x64, Linux ARM64 and Windows x64.
+- **Built for switching agents.** Codex and Claude Code side by side, with a router that tells you which one has room. Optional Antigravity quota, token or spend tracking for Gemini CLI, Grok CLI and Cursor Teams, and local models on macOS and Linux ([provider support](docs/providers.md)).
+
 ## Features
 
 **See your quota**

@@ -23,7 +23,7 @@ test("placeholders like {n} match between languages", () => {
 
 test("every redesign string exists in both languages", () => {
   const keys = [
-    "hero.kicker", "hero.title", "hero.lede", "hero.for", "hero.ctaQp", "hero.ctaPlans", "hero.trust1", "hero.trust2", "hero.trust3",
+    "hero.kicker", "hero.title", "hero.lede", "hero.for", "hero.ctaQp", "hero.ctaPlans", "hero.trust1", "hero.trust2", "hero.trust3", "hero.trust4",
     "install.title", "install.copy", "install.copied", "install.copyManual", "install.req", "install.prereq", "install.notes", "install.source",
     "nav.tools", "nav.install", "sponsor.label", "sponsor.title", "sponsor.sub", "sponsor.cta", "sponsor.hero",
     "empty.title", "empty.sub", "empty.s1", "empty.s2", "empty.s3", "empty.cta", "empty.alt", "empty.meta", "empty.inline", "empty.sponsor",

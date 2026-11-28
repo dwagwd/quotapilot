@@ -63,5 +63,3 @@ jobs:
             if (($a[0] -in 'version', '--help') -and $code -ne 0) { "FAILED: $line"; $failed = $true }
           }
           if ($failed) { exit 1 }
-</content>
-</invoke>

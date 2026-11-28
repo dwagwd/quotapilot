@@ -1,5 +1,5 @@
 {
-  "lastReviewed": "2026-11-27",
+  "lastReviewed": "2026-11-28",
   "changes": [
     {
       "date": "2026-12-01",
@@ -13,6 +13,18 @@
       },
       "confidence": "official",
       "source": "https://ai.google.dev/gemini-api/docs/pricing"
+    },
+    {
+      "date": "2026-11-28",
+      "provider": "chatgpt",
+      "kind": "plan",
+      "direction": "up",
+      "text": {
+        "en": "OpenAI's help page now lists Pro 200 as open to new subscribers again, with Ultrafast for GPT-6.2 Sol in Codex; its lower weekly GPT-6 Pro message limit now matches the higher one.",
+        "zh": "OpenAI 說明頁現列出 Pro 200 重新開放新訂閱，Codex 中的 GPT-6.2 Sol 可用 Ultrafast；較低的每週 GPT-6 Pro 訊息上限已調至與較高者相同。"
+      },
+      "confidence": "official",
+      "source": "https://help.openai.com/en/articles/9793128"
     },
     {
       "date": "2026-11-27",

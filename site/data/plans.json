@@ -1,5 +1,5 @@
 {
-  "lastReviewed": "2026-11-27",
+  "lastReviewed": "2026-11-28",
   "note": "Every plan row carries its own source URL, the date we checked it, and a confidence level. 'official' = read on the vendor's own page; 'reported' = third-party coverage we could not confirm on an official page. A row can override this per field with 'fields' (price, multiple) when, for example, the usage multiple is on the vendor's page but the price only appears in third-party coverage.",
   "providers": [
     {
@@ -59,7 +59,7 @@
           },
           "confidence": "official",
           "source": "https://help.openai.com/en/articles/9793128",
-          "checked": "2026-11-27",
+          "checked": "2026-11-28",
           "fields": {
             "multiple": "reported"
           }
@@ -69,12 +69,12 @@
           "priceUsd": 200,
           "multiple": 20,
           "summary": {
-            "en": "About 20x Plus (reported). The lower allowance announced on 29 Sep 2026 was canceled; affected subscribers were doubled back. Price unchanged.",
-            "zh": "據報約 Plus 的 20 倍。2026/9/29 宣布的額度下調已取消，受影響的訂閱者額度加倍恢復，價格不變。"
+            "en": "About 20x Plus (reported). Open to new subscribers again; the 29 Sep 2026 allowance cut was canceled and lower-allowance accounts doubled. Ultrafast for GPT-6.2 Sol in Codex only. Price unchanged.",
+            "zh": "據報約 Plus 的 20 倍。重新開放新訂閱；2026/9/29 的額度下調已取消，較低額度的帳號已加倍。僅 Codex 中的 GPT-6.2 Sol 可用 Ultrafast。價格不變。"
           },
           "confidence": "official",
           "source": "https://help.openai.com/en/articles/9793128",
-          "checked": "2026-11-27",
+          "checked": "2026-11-28",
           "fields": {
             "multiple": "reported"
           }
@@ -89,7 +89,7 @@
           },
           "confidence": "official",
           "source": "https://help.openai.com/en/articles/9793128",
-          "checked": "2026-11-27"
+          "checked": "2026-11-28"
         }
       ],
       "support": "full"
@@ -115,7 +115,7 @@
           },
           "confidence": "official",
           "source": "https://claude.com/pricing",
-          "checked": "2026-11-27"
+          "checked": "2026-11-28"
         },
         {
           "name": "Pro",
@@ -127,7 +127,7 @@
           },
           "confidence": "official",
           "source": "https://claude.com/pricing",
-          "checked": "2026-11-27"
+          "checked": "2026-11-28"
         },
         {
           "name": "Max",
@@ -139,7 +139,7 @@
           },
           "confidence": "official",
           "source": "https://claude.com/pricing",
-          "checked": "2026-11-27"
+          "checked": "2026-11-28"
         },
         {
           "name": "Ultra",
@@ -151,7 +151,7 @@
           },
           "confidence": "official",
           "source": "https://claude.com/pricing",
-          "checked": "2026-11-27"
+          "checked": "2026-11-28"
         }
       ],
       "support": "full"
@@ -177,7 +177,7 @@
           },
           "confidence": "official",
           "source": "https://support.google.com/gemini/answer/16275805?hl=en",
-          "checked": "2026-11-27"
+          "checked": "2026-11-28"
         },
         {
           "name": "AI Plus",
@@ -189,7 +189,7 @@
           },
           "confidence": "official",
           "source": "https://support.google.com/gemini/answer/16275805?hl=en",
-          "checked": "2026-11-27"
+          "checked": "2026-11-28"
         },
         {
           "name": "AI Pro",
@@ -204,7 +204,7 @@
             "price": "reported"
           },
           "source": "https://support.google.com/gemini/answer/16275805?hl=en",
-          "checked": "2026-11-27"
+          "checked": "2026-11-28"
         },
         {
           "name": "AI Ultra",
@@ -219,7 +219,7 @@
             "price": "reported"
           },
           "source": "https://support.google.com/gemini/answer/16275805?hl=en",
-          "checked": "2026-11-27"
+          "checked": "2026-11-28"
         },
         {
           "name": "AI Ultra (top)",
@@ -234,7 +234,7 @@
             "price": "reported"
           },
           "source": "https://support.google.com/gemini/answer/16275805?hl=en",
-          "checked": "2026-11-27"
+          "checked": "2026-11-28"
         }
       ],
       "support": "tokens",

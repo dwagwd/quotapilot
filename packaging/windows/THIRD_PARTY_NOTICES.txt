@@ -23,6 +23,22 @@ Copyright © 2016 and later Unicode, Inc. and others.
 See unicode-icu-LICENSE.txt for the Unicode license and third-party terms.
 https://github.com/unicode-org/icu/blob/release-74-1/LICENSE
 
+libcurl 8.9.1
+Swift 6.2 for Windows statically links libcurl into FoundationNetworking.dll.
+See curl-COPYING.txt for the copyright and permission notice.
+https://raw.githubusercontent.com/curl/curl/curl-8_9_1/COPYING
+
+zlib 1.3.1
+Swift 6.2 for Windows statically links zlib as a dependency of libcurl.
+See zlib-LICENSE.txt for the copyright and license.
+https://raw.githubusercontent.com/madler/zlib/v1.3.1/LICENSE
+
+libxml2 2.11.5
+Swift 6.2 for Windows statically links libxml2 into FoundationXML.dll.
+See libxml2-Copyright.txt for the upstream copyright and license.
+See libxml2-source-notices.txt for the notices in hash.c and list.c.
+https://raw.githubusercontent.com/GNOME/libxml2/v2.11.5/Copyright
+
 Microsoft Visual C++ Redistributable (x64)
 Copyright © Microsoft Corporation. All rights reserved.
 The included Microsoft Visual C++ runtime DLLs are Microsoft Visual Studio

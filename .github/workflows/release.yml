@@ -145,7 +145,6 @@ jobs:
                 Select-Object -First 1
             }
           }
-          $crtDirs += $runtimeDirs
           if ($dumpbin) {
             $reader = $dumpbin
             $readerOption = '/dependents'
@@ -166,6 +165,7 @@ jobs:
           }
 
           $vcRuntimePattern = '^(?:vcruntime|msvcp|concrt|vccorlib|vcomp|vcamp)140.*\.dll$'
+          $redistributableCrtPattern = '^(?:(?:vcruntime|msvcp)140.*|concrt140)\.dll$'
           $systemDir = Join-Path $env:SystemRoot 'System32'
           function Test-SystemDll($dll) {
             if ($dll -match '^(api|ext)-ms-win-' -or $dll -eq 'ucrtbase.dll') { return $true }
@@ -193,9 +193,16 @@ jobs:
             $dll = $pending.Dequeue()
             if (!$seen.Add($dll) -or (Test-SystemDll $dll)) { continue }
 
-            $sourceDirs = if ($dll -match $vcRuntimePattern) { $crtDirs } else { $runtimeDirs }
+            $isVcRuntime = $dll -match $vcRuntimePattern
+            if ($isVcRuntime -and $dll -notmatch $redistributableCrtPattern) {
+              throw "Unsupported Visual C++ runtime dependency $dll"
+            }
+            $sourceDirs = if ($isVcRuntime) { $crtDirs } else { $runtimeDirs }
             $source = $sourceDirs | ForEach-Object { Join-Path $_ $dll } |
               Where-Object { Test-Path -LiteralPath $_ -PathType Leaf } | Select-Object -First 1
+            if (!$source -and $isVcRuntime) {
+              throw "Could not find imported CRT DLL $dll in the Visual Studio x64 redistributable directories"
+            }
             if (!$source) { throw "Could not resolve dependency $dll" }
             Copy-Item -LiteralPath $source -Destination $bundle
             foreach ($dependency in (Get-ImportedDlls (Join-Path $bundle $dll))) { $pending.Enqueue($dependency) }

@@ -1,7 +1,7 @@
 """Allowlisted, credential-free source export shared by release checks and packaging."""
 from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
-DIRECTORIES = ("Sources", "Tests", "scripts", "skills", ".github", ".codex-plugin", "docs", "assets",
+DIRECTORIES = ("Sources", "Tests", "scripts", "skills", ".github", ".codex-plugin", "docs", "assets", "packaging",
                # Website, collector and Homebrew formula, so the archive can reproduce what the workflows deploy.
                "site", "collector", "Formula")
 # Local tool state (Wrangler cache with account details, editor/agent folders) and build output never ship.

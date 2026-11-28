@@ -11,6 +11,11 @@ class Quotapilot < Formula
   license "MIT"
   head "https://github.com/dwagwd/quotapilot.git", branch: "main"
 
+  bottle do
+    root_url "https://github.com/dwagwd/quotapilot/releases/download/v0.9.6"
+    sha256 cellar: :any_skip_relocation, arm64_sequoia: "6416d67cff54dff9432e8fdaa6ae4c82d17f3c667475fe9b2afa47bb465333bd"
+  end
+
   depends_on macos: :ventura
 
   def install

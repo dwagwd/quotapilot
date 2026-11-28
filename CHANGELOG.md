@@ -1,8 +1,9 @@
 # Changelog
 
-## Unreleased
+## 0.9.8
 
 - **Windows tray app** (docs/desktop-tray.md): `QuotaPilotTray.exe` in the Windows zip shows a tray icon with the tightest quota in its tooltip and a quota card (usage bars, reset countdowns, tokens, suggested agent, errors in plain words), English and Traditional Chinese, open at login. It runs the bundled `quotapilot` and has no network code of its own. The same code builds for Linux (not in the release tarball yet).
+- Code signing: the SignPath Foundation application was declined for now, so Windows builds stay unsigned; Windows may show a SmartScreen warning (More info, Run anyway). Check the SHA-256 on the release page (docs/code-signing-policy.md).
 
 ## 0.9.7
 
